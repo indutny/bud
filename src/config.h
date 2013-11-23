@@ -34,6 +34,8 @@ struct bud_config_s {
   JSON_Value* json;
 
   /* Options from config file */
+  int is_daemon;
+
   struct {
     uint16_t port;
     const char* host;

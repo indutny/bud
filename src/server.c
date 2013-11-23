@@ -141,11 +141,9 @@ int bud_server_str_to_addr(const char* host,
   r = uv_inet_pton(AF_INET, host, &addr4->sin_addr);
   if (r == 0) {
     addr4->sin_family = AF_INET;
-    addr4->sin_len = sizeof(*addr4);
     addr4->sin_port = htons(port);
   } else {
     addr6->sin6_family = AF_INET6;
-    addr6->sin6_len = sizeof(*addr6);
     r = uv_inet_pton(AF_INET6, host, &addr6->sin6_addr);
     if (r == 0)
       addr6->sin6_port = htons(port);

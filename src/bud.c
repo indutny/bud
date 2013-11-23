@@ -1,5 +1,7 @@
+#include <errno.h>  /* errno */
 #include <stdlib.h>  /* fprintf */
 #include <stdio.h>  /* NULL */
+#include <unistd.h>  /* fork, setsid */
 
 #include "uv.h"
 #include "ringbuffer.h"
@@ -9,6 +11,11 @@
 #include "config.h"
 #include "common.h"
 #include "server.h"
+
+#ifndef _WIN32
+static int bud_daemonize(bud_error_t* err);
+#endif  /* !_WIN32 */
+
 
 int main(int argc, char** argv) {
   bud_config_t* config;
@@ -27,6 +34,12 @@ int main(int argc, char** argv) {
   /* NOTE: bud_config_load will print everything itself */
   if (config == NULL)
     goto fatal;
+
+#ifndef _WIN32
+  if (config->is_daemon)
+    if (bud_daemonize(&err) != 0)
+      goto fatal;
+#endif  /* !_WIN32 */
 
   server = bud_server_new(uv_default_loop(), config, &err);
   if (server == NULL)
@@ -56,3 +69,38 @@ fatal:
   }
   return 0;
 }
+
+
+#ifndef _WIN32
+int bud_daemonize(bud_error_t* err) {
+  pid_t p;
+
+  p = fork();
+  if (p > 0) {
+    *err = bud_ok();
+
+    /* Make parent exit */
+    return -1;
+  } else if (p == -1) {
+    *err = bud_error_num(kBudErrForkFailed, errno);
+    return -1;
+  }
+
+  /* Child starts new life here */
+  p = setsid();
+  if (p == -1) {
+    *err = bud_error_num(kBudErrSetsidFailed, errno);
+    return -1;
+  }
+
+  freopen("/dev/null", "r", stdin);
+  freopen("/dev/null", "w", stdout);
+  freopen("/dev/null", "w", stderr);
+  if (stdin == NULL || stdout == NULL || stderr == NULL) {
+    *err = bud_error(kBudErrNoMem);
+    return -1;
+  }
+
+  return 0;
+}
+#endif  /* !_WIN32 */

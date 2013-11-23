@@ -28,31 +28,56 @@ static int bud_config_advertise_next_proto(SSL* s,
 
 
 bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
+  int c;
   int index;
+  int is_daemon;
+  bud_config_t* config;
+
   struct option long_options[] = {
     { "version", 0, NULL, 'v' },
     { "config", 1, NULL, 'c' },
+#ifndef _WIN32
+    { "daemonize", 0, NULL, 'd' },
+#endif  /* !_WIN32 */
     { "default-config", 0, NULL, 1001 },
     { NULL, 0, NULL, 0 }
   };
 
-  index = 0;
-  switch (getopt_long(argc, argv, "vc:", long_options, &index)) {
-    case 'v':
-      bud_print_version();
-      break;
-    case 'c':
-      return bud_config_load(optarg, err);
-    case 1001:
-      bud_config_print_default();
-      break;
-    default:
-      bud_print_help(argc, argv);
-      break;
-  }
+  config = NULL;
+  is_daemon = 0;
+  do {
+    index = 0;
+    c = getopt_long(argc, argv, "vc:d", long_options, &index);
+    switch (c) {
+      case 'v':
+        bud_print_version();
+        break;
+      case 'c':
+        config = bud_config_load(optarg, err);
+        if (is_daemon)
+          config->is_daemon = 1;
+        break;
+#ifndef _WIN32
+      case 'd':
+        is_daemon = 1;
+        if (config != NULL)
+          config->is_daemon = 1;
+#endif  /* !_WIN32 */
+        break;
+      case 1001:
+        bud_config_print_default();
+        c = -1;
+        break;
+      default:
+        if (config == NULL)
+          bud_print_help(argc, argv);
+        c = -1;
+        break;
+    }
+  } while (c != -1);
 
   *err = bud_ok();
-  return NULL;
+  return config;
 }
 
 

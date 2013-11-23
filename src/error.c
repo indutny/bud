@@ -50,6 +50,12 @@ void bud_error_print(FILE* fp, bud_error_t err) {
     case kBudErrNoMem:
       fprintf(fp, "Allocation failed: %s\n", err.str);
       break;
+    case kBudErrForkFailed:
+      fprintf(fp, "fork() failed, errno: %d\n", err.ret);
+      break;
+    case kBudErrSetsidFailed:
+      fprintf(fp, "setsid() failed, errno: %d\n", err.ret);
+      break;
     case kBudErrJSONParse:
       fprintf(fp, "Failed to load or parse JSON: %s\n", err.str);
       break;
