@@ -9,15 +9,16 @@
 
 static void bud_server_close_cb(uv_handle_t* handle);
 static void bud_server_connection_cb(uv_stream_t* stream, int status);
-static bud_error_t bud_server_format_proxyline(bud_server_t* server,
-                                               struct sockaddr_in* addr);
+static bud_error_t bud_server_format_proxyline(bud_server_t* server);
+static int bud_server_str_to_addr(const char* host,
+                                  uint16_t port,
+                                  struct sockaddr_storage* addr);
 
 bud_server_t* bud_server_new(uv_loop_t* loop,
                              bud_config_t* config,
                              bud_error_t* err) {
   int r;
   bud_server_t* server;
-  struct sockaddr_in addr;
 
   server = calloc(1, sizeof(*server));
 
@@ -28,20 +29,23 @@ bud_server_t* bud_server_new(uv_loop_t* loop,
     goto failed_tcp_init;
   }
 
-  /* TODO(indutny): Support ipv6 too */
-  r = uv_ip4_addr(config->frontend.host, config->frontend.port, &addr);
+  r = bud_server_str_to_addr(config->frontend.host,
+                             config->frontend.port,
+                             &server->frontend);
   if (r != 0) {
     *err = bud_error_num(kBudErrIpv4Addr, r);
     goto failed_ipv4_addr;
   }
 
-  r = uv_ip4_addr(config->backend.host, config->backend.port, &server->backend);
+  r = bud_server_str_to_addr(config->backend.host,
+                             config->backend.port,
+                             &server->backend);
   if (r != 0) {
     *err = bud_error_num(kBudErrIpv4Addr, r);
     goto failed_ipv4_addr;
   }
 
-  r = uv_tcp_bind(&server->tcp, (struct sockaddr*) &addr);
+  r = uv_tcp_bind(&server->tcp, (struct sockaddr*) &server->frontend);
   if (r != 0) {
     *err = bud_error_num(kBudErrTcpServerBind, r);
     goto failed_ipv4_addr;
@@ -54,7 +58,7 @@ bud_server_t* bud_server_new(uv_loop_t* loop,
   }
 
   if (config->frontend.proxyline)
-    *err = bud_server_format_proxyline(server, &addr);
+    *err = bud_server_format_proxyline(server);
   else
     *err = bud_ok();
 
@@ -96,13 +100,19 @@ void bud_server_connection_cb(uv_stream_t* stream, int status) {
 }
 
 
-bud_error_t bud_server_format_proxyline(bud_server_t* server,
-                                        struct sockaddr_in* addr) {
+bud_error_t bud_server_format_proxyline(bud_server_t* server) {
   int r;
   char host[INET6_ADDRSTRLEN];
+  struct sockaddr_in* addr4;
+  struct sockaddr_in6* addr6;
 
-  /* TODO(indutny): support ipv6 */
-  r = uv_inet_ntop(AF_INET, &addr->sin_addr, host, sizeof(host));
+  addr4 = (struct sockaddr_in*) &server->frontend;
+  addr6 = (struct sockaddr_in6*) &server->backend;
+
+  if (server->frontend.ss_family == AF_INET)
+    r = uv_inet_ntop(AF_INET, &addr4->sin_addr, host, sizeof(host));
+  else
+    r = uv_inet_ntop(AF_INET6, &addr6->sin6_addr, host, sizeof(host));
   if (r != 0)
     return bud_error(kBudErrIpv4Name);
 
@@ -110,9 +120,36 @@ bud_error_t bud_server_format_proxyline(bud_server_t* server,
                sizeof(server->proxyline_fmt),
                "PROXY %%s %%s %s %%hu %hu\r\n",
                host,
-               ntohs(server->config->frontend.port));
+               server->config->frontend.port);
   ASSERT(r < (int) sizeof(server->proxyline_fmt),
          "Proxyline format overflowed");
 
   return bud_ok();
+}
+
+
+int bud_server_str_to_addr(const char* host,
+                           uint16_t port,
+                           struct sockaddr_storage* addr) {
+  int r;
+  struct sockaddr_in* addr4;
+  struct sockaddr_in6* addr6;
+
+  addr4 = (struct sockaddr_in*) addr;
+  addr6 = (struct sockaddr_in6*) addr;
+
+  r = uv_inet_pton(AF_INET, host, &addr4->sin_addr);
+  if (r == 0) {
+    addr4->sin_family = AF_INET;
+    addr4->sin_len = sizeof(*addr4);
+    addr4->sin_port = htons(port);
+  } else {
+    addr6->sin6_family = AF_INET6;
+    addr6->sin6_len = sizeof(*addr6);
+    r = uv_inet_pton(AF_INET6, host, &addr6->sin6_addr);
+    if (r == 0)
+      addr6->sin6_port = htons(port);
+  }
+
+  return r;
 }

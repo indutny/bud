@@ -385,6 +385,7 @@ int bud_client_prepend_proxyline(bud_client_t* client) {
   struct sockaddr_in6* addr6;
   const char* family;
   char host[INET6_ADDRSTRLEN];
+  int16_t port;
   char proxyline[256];
 
   storage_size = sizeof(storage);
@@ -395,12 +396,14 @@ int bud_client_prepend_proxyline(bud_client_t* client) {
     return r;
 
   addr = (struct sockaddr_in*) &storage;
-  if (addr->sin_family == AF_INET) {
+  addr6 = (struct sockaddr_in6*) &storage;
+  if (storage.ss_family == AF_INET) {
     family = "TCP4";
+    port = addr->sin_port;
     r = uv_inet_ntop(AF_INET, &addr->sin_addr, host, sizeof(host));
-  } else if (addr->sin_family == AF_INET6) {
+  } else if (storage.ss_family == AF_INET6) {
     family = "TCP6";
-    addr6 = (struct sockaddr_in6*) &addr;
+    port = addr6->sin6_port;
     r = uv_inet_ntop(AF_INET6, &addr6->sin6_addr, host, sizeof(host));
   } else {
     return -1;
@@ -414,7 +417,7 @@ int bud_client_prepend_proxyline(bud_client_t* client) {
                client->server->proxyline_fmt,
                family,
                host,
-               ntohs(addr->sin_port));
+               ntohs(port));
   ASSERT(r < (int) sizeof(proxyline), "Client proxyline overflow");
 
   return (int) ringbuffer_write_into(&client->clear_in, proxyline, r);
