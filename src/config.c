@@ -88,6 +88,11 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
   if (frontend != NULL) {
     config->frontend.port = (uint16_t) json_object_get_number(frontend, "port");
     config->frontend.host = json_object_get_string(frontend, "host");
+    val = json_object_get_value(frontend, "proxyline");
+    if (val != NULL)
+      config->frontend.proxyline = json_value_get_boolean(val);
+    else
+      config->frontend.proxyline = -1;
   }
   backend = json_object_get_object(obj, "backend");
   if (backend != NULL) {
@@ -110,7 +115,10 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
     ctx->key_file = json_object_get_string(obj, "key");
     ctx->ciphers = json_object_get_string(obj, "ciphers");
     val = json_object_get_value(obj, "server_preference");
-    ctx->server_preference = val == NULL ? 1 : json_value_get_boolean(val);
+    if (val != NULL)
+      ctx->server_preference = json_value_get_boolean(val);
+    else
+      ctx->server_preference = -1;
   }
   config->context_count = context_count;
 
@@ -173,7 +181,8 @@ void bud_config_print_default() {
   fprintf(stdout, "{\n");
   fprintf(stdout, "  \"frontend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
-  fprintf(stdout, "    \"host\": \"%s\"\n", config.frontend.host);
+  fprintf(stdout, "    \"host\": \"%s\",\n", config.frontend.host);
+  fprintf(stdout, "    \"proxyline\": \"false\"\n");
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"backend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.backend.port);
@@ -217,6 +226,7 @@ void bud_config_set_defaults(bud_config_t* config) {
 
   DEFAULT(config->frontend.port, 0, 1443);
   DEFAULT(config->frontend.host, NULL, "0.0.0.0");
+  DEFAULT(config->frontend.proxyline, -1, 0);
   DEFAULT(config->backend.port, 0, 8000);
   DEFAULT(config->backend.host, NULL, "127.0.0.1");
   DEFAULT(config->context_count, 0, 1);
@@ -227,6 +237,7 @@ void bud_config_set_defaults(bud_config_t* config) {
   for (i = 0; i < config->context_count; i++) {
     DEFAULT(config->contexts[i].cert_file, NULL, "keys/cert.pem");
     DEFAULT(config->contexts[i].key_file, NULL, "keys/key.pem");
+    DEFAULT(config->contexts[i].server_preference, -1, 1);
   }
 }
 

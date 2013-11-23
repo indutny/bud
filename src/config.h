@@ -34,6 +34,7 @@ struct bud_config_s {
   struct {
     uint16_t port;
     const char* host;
+    int proxyline;
   } frontend;
 
   struct {

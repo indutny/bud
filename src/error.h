@@ -23,8 +23,9 @@ enum bud_error_code_e {
   /* Server errors */
   kBudErrTcpServerInit = 0x200,
   kBudErrIpv4Addr = 0x201,
-  kBudErrTcpServerBind = 0x202,
-  kBudErrServerListen = 0x203
+  kBudErrIpv4Name = 0x202,
+  kBudErrTcpServerBind = 0x203,
+  kBudErrServerListen = 0x204
 };
 
 struct bud_error_s {

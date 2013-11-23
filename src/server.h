@@ -12,6 +12,7 @@ struct bud_server_s {
   bud_config_t* config;
   uv_tcp_t tcp;
   struct sockaddr_in backend;
+  char proxyline_fmt[256];
 };
 
 bud_server_t* bud_server_new(uv_loop_t* loop,

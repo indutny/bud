@@ -188,7 +188,9 @@ int ringbuffer_try_allocate_for_write(ringbuffer* rb) {
 }
 
 
-ssize_t ringbuffer_write_into(ringbuffer* rb, const char* data, ssize_t length) {
+ssize_t ringbuffer_write_into(ringbuffer* rb,
+                              const char* data,
+                              ssize_t length) {
   ssize_t offset;
   ssize_t left;
   ssize_t to_write;

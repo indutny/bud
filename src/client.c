@@ -1,3 +1,4 @@
+#include <arpa/inet.h>  /* ntohs */
 #include <stdlib.h>
 
 #include "uv.h"
@@ -22,6 +23,7 @@ static void bud_client_clear_out(bud_client_t* client);
 static void bud_client_send(bud_client_t* client, uv_tcp_t* tcp);
 static void bud_client_send_cb(uv_write_t* req, int status);
 static void bud_client_connect_cb(uv_connect_t* req, int status);
+static int bud_client_prepend_proxyline(bud_client_t* client);
 
 
 void bud_client_create(bud_server_t* server) {
@@ -33,13 +35,17 @@ void bud_client_create(bud_server_t* server) {
   long mode;
 #endif  /* SSL_MODE_RELEASE_BUFFERS */
 
-  client = calloc(1, sizeof(*client));
+  client = malloc(sizeof(*client));
   if (client == NULL)
     return;
 
   client->server = server;
   client->tcp_in.data = client;
   client->tcp_out.data = client;
+  client->destroying = 0;
+  client->destroy_waiting = 0;
+  client->current_enc_write = 0;
+  client->current_clear_write = 0;
 
   /**
    * Accept client on frontend
@@ -100,6 +106,12 @@ void bud_client_create(bud_server_t* server) {
 #endif  /* SSL_MODE_RELEASE_BUFFERS */
 
   SSL_set_accept_state(client->ssl);
+
+  if (server->config->frontend.proxyline) {
+    r = bud_client_prepend_proxyline(client);
+    if (r != 0)
+      goto failed_connect;
+  }
 
   return;
 
@@ -362,4 +374,48 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
     return bud_client_destroy(client);
 
   /* Do nothing, we will start reading once handshake will be performed */
+}
+
+
+int bud_client_prepend_proxyline(bud_client_t* client) {
+  int r;
+  struct sockaddr_storage storage;
+  int storage_size;
+  struct sockaddr_in* addr;
+  struct sockaddr_in6* addr6;
+  const char* family;
+  char host[INET6_ADDRSTRLEN];
+  char proxyline[256];
+
+  storage_size = sizeof(storage);
+  r = uv_tcp_getpeername(&client->tcp_in,
+                         (struct sockaddr*) &storage,
+                         &storage_size);
+  if (r != 0)
+    return r;
+
+  addr = (struct sockaddr_in*) &storage;
+  if (addr->sin_family == AF_INET) {
+    family = "TCP4";
+    r = uv_inet_ntop(AF_INET, &addr->sin_addr, host, sizeof(host));
+  } else if (addr->sin_family == AF_INET6) {
+    family = "TCP6";
+    addr6 = (struct sockaddr_in6*) &addr;
+    r = uv_inet_ntop(AF_INET6, &addr6->sin6_addr, host, sizeof(host));
+  } else {
+    return -1;
+  }
+
+  if (r != 0)
+    return r;
+
+  r = snprintf(proxyline,
+               sizeof(proxyline),
+               client->server->proxyline_fmt,
+               family,
+               host,
+               ntohs(addr->sin_port));
+  ASSERT(r < (int) sizeof(proxyline), "Client proxyline overflow");
+
+  return (int) ringbuffer_write_into(&client->clear_in, proxyline, r);
 }

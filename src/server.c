@@ -1,3 +1,7 @@
+#include <arpa/inet.h>  /* ntohs */
+#include <stdlib.h>  /* calloc, free */
+#include <string.h>  /* snprintf */
+
 #include "uv.h"
 
 #include "server.h"
@@ -5,6 +9,8 @@
 
 static void bud_server_close_cb(uv_handle_t* handle);
 static void bud_server_connection_cb(uv_stream_t* stream, int status);
+static bud_error_t bud_server_format_proxyline(bud_server_t* server,
+                                               struct sockaddr_in* addr);
 
 bud_server_t* bud_server_new(uv_loop_t* loop,
                              bud_config_t* config,
@@ -47,7 +53,11 @@ bud_server_t* bud_server_new(uv_loop_t* loop,
     goto failed_ipv4_addr;
   }
 
-  *err = bud_ok();
+  if (config->frontend.proxyline)
+    *err = bud_server_format_proxyline(server, &addr);
+  else
+    *err = bud_ok();
+
   return server;
 
 failed_ipv4_addr:
@@ -83,4 +93,26 @@ void bud_server_connection_cb(uv_stream_t* stream, int status) {
 
   /* Create client and let it go */
   bud_client_create(server);
+}
+
+
+bud_error_t bud_server_format_proxyline(bud_server_t* server,
+                                        struct sockaddr_in* addr) {
+  int r;
+  char host[INET6_ADDRSTRLEN];
+
+  /* TODO(indutny): support ipv6 */
+  r = uv_inet_ntop(AF_INET, &addr->sin_addr, host, sizeof(host));
+  if (r != 0)
+    return bud_error(kBudErrIpv4Name);
+
+  r = snprintf(server->proxyline_fmt,
+               sizeof(server->proxyline_fmt),
+               "PROXY %%s %%s %s %%hu %hu\r\n",
+               host,
+               ntohs(server->config->frontend.port));
+  ASSERT(r < (int) sizeof(server->proxyline_fmt),
+         "Proxyline format overflowed");
+
+  return bud_ok();
 }

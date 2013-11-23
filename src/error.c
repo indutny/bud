@@ -79,6 +79,10 @@ void bud_error_print(FILE* fp, bud_error_t err) {
       fprintf(fp, "uv_ipv4_addr() returned %d\n", err.ret);
       fprintf(fp, "%s\n", uv_strerror(err.ret));
       break;
+    case kBudErrIpv4Name:
+      fprintf(fp, "uv_ipv4_name() returned %d\n", err.ret);
+      fprintf(fp, "%s\n", uv_strerror(err.ret));
+      break;
     case kBudErrTcpServerBind:
       fprintf(fp, "uv_tcp_bind(server) returned %d\n", err.ret);
       fprintf(fp, "%s\n", uv_strerror(err.ret));
