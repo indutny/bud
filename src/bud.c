@@ -33,11 +33,11 @@ int main(int argc, char** argv) {
     goto fatal;
 
   fprintf(stdout,
-          "bud is listening on %s:%d\n",
+          "bud is listening on [%s]:%d\n",
           config->frontend.host,
           config->frontend.port);
   fprintf(stdout,
-          "...and routing to %s:%d\n",
+          "...and routing to [%s]:%d\n",
           config->backend.host,
           config->backend.port);
 
