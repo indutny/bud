@@ -18,6 +18,7 @@ enum bud_error_code_e {
   kBudErrJSONNonObjectCtx = 0x102,
   kBudErrParseCert = 0x103,
   kBudErrParseKey = 0x104,
+  kBudErrSNINotSupported = 0x105,
 
   /* Server errors */
   kBudErrTcpServerInit = 0x200,

@@ -79,6 +79,7 @@ void bud_client_create(bud_server_t* server) {
   ringbuffer_init(&client->clear_in);
   ringbuffer_init(&client->clear_out);
 
+  /* First context is always default */
   client->ssl = SSL_new(server->config->contexts[0].ctx);
   if (client->ssl == NULL)
     goto failed_connect;

@@ -14,7 +14,9 @@ typedef struct bud_config_s bud_config_t;
 
 struct bud_context_s {
   /* From config file */
-  const char* hostname;
+  const char* servername;
+  int servername_len;
+
   const char* cert_file;
   const char* key_file;
   const char* ciphers;

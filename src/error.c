@@ -67,6 +67,10 @@ void bud_error_print(FILE* fp, bud_error_t err) {
       fprintf(fp, "Failed to load/parse key %s:\n", err.str);
       ERR_print_errors_fp(fp);
       break;
+    case kBudErrSNINotSupported:
+      fprintf(fp, "SNI not supported, but multiple contexts were given\n");
+      ERR_print_errors_fp(fp);
+      break;
     case kBudErrTcpServerInit:
       fprintf(fp, "uv_tcp_init(server) returned %d\n", err.ret);
       fprintf(fp, "%s\n", uv_strerror(err.ret));

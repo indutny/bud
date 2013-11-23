@@ -1,7 +1,7 @@
 #include <getopt.h>  /* getopt */
 #include <stdio.h>  /* fprintf */
 #include <stdlib.h>  /* NULL */
-#include <string.h>  /* memset */
+#include <string.h>  /* memset, strlen, strncmp */
 
 #include "openssl/err.h"
 #include "openssl/ssl.h"
@@ -16,6 +16,9 @@ static void bud_config_set_defaults(bud_config_t* config);
 static void bud_print_help(int argc, char** argv);
 static void bud_print_version();
 static void bud_config_print_default();
+#ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
+static int bud_config_select_sni_context(SSL* s, int* ad, void* arg);
+#endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
 
 
 bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
@@ -92,6 +95,7 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
     config->backend.host = json_object_get_string(backend, "host");
   }
 
+  /* TODO(indutny): sort them and do binary search */
   for (i = 0; i < context_count; i++) {
     ctx = &config->contexts[i];
     obj = json_array_get_object(contexts, i);
@@ -100,13 +104,15 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
       goto failed_get_index;
     }
 
-    ctx->hostname = json_object_get_string(obj, "hostname");
+    ctx->servername = json_object_get_string(obj, "servername");
+    ctx->servername_len = ctx->servername == NULL ? 0 : strlen(ctx->servername);
     ctx->cert_file = json_object_get_string(obj, "cert");
     ctx->key_file = json_object_get_string(obj, "key");
     ctx->ciphers = json_object_get_string(obj, "ciphers");
     val = json_object_get_value(obj, "server_preference");
     ctx->server_preference = val == NULL ? 1 : json_value_get_boolean(val);
   }
+  config->context_count = context_count;
 
   bud_config_set_defaults(config);
   *err = bud_config_init(config);
@@ -178,19 +184,19 @@ void bud_config_print_default() {
     ctx = &config.contexts[i];
 
     fprintf(stdout, i == 0 ? "{\n" : "  }, {\n");
-    if (ctx->hostname != NULL)
-      fprintf(stdout, "    \"hostname\": \"%s\",\n", ctx->hostname);
+    if (ctx->servername != NULL)
+      fprintf(stdout, "    \"servername\": \"%s\",\n", ctx->servername);
     else
-      fprintf(stdout, "    \"hostname\": null,\n");
+      fprintf(stdout, "    \"servername\": null,\n");
     fprintf(stdout, "    \"cert\": \"%s\",\n", ctx->cert_file);
     fprintf(stdout, "    \"key\": \"%s\",\n", ctx->key_file);
     if (ctx->ciphers != NULL)
       fprintf(stdout, "    \"ciphers\": \"%s\",\n", ctx->ciphers);
     else
       fprintf(stdout, "    \"ciphers\": null,\n");
-    fprintf(stdout,
-            "    \"server_preference\": %s\n",
-            ctx->server_preference ? "true" : "false");
+
+    /* Sorry, hard-coded */
+    fprintf(stdout, "    \"server_preference\": true\n");
 
     if (i == config.context_count - 1)
       fprintf(stdout, "  }");
@@ -215,6 +221,9 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->backend.host, NULL, "127.0.0.1");
   DEFAULT(config->context_count, 0, 1);
 
+  if (config->context_count == 0)
+    config->context_count = 1;
+
   for (i = 0; i < config->context_count; i++) {
     DEFAULT(config->contexts[i].cert_file, NULL, "keys/cert.pem");
     DEFAULT(config->contexts[i].key_file, NULL, "keys/key.pem");
@@ -228,6 +237,15 @@ bud_error_t bud_config_init(bud_config_t* config) {
   int i;
   bud_context_t* ctx;
   bud_error_t err;
+
+  i = 0;
+
+#ifndef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
+  if (config->context_count > 1) {
+    err = bud_error(kBudErrSNINotSupported);
+    goto fatal;
+  }
+#endif  /* !SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
 
   /* Load all contexts */
   for (i = 0; i < config->context_count; i++) {
@@ -259,6 +277,14 @@ bud_error_t bud_config_init(bud_config_t* config) {
       SSL_CTX_set_cipher_list(ctx->ctx, ctx->ciphers);
     if (ctx->server_preference)
       SSL_CTX_set_options(ctx->ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
+
+#ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
+    if (config->context_count > 1) {
+      SSL_CTX_set_tlsext_servername_callback(ctx->ctx,
+                                             bud_config_select_sni_context);
+      SSL_CTX_set_tlsext_servername_arg(ctx->ctx, config);
+    }
+#endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
   }
 
   return bud_ok();
@@ -274,3 +300,31 @@ fatal:
 
   return err;
 }
+
+
+#ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
+int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
+  int i;
+  bud_config_t* config;
+  bud_context_t* ctx;
+  const char* servername;
+
+  config = arg;
+  servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
+
+  /* No servername - no context selection */
+  if (servername == NULL)
+    return SSL_TLSEXT_ERR_OK;
+
+  /* TODO(indutny): Binary search */
+  for (i = 1; i < config->context_count; i++) {
+    ctx = &config->contexts[i];
+
+    if (strncmp(servername, ctx->servername, ctx->servername_len) != 0)
+      break;
+    SSL_set_SSL_CTX(s, ctx->ctx);
+  }
+
+  return SSL_TLSEXT_ERR_OK;
+}
+#endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
