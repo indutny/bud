@@ -6,6 +6,9 @@
 #include "openssl/ssl.h"
 #include "parson.h"
 
+#include "common.h"
+#include "error.h"
+
 typedef struct bud_context_s bud_context_t;
 typedef struct bud_config_s bud_config_t;
 
@@ -31,8 +34,8 @@ struct bud_config_s {
   bud_context_t contexts[1];
 };
 
-bud_config_t* bud_config_cli_load(int argc, char** argv);
-bud_config_t* bud_config_load(const char* path);
+bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err);
+bud_config_t* bud_config_load(const char* path, bud_error_t* err);
 void bud_config_free(bud_config_t* config);
 
 #endif  /* SRC_CONFIG_H_ */

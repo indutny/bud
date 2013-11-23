@@ -8,9 +8,12 @@
 
 #include "config.h"
 #include "common.h"
+#include "server.h"
 
 int main(int argc, char** argv) {
   bud_config_t* config;
+  bud_server_t* server;
+  bud_error_t err;
 
   /* Initialize OpenSSL */
   SSL_library_init();
@@ -19,15 +22,25 @@ int main(int argc, char** argv) {
   SSL_load_error_strings();
   ERR_load_crypto_strings();
 
-  config = bud_config_cli_load(argc, argv);
+  config = bud_config_cli_load(argc, argv, &err);
 
   /* NOTE: bud_config_load will print everything itself */
   if (config == NULL)
-    return -1;
+    goto fatal;
+
+  server = bud_server_new(uv_default_loop(), config, &err);
+  if (server == NULL)
+    goto fatal;
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  bud_config_free(config);
+  bud_server_destroy(server);
+
+  uv_run(uv_default_loop(), UV_RUN_ONCE);
 
   return 0;
+
+fatal:
+  bud_error_print(stderr, err);
+  return -1;
 }

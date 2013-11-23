@@ -14,6 +14,8 @@
     "sources": [
       "src/bud.c",
       "src/config.c",
+      "src/error.c",
+      "src/server.c",
     ],
   }]
 }

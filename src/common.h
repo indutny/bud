@@ -25,4 +25,9 @@
                    __FILE__,                                                  \
                    __LINE__)
 
+#define UNEXPECTED ASSERT(0, "Unexpected")
+
+#define container_of(ptr, type, member) \
+    ((type *) ((char *) (ptr) - offsetof(type, member)))
+
 #endif  /* SRC_COMMON_H_ */

@@ -11,14 +11,14 @@
 #include "common.h"
 #include "version.h"
 
-static int bud_config_init(bud_config_t* config);
+static bud_error_t bud_config_init(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
 static void bud_print_help(int argc, char** argv);
 static void bud_print_version();
 static void bud_config_print_default();
 
 
-bud_config_t* bud_config_cli_load(int argc, char** argv) {
+bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   int index;
   struct option long_options[] = {
     { "version", 0, NULL, 'v' },
@@ -31,20 +31,23 @@ bud_config_t* bud_config_cli_load(int argc, char** argv) {
   switch (getopt_long(argc, argv, "vc:", long_options, &index)) {
     case 'v':
       bud_print_version();
-      return NULL;
+      break;
     case 'c':
-      return bud_config_load(optarg);
+      return bud_config_load(optarg, err);
     case 1001:
       bud_config_print_default();
-      return NULL;
+      break;
     default:
       bud_print_help(argc, argv);
-      return NULL;
+      break;
   }
+
+  *err = bud_ok();
+  return NULL;
 }
 
 
-bud_config_t* bud_config_load(const char* path) {
+bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
   int i;
   int context_count;
   JSON_Value* json;
@@ -55,13 +58,13 @@ bud_config_t* bud_config_load(const char* path) {
 
   json = json_parse_file(path);
   if (json == NULL) {
-    fprintf(stderr, "Failed to load or parse: %s\n", path);
+    *err = bud_error_str(kBudErrJSONParse, path);
     goto end;
   }
 
   obj = json_value_get_object(json);
   if (obj == NULL) {
-    fprintf(stderr, "Invalid json, root should be an object\n");
+    *err = bud_error(kBudErrJSONNonObjectRoot);
     goto failed_get_object;
   }
   contexts = json_object_get_array(obj, "contexts");
@@ -70,7 +73,10 @@ bud_config_t* bud_config_load(const char* path) {
   config = calloc(1,
                   sizeof(*config) +
                       (context_count - 1) * sizeof(*config->contexts));
-  ASSERT(config != NULL, "Failed to allocate config");
+  if (config == NULL) {
+    *err = bud_error_str(kBudErrNoMem, "bud_config_t");
+    goto failed_get_object;
+  }
 
   config->port = (uint16_t) json_object_get_number(obj, "port");
   config->host = json_object_get_string(obj, "host");
@@ -79,7 +85,7 @@ bud_config_t* bud_config_load(const char* path) {
     ctx = &config->contexts[i];
     obj = json_array_get_object(contexts, i);
     if (obj == NULL) {
-      fprintf(stderr, "Invalid json, each context should be an object\n");
+      *err = bud_error(kBudErrJSONNonObjectCtx);
       goto failed_get_index;
     }
 
@@ -89,11 +95,13 @@ bud_config_t* bud_config_load(const char* path) {
   }
 
   bud_config_set_defaults(config);
-  if (bud_config_init(config) != 0) {
+  *err = bud_config_init(config);
+  if (!bud_is_ok(*err)) {
     bud_config_free(config);
     return NULL;
   }
 
+  *err = bud_ok();
   return config;
 
 failed_get_index:
@@ -187,33 +195,35 @@ void bud_config_set_defaults(bud_config_t* config) {
 #undef DEFAULT
 
 
-int bud_config_init(bud_config_t* config) {
+bud_error_t bud_config_init(bud_config_t* config) {
   int i;
   bud_context_t* ctx;
+  bud_error_t err;
 
   /* Load all contexts */
   for (i = 0; i < config->context_count; i++) {
     ctx = &config->contexts[i];
 
     ctx->ctx = SSL_CTX_new(SSLv23_server_method());
-    ASSERT(ctx->ctx != NULL, "Failed to allocate context");
+    if (ctx->ctx == NULL) {
+      err = bud_error_str(kBudErrNoMem, "SSL_CTX");
+      goto fatal;
+    }
 
     if (!SSL_CTX_use_certificate_chain_file(ctx->ctx, ctx->cert_file)) {
-      fprintf(stderr, "Failed to load/parse cert %s:\n", ctx->cert_file);
-      ERR_print_errors_fp(stderr);
+      err = bud_error_str(kBudErrParseCert, ctx->cert_file);
       goto fatal;
     }
 
     if (!SSL_CTX_use_PrivateKey_file(ctx->ctx,
                                      ctx->key_file,
                                      SSL_FILETYPE_PEM)) {
-      fprintf(stderr, "Failed to load/parse key %s:\n", ctx->key_file);
-      ERR_print_errors_fp(stderr);
+      err = bud_error_str(kBudErrParseKey, ctx->key_file);
       goto fatal;
     }
   }
 
-  return 0;
+  return bud_ok();
 
 fatal:
   /* Free all allocated contexts */
@@ -224,5 +234,5 @@ fatal:
     i--;
   } while (i >= 0);
 
-  return -1;
+  return err;
 }
