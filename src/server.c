@@ -29,6 +29,12 @@ bud_server_t* bud_server_new(uv_loop_t* loop,
     goto failed_ipv4_addr;
   }
 
+  r = uv_ip4_addr(config->backend.host, config->backend.port, &server->backend);
+  if (r != 0) {
+    *err = bud_error_num(kBudErrIpv4Addr, r);
+    goto failed_ipv4_addr;
+  }
+
   r = uv_tcp_bind(&server->tcp, (struct sockaddr*) &addr);
   if (r != 0) {
     *err = bud_error_num(kBudErrTcpServerBind, r);
