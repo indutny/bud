@@ -52,6 +52,8 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
   int context_count;
   JSON_Value* json;
   JSON_Object* obj;
+  JSON_Object* frontend;
+  JSON_Object* backend;
   JSON_Array* contexts;
   bud_config_t* config;
   bud_context_t* ctx;
@@ -78,8 +80,16 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
     goto failed_get_object;
   }
 
-  config->port = (uint16_t) json_object_get_number(obj, "port");
-  config->host = json_object_get_string(obj, "host");
+  frontend = json_object_get_object(obj, "frontend");
+  if (frontend != NULL) {
+    config->frontend.port = (uint16_t) json_object_get_number(frontend, "port");
+    config->frontend.host = json_object_get_string(frontend, "host");
+  }
+  backend = json_object_get_object(obj, "backend");
+  if (backend != NULL) {
+    config->backend.port = (uint16_t) json_object_get_number(backend, "port");
+    config->backend.host = json_object_get_string(backend, "host");
+  }
 
   for (i = 0; i < context_count; i++) {
     ctx = &config->contexts[i];
@@ -151,8 +161,14 @@ void bud_config_print_default() {
   bud_config_set_defaults(&config);
 
   fprintf(stdout, "{\n");
-  fprintf(stdout, "  \"port\": %d,\n", config.port);
-  fprintf(stdout, "  \"host\": \"%s\",\n", config.host);
+  fprintf(stdout, "  \"frontend\": {\n");
+  fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
+  fprintf(stdout, "    \"host\": \"%s\",\n", config.frontend.host);
+  fprintf(stdout, "  },\n");
+  fprintf(stdout, "  \"backend\": {\n");
+  fprintf(stdout, "    \"port\": %d,\n", config.backend.port);
+  fprintf(stdout, "    \"host\": \"%s\",\n", config.backend.host);
+  fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"contexts\": [");
   for (i = 0; i < config.context_count; i++) {
     ctx = &config.contexts[i];
@@ -182,8 +198,10 @@ void bud_config_print_default() {
 void bud_config_set_defaults(bud_config_t* config) {
   int i;
 
-  DEFAULT(config->port, 0, 1443);
-  DEFAULT(config->host, NULL, "0.0.0.0");
+  DEFAULT(config->frontend.port, 0, 1443);
+  DEFAULT(config->frontend.host, NULL, "0.0.0.0");
+  DEFAULT(config->backend.port, 0, 8000);
+  DEFAULT(config->backend.host, NULL, "127.0.0.1");
   DEFAULT(config->context_count, 0, 1);
 
   for (i = 0; i < config->context_count; i++) {

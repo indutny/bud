@@ -27,8 +27,15 @@ struct bud_config_s {
   JSON_Value* json;
 
   /* Options from config file */
-  uint16_t port;
-  const char* host;
+  struct {
+    uint16_t port;
+    const char* host;
+  } frontend;
+
+  struct {
+    uint16_t port;
+    const char* host;
+  } backend;
 
   int context_count;
   bud_context_t contexts[1];

@@ -23,7 +23,7 @@ bud_server_t* bud_server_new(uv_loop_t* loop,
   }
 
   /* TODO(indutny): Support ipv6 too */
-  r = uv_ip4_addr(config->host, config->port, &addr);
+  r = uv_ip4_addr(config->frontend.host, config->frontend.port, &addr);
   if (r != 0) {
     *err = bud_error_num(kBudErrIpv4Addr, r);
     goto failed_ipv4_addr;

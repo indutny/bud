@@ -32,7 +32,14 @@ int main(int argc, char** argv) {
   if (server == NULL)
     goto fatal;
 
-  fprintf(stdout, "Bud is listening on %s:%d\n", config->host, config->port);
+  fprintf(stdout,
+          "bud is listening on %s:%d\n",
+          config->frontend.host,
+          config->frontend.port);
+  fprintf(stdout,
+          "...and routing to %s:%d\n",
+          config->backend.host,
+          config->backend.port);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
