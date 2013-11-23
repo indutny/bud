@@ -69,7 +69,12 @@ void bud_error_print(FILE* fp, bud_error_t err) {
       break;
     case kBudErrSNINotSupported:
       fprintf(fp, "SNI not supported, but multiple contexts were given\n");
-      ERR_print_errors_fp(fp);
+      break;
+    case kBudErrNPNNonString:
+      fprintf(fp, "\"npn\" array should contain only strings\n");
+      break;
+    case kBudErrNPNNotSupported:
+      fprintf(fp, "NPN not supported, but present in config\n");
       break;
     case kBudErrTcpServerInit:
       fprintf(fp, "uv_tcp_init(server) returned %d\n", err.ret);

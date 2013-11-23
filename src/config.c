@@ -19,6 +19,12 @@ static void bud_config_print_default();
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
 static int bud_config_select_sni_context(SSL* s, int* ad, void* arg);
 #endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
+#ifdef OPENSSL_NPN_NEGOTIATED
+static int bud_config_advertise_next_proto(SSL* s,
+                                           const unsigned char** data,
+                                           unsigned int* len,
+                                           void* arg);
+#endif  /* OPENSSL_NPN_NEGOTIATED */
 
 
 bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
@@ -52,6 +58,8 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
 
 bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
   int i;
+  int j;
+  int npn_count;
   int context_count;
   JSON_Value* json;
   JSON_Value* val;
@@ -119,6 +127,22 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
       ctx->server_preference = json_value_get_boolean(val);
     else
       ctx->server_preference = -1;
+    ctx->npn = json_object_get_array(obj, "npn");
+
+    /* Verify that all indexes are strings */
+    if (ctx->npn != NULL) {
+      npn_count = json_array_get_count(ctx->npn);
+      for (j = 0; j < npn_count; j++) {
+        if (json_value_get_type(json_array_get_value(ctx->npn, j)) !=
+            JSONString) {
+          *err = bud_error(kBudErrNPNNonString);
+          goto failed_get_index;
+        }
+      }
+    } else if (config->contexts[0].npn != NULL) {
+      /* Inherit NPN from first context */
+      ctx->npn = config->contexts[0].npn;
+    }
   }
   config->context_count = context_count;
 
@@ -146,8 +170,11 @@ end:
 void bud_config_free(bud_config_t* config) {
   int i;
 
-  for (i = 0; i < config->context_count; i++)
+  for (i = 0; i < config->context_count; i++) {
     SSL_CTX_free(config->contexts[i].ctx);
+    free(config->contexts[i].npn_line);
+    config->contexts[i].npn_line = NULL;
+  }
   json_value_free(config->json);
   config->json = NULL;
   free(config);
@@ -166,7 +193,7 @@ void bud_print_help(int argc, char** argv) {
 
 
 void bud_print_version() {
-  fprintf(stdout, "bud %d.%d\n", BUD_VERSION_MAJOR, BUD_VERSION_MINOR);
+  fprintf(stdout, "v%d.%d\n", BUD_VERSION_MAJOR, BUD_VERSION_MINOR);
 }
 
 
@@ -205,7 +232,10 @@ void bud_config_print_default() {
       fprintf(stdout, "    \"ciphers\": null,\n");
 
     /* Sorry, hard-coded */
-    fprintf(stdout, "    \"server_preference\": true\n");
+    fprintf(stdout, "    \"server_preference\": true,\n");
+#ifdef OPENSSL_NPN_NEGOTIATED
+    fprintf(stdout, "    \"npn\": [\"http/1.1\", \"http/1.0\"]\n");
+#endif  /* OPENSSL_NPN_NEGOTIATED */
 
     if (i == config.context_count - 1)
       fprintf(stdout, "  }");
@@ -248,6 +278,13 @@ bud_error_t bud_config_init(bud_config_t* config) {
   int i;
   bud_context_t* ctx;
   bud_error_t err;
+#ifdef OPENSSL_NPN_NEGOTIATED
+  int j;
+  unsigned int offset;
+  int npn_count;
+  int npn_len;
+  const char* npn;
+#endif  /* OPENSSL_NPN_NEGOTIATED */
 
   i = 0;
 
@@ -296,6 +333,40 @@ bud_error_t bud_config_init(bud_config_t* config) {
       SSL_CTX_set_tlsext_servername_arg(ctx->ctx, config);
     }
 #endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
+
+    if (ctx->npn != NULL) {
+#ifdef OPENSSL_NPN_NEGOTIATED
+      /* Calculate storage requirements */
+      npn_count = json_array_get_count(ctx->npn);
+      ctx->npn_line_len = 0;
+      for (j = 0; j < npn_count; j++)
+        ctx->npn_line_len += 1 + strlen(json_array_get_string(ctx->npn, j));
+
+      ctx->npn_line = malloc(ctx->npn_line_len);
+      if (ctx->npn_line == NULL) {
+        err = bud_error_str(kBudErrNoMem, "NPN copy");
+        goto fatal;
+      }
+
+      /* Fill npn line */
+      for (j = 0, offset = 0; j < npn_count; j++) {
+        npn = json_array_get_string(ctx->npn, j);
+        npn_len = strlen(npn);
+
+        ctx->npn_line[offset++] = npn_len;
+        memcpy(ctx->npn_line + offset, npn, npn_len);
+        offset += npn_len;
+      }
+      ASSERT(offset == ctx->npn_line_len, "NPN Line overflow");
+
+      SSL_CTX_set_next_protos_advertised_cb(ctx->ctx,
+                                            bud_config_advertise_next_proto,
+                                            ctx);
+#else  /* !OPENSSL_NPN_NEGOTIATED */
+      err = bud_error(kBudErrNPNNotSupported);
+      goto fatal;
+#endif  /* OPENSSL_NPN_NEGOTIATED */
+    }
   }
 
   return bud_ok();
@@ -304,7 +375,9 @@ fatal:
   /* Free all allocated contexts */
   do {
     SSL_CTX_free(config->contexts[i].ctx);
+    free(config->contexts[i].npn_line);
     config->contexts[i].ctx = NULL;
+    config->contexts[i].npn_line = NULL;
 
     i--;
   } while (i >= 0);
@@ -339,3 +412,20 @@ int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
   return SSL_TLSEXT_ERR_OK;
 }
 #endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
+
+
+#ifdef OPENSSL_NPN_NEGOTIATED
+int bud_config_advertise_next_proto(SSL* s,
+                                    const unsigned char** data,
+                                    unsigned int* len,
+                                    void* arg) {
+  bud_context_t* context;
+
+  context = arg;
+
+  *data = (const unsigned char*) context->npn_line;
+  *len = context->npn_line_len;
+
+  return SSL_TLSEXT_ERR_OK;
+}
+#endif  /* OPENSSL_NPN_NEGOTIATED */

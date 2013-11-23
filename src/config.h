@@ -21,9 +21,12 @@ struct bud_context_s {
   const char* key_file;
   const char* ciphers;
   int server_preference;
+  const JSON_Array* npn;
 
   /* Various */
   SSL_CTX* ctx;
+  char* npn_line;
+  unsigned int npn_line_len;
 };
 
 struct bud_config_s {

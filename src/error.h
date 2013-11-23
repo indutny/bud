@@ -19,6 +19,8 @@ enum bud_error_code_e {
   kBudErrParseCert = 0x103,
   kBudErrParseKey = 0x104,
   kBudErrSNINotSupported = 0x105,
+  kBudErrNPNNonString = 0x106,
+  kBudErrNPNNotSupported = 0x107,
 
   /* Server errors */
   kBudErrTcpServerInit = 0x200,
