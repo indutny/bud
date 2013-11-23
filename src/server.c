@@ -1,9 +1,10 @@
 #include "uv.h"
 
 #include "server.h"
+#include "client.h"
 
 static void bud_server_close_cb(uv_handle_t* handle);
-static void bud_server_connection_cb(uv_stream_t* server, int status);
+static void bud_server_connection_cb(uv_stream_t* stream, int status);
 
 bud_server_t* bud_server_new(uv_loop_t* loop,
                              bud_config_t* config,
@@ -69,5 +70,11 @@ void bud_server_close_cb(uv_handle_t* handle) {
 }
 
 
-void bud_server_connection_cb(uv_stream_t* server, int status) {
+void bud_server_connection_cb(uv_stream_t* stream, int status) {
+  bud_server_t* server;
+
+  server = container_of(stream, bud_server_t, tcp);
+
+  /* Create client and let it go */
+  bud_client_create(server);
 }

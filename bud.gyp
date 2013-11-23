@@ -12,7 +12,9 @@
       "src",
     ],
     "sources": [
+      "src/bio.c",
       "src/bud.c",
+      "src/client.c",
       "src/config.c",
       "src/error.c",
       "src/server.c",
