@@ -1,5 +1,5 @@
-#include <stdlib.h>  /* NULL */
-#include <unistd.h>  /* getopt */
+#include <stdlib.h>  /* fprintf */
+#include <stdio.h>  /* NULL */
 
 #include "uv.h"
 #include "ringbuffer.h"
@@ -32,6 +32,8 @@ int main(int argc, char** argv) {
   if (server == NULL)
     goto fatal;
 
+  fprintf(stdout, "Bud is listening on %s:%d\n", config->host, config->port);
+
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
   bud_server_destroy(server);
@@ -41,6 +43,9 @@ int main(int argc, char** argv) {
   return 0;
 
 fatal:
-  bud_error_print(stderr, err);
-  return -1;
+  if (!bud_is_ok(err)) {
+    bud_error_print(stderr, err);
+    return -1;
+  }
+  return 0;
 }
