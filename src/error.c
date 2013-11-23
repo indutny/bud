@@ -56,6 +56,9 @@ void bud_error_print(FILE* fp, bud_error_t err) {
     case kBudErrSetsidFailed:
       fprintf(fp, "setsid() failed, errno: %d\n", err.ret);
       break;
+    case kBudErrChdirFailed:
+      fprintf(fp, "chdir() failed, errno: %d\n", err.ret);
+      break;
     case kBudErrJSONParse:
       fprintf(fp, "Failed to load or parse JSON: %s\n", err.str);
       break;

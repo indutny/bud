@@ -13,6 +13,7 @@ enum bud_error_code_e {
   kBudErrNoMem = 0x001,
   kBudErrForkFailed = 0x002,
   kBudErrSetsidFailed = 0x003,
+  kBudErrChdirFailed = 0x004,
 
   /* Config errors */
   kBudErrJSONParse = 0x100,

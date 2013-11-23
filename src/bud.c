@@ -87,6 +87,11 @@ int bud_daemonize(bud_error_t* err) {
   }
 
   /* Child starts new life here */
+  if (chdir("/") != 0) {
+    *err = bud_error_num(kBudErrChdirFailed, errno);
+    return -1;
+  }
+
   p = setsid();
   if (p == -1) {
     *err = bud_error_num(kBudErrSetsidFailed, errno);
