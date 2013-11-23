@@ -175,15 +175,21 @@ void bud_client_read_cb(uv_stream_t* stream,
 
   client = stream->data;
 
-  if (stream == (uv_stream_t*) &client->tcp_in)
+  if (stream == (uv_stream_t*) &client->tcp_in) {
     buffer = &client->enc_in;
-  else
+
+    /* Try writing close_notify */
+    if (nread == UV_EOF)
+      SSL_shutdown(client->ssl);
+  } else {
     buffer = &client->clear_in;
+  }
 
   /* Commit data if there was no error */
   if (nread < 0 || ringbuffer_write_append(buffer, nread) != 0) {
     /* Write out all data, before closing socket */
     bud_client_clear_out(client);
+    bud_client_send(client, &client->tcp_in);
 
     /* TODO(indutny): log cause */
     return bud_client_destroy(client);
@@ -297,6 +303,9 @@ void bud_client_send(bud_client_t* client, uv_tcp_t* tcp) {
     return;
 
   out = ringbuffer_read_next(buffer, size);
+  if (*size == 0)
+    return;
+
   buf = uv_buf_init(out, *size);
   req->data = client;
   r = uv_write(req, (uv_stream_t*) tcp, &buf, 1, bud_client_send_cb);
@@ -330,15 +339,15 @@ void bud_client_send_cb(uv_write_t* req, int status) {
     opposite = (uv_stream_t*) &client->tcp_in;
   }
 
-  /* Consume written data */
-  ringbuffer_read_skip(buffer, *size);
-  *size = 0;
-
   /* Start reading, if stopped */
   r = uv_read_start(opposite, bud_client_alloc_cb, bud_client_read_cb);
   /* TODO(indutny): log cause */
   if (r != 0)
     return bud_client_destroy(client);
+
+  /* Consume written data */
+  ringbuffer_read_skip(buffer, *size);
+  *size = 0;
 }
 
 

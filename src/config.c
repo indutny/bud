@@ -51,6 +51,7 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
   int i;
   int context_count;
   JSON_Value* json;
+  JSON_Value* val;
   JSON_Object* obj;
   JSON_Object* frontend;
   JSON_Object* backend;
@@ -102,6 +103,9 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
     ctx->hostname = json_object_get_string(obj, "hostname");
     ctx->cert_file = json_object_get_string(obj, "cert");
     ctx->key_file = json_object_get_string(obj, "key");
+    ctx->ciphers = json_object_get_string(obj, "ciphers");
+    val = json_object_get_value(obj, "server_preference");
+    ctx->server_preference = val == NULL ? 1 : json_value_get_boolean(val);
   }
 
   bud_config_set_defaults(config);
@@ -163,11 +167,11 @@ void bud_config_print_default() {
   fprintf(stdout, "{\n");
   fprintf(stdout, "  \"frontend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
-  fprintf(stdout, "    \"host\": \"%s\",\n", config.frontend.host);
+  fprintf(stdout, "    \"host\": \"%s\"\n", config.frontend.host);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"backend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.backend.port);
-  fprintf(stdout, "    \"host\": \"%s\",\n", config.backend.host);
+  fprintf(stdout, "    \"host\": \"%s\"\n", config.backend.host);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"contexts\": [");
   for (i = 0; i < config.context_count; i++) {
@@ -180,6 +184,13 @@ void bud_config_print_default() {
       fprintf(stdout, "    \"hostname\": null,\n");
     fprintf(stdout, "    \"cert\": \"%s\",\n", ctx->cert_file);
     fprintf(stdout, "    \"key\": \"%s\",\n", ctx->key_file);
+    if (ctx->ciphers != NULL)
+      fprintf(stdout, "    \"ciphers\": \"%s\",\n", ctx->ciphers);
+    else
+      fprintf(stdout, "    \"ciphers\": null,\n");
+    fprintf(stdout,
+            "    \"server_preference\": %s\n",
+            ctx->server_preference ? "true" : "false");
 
     if (i == config.context_count - 1)
       fprintf(stdout, "  }");
@@ -239,6 +250,15 @@ bud_error_t bud_config_init(bud_config_t* config) {
       err = bud_error_str(kBudErrParseKey, ctx->key_file);
       goto fatal;
     }
+
+    SSL_CTX_set_session_cache_mode(ctx->ctx,
+                                   SSL_SESS_CACHE_SERVER |
+                                   SSL_SESS_CACHE_NO_INTERNAL |
+                                   SSL_SESS_CACHE_NO_AUTO_CLEAR);
+    if (ctx->ciphers != NULL)
+      SSL_CTX_set_cipher_list(ctx->ctx, ctx->ciphers);
+    if (ctx->server_preference)
+      SSL_CTX_set_options(ctx->ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
   }
 
   return bud_ok();

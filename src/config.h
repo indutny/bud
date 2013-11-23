@@ -17,6 +17,8 @@ struct bud_context_s {
   const char* hostname;
   const char* cert_file;
   const char* key_file;
+  const char* ciphers;
+  int server_preference;
 
   /* Various */
   SSL_CTX* ctx;
