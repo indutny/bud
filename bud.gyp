@@ -19,5 +19,19 @@
       "src/error.c",
       "src/server.c",
     ],
+    "configuration": [
+      [ 'OS in "linux freebsd openbsd solaris"', {
+        'conditions': [
+          [ 'target_arch=="ia32"', {
+            'cflags': [ '-m32' ],
+            'ldflags': [ '-m32' ],
+          }],
+          [ 'target_arch=="x64"', {
+            'cflags': [ '-m64' ],
+            'ldflags': [ '-m64' ],
+          }],
+        ],
+      }],
+    ]
   }]
 }
