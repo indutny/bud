@@ -12,6 +12,13 @@
 int main(int argc, char** argv) {
   bud_config_t* config;
 
+  /* Initialize OpenSSL */
+  SSL_library_init();
+  OpenSSL_add_all_algorithms();
+  OpenSSL_add_all_digests();
+  SSL_load_error_strings();
+  ERR_load_crypto_strings();
+
   config = bud_config_cli_load(argc, argv);
 
   /* NOTE: bud_config_load will print everything itself */

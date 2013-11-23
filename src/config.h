@@ -3,22 +3,32 @@
 
 #include <stdint.h>
 
+#include "openssl/ssl.h"
 #include "parson.h"
 
+typedef struct bud_context_s bud_context_t;
 typedef struct bud_config_s bud_config_t;
 
+struct bud_context_s {
+  /* From config file */
+  const char* hostname;
+  const char* cert_file;
+  const char* key_file;
+
+  /* Various */
+  SSL_CTX* ctx;
+};
+
 struct bud_config_s {
+  /* Internal, just to keep stuff allocated */
+  JSON_Value* json;
+
   /* Options from config file */
   uint16_t port;
   const char* host;
-  const char* cert_file;
-  const char* key_file;
-  const char* ca_file;
 
-  /* Various */
-
-  /* Internal, just to keep stuff allocated */
-  JSON_Value* json;
+  int context_count;
+  bud_context_t contexts[1];
 };
 
 bud_config_t* bud_config_cli_load(int argc, char** argv);
