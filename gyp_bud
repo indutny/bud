@@ -29,17 +29,9 @@ def host_arch():
   return machine  # Return as-is and hope for the best.
 
 
-def run_cmd(args):
-  proc = subprocess.Popen(args, stdout=subprocess.PIPE)
-  ret = proc.communicate()[0].rstrip('\n')
-  if proc.returncode != 0:
-    print("Failed to run " + " ".join(args))
-    sys.exit(43)
-  return ret
-
-
 def compiler_version():
-  is_clang = 'clang' in run_cmd(CC.split() + ['--version'])
+  proc = subprocess.Popen(CC.split() + ['--version'], stdout=subprocess.PIPE)
+  is_clang = 'clang' in proc.communicate()[0].split('\n')[0]
   proc = subprocess.Popen(CC.split() + ['-dumpversion'], stdout=subprocess.PIPE)
   version = proc.communicate()[0].split('.')
   version = map(int, version[:2])
@@ -57,9 +49,20 @@ def run_gyp(args):
 if __name__ == '__main__':
   args = sys.argv[1:]
 
-  args.append(os.path.join(os.path.abspath(root), 'bud.gyp'))
-  common_fn  = os.path.join(os.path.abspath(root), 'common.gypi')
-  options_fn = os.path.join(os.path.abspath(root), 'options.gypi')
+  # GYP bug.
+  # On msvs it will crash if it gets an absolute path.
+  # On Mac/make it will crash if it doesn't get an absolute path.
+  if sys.platform == 'win32':
+    args.append(os.path.join(root, 'bud.gyp'))
+    common_fn  = os.path.join(root, 'common.gypi')
+    options_fn = os.path.join(root, 'options.gypi')
+    # we force vs 2010 over 2008 which would otherwise be the default for gyp
+    if not os.environ.get('GYP_MSVS_VERSION'):
+      os.environ['GYP_MSVS_VERSION'] = '2010'
+  else:
+    args.append(os.path.join(os.path.abspath(root), 'bud.gyp'))
+    common_fn  = os.path.join(os.path.abspath(root), 'common.gypi')
+    options_fn = os.path.join(os.path.abspath(root), 'options.gypi')
 
   if os.path.exists(common_fn):
     args.extend(['-I', common_fn])
@@ -69,14 +72,16 @@ if __name__ == '__main__':
 
   args.append('--depth=' + root)
 
-  if '-f' not in args:
-    args.extend('-f make'.split())
-  if 'ninja' not in args:
-    args.extend(['-Goutput_dir=' + output_dir])
-    args.extend(['--generator-output', output_dir])
-  (major, minor), is_clang = compiler_version()
-  args.append('-Dgcc_version=%d' % (10 * major + minor))
-  args.append('-Dclang=%d' % int(is_clang))
+  # There's a bug with windows which doesn't allow this feature.
+  if sys.platform != 'win32':
+    if '-f' not in args:
+      args.extend('-f make'.split())
+    if 'ninja' not in args:
+      args.extend(['-Goutput_dir=' + output_dir])
+      args.extend(['--generator-output', output_dir])
+    (major, minor), is_clang = compiler_version()
+    args.append('-Dgcc_version=%d' % (10 * major + minor))
+    args.append('-Dclang=%d' % int(is_clang))
 
   if not any(a.startswith('-Dhost_arch=') for a in args):
     args.append('-Dhost_arch=%s' % host_arch())
