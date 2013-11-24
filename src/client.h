@@ -27,6 +27,7 @@ struct bud_client_s {
   /* State */
   uv_connect_t connect_req;
   int destroying;
+  int shutdown;
   int destroy_waiting;
   ssize_t current_enc_write;
   ssize_t current_clear_write;

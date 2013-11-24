@@ -128,7 +128,7 @@ void bud_error_log(bud_config_t* config,
 
 #define BUD_ERROR(...)                                                        \
     fprintf(fp, __VA_ARGS__);                                                 \
-    fprintf(fp, "\n");                                                 \
+    fprintf(fp, "\n");                                                        \
     break;
 
 #define BUD_UV_ERROR(msg, err)                                                \

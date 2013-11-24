@@ -17,7 +17,7 @@ enum bud_side_e {
   kBudBackend
 };
 
-static void bud_client_destroy(bud_client_t* client, bud_side_t side);
+static void bud_client_destroy(bud_client_t* client, bud_side_t error_side);
 static void bud_client_close_cb(uv_handle_t* handle);
 static void bud_client_alloc_cb(uv_handle_t* handle,
                                 size_t suggested_size,
@@ -31,6 +31,7 @@ static void bud_client_clear_out(bud_client_t* client);
 static void bud_client_send(bud_client_t* client, uv_tcp_t* tcp);
 static void bud_client_send_cb(uv_write_t* req, int status);
 static void bud_client_connect_cb(uv_connect_t* req, int status);
+static int bud_client_shutdown(bud_client_t* client, bud_side_t side);
 static int bud_client_prepend_proxyline(bud_client_t* client);
 static void bud_client_log(bud_client_t* client,
                            bud_side_t side,
@@ -58,6 +59,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->tcp_in.data = client;
   client->tcp_out.data = client;
   client->destroying = 0;
+  client->shutdown = 0;
   client->destroy_waiting = 0;
   client->current_enc_write = 0;
   client->current_clear_write = 0;
@@ -157,14 +159,33 @@ failed_tcp_in_init:
 }
 
 
-void bud_client_destroy(bud_client_t* client, bud_side_t side) {
-  if (client->destroying)
+void bud_client_destroy(bud_client_t* client, bud_side_t error_side) {
+  if (client->destroying) {
+    /* Force close, even if waiting */
+    if (error_side == kBudFrontend && client->current_enc_write == -1) {
+      uv_close((uv_handle_t*) &client->tcp_in, bud_client_close_cb);
+      client->current_enc_write = 0;
+    }
+    if (error_side == kBudBackend && client->current_clear_write == -1) {
+      uv_close((uv_handle_t*) &client->tcp_out, bud_client_close_cb);
+      client->current_clear_write = 0;
+    }
     return;
+  }
 
+  /* Close offending side, and wait for write finish on other side */
   client->destroy_waiting = 2;
   client->destroying = 1;
-  uv_close((uv_handle_t*) &client->tcp_in, bud_client_close_cb);
-  uv_close((uv_handle_t*) &client->tcp_out, bud_client_close_cb);
+
+  if (error_side == kBudFrontend ||client->current_enc_write == 0)
+    uv_close((uv_handle_t*) &client->tcp_in, bud_client_close_cb);
+  else
+    client->current_enc_write = -1;
+
+  if (error_side == kBudBackend || client->current_clear_write == 0)
+      uv_close((uv_handle_t*) &client->tcp_out, bud_client_close_cb);
+  else
+    client->current_clear_write = -1;
 }
 
 
@@ -221,14 +242,13 @@ void bud_client_read_cb(uv_stream_t* stream,
   if (stream == (uv_stream_t*) &client->tcp_in) {
     side = kBudFrontend;
     buffer = &client->enc_in;
-
-    /* Try writing close_notify */
-    if (nread == UV_EOF)
-      if (SSL_shutdown(client->ssl) == 0)
-        SSL_shutdown(client->ssl);
   } else {
     side = kBudBackend;
     buffer = &client->clear_in;
+
+    /* Try writing close_notify */
+    if (nread == UV_EOF)
+      bud_client_shutdown(client, kBudFrontend);
   }
 
   /* Commit data if there was no error */
@@ -366,7 +386,7 @@ void bud_client_send(bud_client_t* client, uv_tcp_t* tcp) {
   uv_write_t* req;
   bud_side_t side;
   ringbuffer* buffer;
-  ssize_t* size;
+  ssize_t* size;;
   char* out;
   uv_buf_t buf;
   int r;
@@ -387,9 +407,13 @@ void bud_client_send(bud_client_t* client, uv_tcp_t* tcp) {
   if (*size != 0)
     return;
 
+  /* Try writing close_notify */
+  if (client->destroying)
+    bud_client_shutdown(client, side);
+
   out = ringbuffer_read_next(buffer, size);
   if (*size == 0)
-    return;
+      return;
 
   buf = uv_buf_init(out, *size);
   req->data = client;
@@ -413,6 +437,7 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   bud_client_t* client;
   ringbuffer* buffer;
   ssize_t* size;
+  uv_tcp_t* current;
   uv_stream_t* opposite;
 
   client = req->data;
@@ -421,11 +446,13 @@ void bud_client_send_cb(uv_write_t* req, int status) {
     side = kBudFrontend;
     buffer = &client->enc_out;
     size = &client->current_enc_write;
+    current = &client->tcp_in;
     opposite = (uv_stream_t*) &client->tcp_out;
   } else {
     side = kBudBackend;
     buffer = &client->clear_out;
     size = &client->current_clear_write;
+    current = &client->tcp_out;
     opposite = (uv_stream_t*) &client->tcp_in;
   }
 
@@ -436,6 +463,19 @@ void bud_client_send_cb(uv_write_t* req, int status) {
                    status,
                    uv_strerror(status));
     return bud_client_destroy(client, side);
+  }
+
+  /* In the destroy, but writing data */
+  if (*size == -1) {
+    ASSERT(client->destroying, "Size -1 but client not destroying");
+    bud_client_send(client, current);
+
+    /* No write happened, finalize destroy */
+    if (*size == 0) {
+      *size = -1;
+      bud_client_destroy(client, side);
+    }
+    return;
   }
 
   /* Start reading, if stopped */
@@ -474,6 +514,17 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
   }
 
   /* Do nothing, we will start reading once handshake will be performed */
+}
+
+
+int bud_client_shutdown(bud_client_t* client, bud_side_t side) {
+  if (client->shutdown || side != kBudFrontend)
+    return -1;
+  client->shutdown = 1;
+  if (SSL_shutdown(client->ssl) == 0)
+    SSL_shutdown(client->ssl);
+
+  return 0;
 }
 
 
