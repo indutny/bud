@@ -214,7 +214,7 @@ void bud_print_help(int argc, char** argv) {
   fprintf(stdout, "  --config PATH, -c PATH     Load JSON configuration\n");
   fprintf(stdout, "  --default-config           Print default JSON config\n");
 #ifndef _WIN32
-  fprintf(stdout, "  --deaemon, -d              Daemonize process\n");
+  fprintf(stdout, "  --daemon, -d               Daemonize process\n");
 #endif  /* !_WIN32 */
   fprintf(stdout, "\n");
 }
