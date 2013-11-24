@@ -31,6 +31,8 @@ struct bud_client_s {
   int destroy_waiting;
   ssize_t current_enc_write;
   ssize_t current_clear_write;
+  int current_enc_waiting;
+  int current_clear_waiting;
   uv_write_t enc_write_req;
   uv_write_t clear_write_req;
 };

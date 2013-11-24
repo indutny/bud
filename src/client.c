@@ -63,6 +63,8 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->destroy_waiting = 0;
   client->current_enc_write = 0;
   client->current_clear_write = 0;
+  client->current_enc_waiting = 0;
+  client->current_clear_waiting = 0;
 
   /* Initialize buffers */
   ringbuffer_init(&client->enc_in);
@@ -162,13 +164,13 @@ failed_tcp_in_init:
 void bud_client_destroy(bud_client_t* client, bud_side_t error_side) {
   if (client->destroying) {
     /* Force close, even if waiting */
-    if (error_side == kBudFrontend && client->current_enc_write == -1) {
+    if (error_side == kBudFrontend && client->current_enc_waiting) {
       uv_close((uv_handle_t*) &client->tcp_in, bud_client_close_cb);
-      client->current_enc_write = 0;
+      client->current_enc_waiting = 0;
     }
-    if (error_side == kBudBackend && client->current_clear_write == -1) {
+    if (error_side == kBudBackend && client->current_clear_waiting) {
       uv_close((uv_handle_t*) &client->tcp_out, bud_client_close_cb);
-      client->current_clear_write = 0;
+      client->current_clear_waiting = 0;
     }
     return;
   }
@@ -177,15 +179,15 @@ void bud_client_destroy(bud_client_t* client, bud_side_t error_side) {
   client->destroy_waiting = 2;
   client->destroying = 1;
 
-  if (error_side == kBudFrontend ||client->current_enc_write == 0)
+  if (error_side == kBudFrontend || client->current_enc_write == 0)
     uv_close((uv_handle_t*) &client->tcp_in, bud_client_close_cb);
   else
-    client->current_enc_write = -1;
+    client->current_enc_waiting = 1;
 
   if (error_side == kBudBackend || client->current_clear_write == 0)
       uv_close((uv_handle_t*) &client->tcp_out, bud_client_close_cb);
   else
-    client->current_clear_write = -1;
+    client->current_clear_waiting = 1;
 }
 
 
@@ -256,8 +258,7 @@ void bud_client_read_cb(uv_stream_t* stream,
     r = ringbuffer_write_append(buffer, nread);
   if (nread < 0 || r != 0) {
     /* Write out all data, before closing socket */
-    bud_client_clear_out(client);
-    bud_client_send(client, &client->tcp_in);
+    bud_client_cycle(client);
 
     if (nread < 0) {
       if (nread != UV_EOF) {
@@ -437,6 +438,7 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   bud_client_t* client;
   ringbuffer* buffer;
   ssize_t* size;
+  int waiting;
   uv_tcp_t* current;
   uv_stream_t* opposite;
 
@@ -446,12 +448,14 @@ void bud_client_send_cb(uv_write_t* req, int status) {
     side = kBudFrontend;
     buffer = &client->enc_out;
     size = &client->current_enc_write;
+    waiting = client->current_enc_waiting;
     current = &client->tcp_in;
     opposite = (uv_stream_t*) &client->tcp_out;
   } else {
     side = kBudBackend;
     buffer = &client->clear_out;
     size = &client->current_clear_write;
+    waiting = client->current_clear_waiting;
     current = &client->tcp_out;
     opposite = (uv_stream_t*) &client->tcp_in;
   }
@@ -465,37 +469,36 @@ void bud_client_send_cb(uv_write_t* req, int status) {
     return bud_client_destroy(client, side);
   }
 
-  /* In the destroy, but writing data */
-  if (*size == -1) {
-    ASSERT(client->destroying, "Size -1 but client not destroying");
-    bud_client_send(client, current);
-
-    /* No write happened, finalize destroy */
-    if (*size == 0) {
-      *size = -1;
-      bud_client_destroy(client, side);
-    }
-    return;
-  }
-
   /* Start reading, if stopped */
-  r = uv_read_start(opposite, bud_client_alloc_cb, bud_client_read_cb);
-  if (r != 0) {
-    side = side == kBudFrontend ? kBudBackend : kBudFrontend;
-    bud_client_log(client,
-                   side,
-                   "client uv_read_start() failed with (%d) \"%s\" on %s",
-                   r,
-                   uv_strerror(r));
-    return bud_client_destroy(client, side);
+  if (!waiting) {
+    r = uv_read_start(opposite, bud_client_alloc_cb, bud_client_read_cb);
+    if (r != 0) {
+      side = side == kBudFrontend ? kBudBackend : kBudFrontend;
+      bud_client_log(client,
+                     side,
+                     "client uv_read_start() failed with (%d) \"%s\" on %s",
+                     r,
+                     uv_strerror(r));
+      return bud_client_destroy(client, side);
+    }
   }
 
   /* Consume written data */
   ringbuffer_read_skip(buffer, *size);
   *size = 0;
 
-  /* Cycle again */
-  bud_client_cycle(client);
+  /* In the destroy, but writing data */
+  if (waiting) {
+    ASSERT(client->destroying, "Waiting, but client not destroying");
+
+    /* Cycle again */
+    bud_client_cycle(client);
+
+    /* No write happened, finalize destroy */
+    if (*size == 0)
+      bud_client_destroy(client, side);
+    return;
+  }
 }
 
 
