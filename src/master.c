@@ -170,7 +170,7 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   } else {
     err = bud_ok();
     bud_log(worker->config,
-            kBudLogInfo,
+            kBudLogNotice,
             "spawned bud worker<%d>",
             worker->proc.pid);
   }

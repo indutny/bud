@@ -126,6 +126,7 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
   JSON_Value* json;
   JSON_Value* val;
   JSON_Object* obj;
+  JSON_Object* log;
   JSON_Object* frontend;
   JSON_Object* backend;
   JSON_Array* contexts;
@@ -153,25 +154,47 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
     *err = bud_error_str(kBudErrNoMem, "bud_config_t");
     goto failed_get_object;
   }
+
+  /* Workers configuration */
   config->worker_count = (int) json_object_get_number(obj, "workers");
   config->restart_timeout = (int) json_object_get_number(obj,
                                                          "restart_timeout");
 
+  /* Logger configuration */
+  log = json_object_get_object(obj, "log");
+  config->log_stdio = -1;
+  config->log_syslog = -1;
+  if (log != NULL) {
+    config->log_level = json_object_get_string(log, "level");
+
+    val = json_object_get_value(log, "stdio");
+    if (val != NULL)
+      config->log_stdio = json_value_get_boolean(val);
+    val = json_object_get_value(log, "syslog");
+    if (val != NULL)
+      config->log_syslog = json_value_get_boolean(val);
+  }
+
+  /* Frontend configuration */
+
   frontend = json_object_get_object(obj, "frontend");
+  config->frontend.proxyline = -1;
   if (frontend != NULL) {
     config->frontend.port = (uint16_t) json_object_get_number(frontend, "port");
     config->frontend.host = json_object_get_string(frontend, "host");
     val = json_object_get_value(frontend, "proxyline");
     if (val != NULL)
       config->frontend.proxyline = json_value_get_boolean(val);
-    else
-      config->frontend.proxyline = -1;
   }
+
+  /* Backend configuration */
   backend = json_object_get_object(obj, "backend");
   if (backend != NULL) {
     config->backend.port = (uint16_t) json_object_get_number(backend, "port");
     config->backend.host = json_object_get_string(backend, "host");
   }
+
+  /* SSL Contexts */
 
   /* TODO(indutny): sort them and do binary search */
   for (i = 0; i < context_count; i++) {
@@ -274,12 +297,23 @@ void bud_config_print_default() {
   bud_context_t* ctx;
 
   memset(&config, 0, sizeof(config));
+  config.log_stdio = -1;
+  config.log_syslog = -1;
   bud_config_set_defaults(&config);
 
   fprintf(stdout, "{\n");
   fprintf(stdout, "  \"daemon\": false,\n");
   fprintf(stdout, "  \"workers\": %d,\n", config.worker_count);
   fprintf(stdout, "  \"restart_timeout\": %d,\n", config.restart_timeout);
+  fprintf(stdout, "  \"log\": {\n");
+  fprintf(stdout, "    \"level\": \"%s\",\n", config.log_level);
+  fprintf(stdout,
+          "    \"stdio\": %s,\n",
+          config.log_stdio ? "true" : "false");
+  fprintf(stdout,
+          "    \"syslog\": %s\n",
+          config.log_syslog ? "true" : "false");
+  fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"frontend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.frontend.host);
@@ -330,6 +364,9 @@ void bud_config_set_defaults(bud_config_t* config) {
 
   DEFAULT(config->worker_count, 0, 1);
   DEFAULT(config->restart_timeout, 0, 250);
+  DEFAULT(config->log_level, NULL, "info");
+  DEFAULT(config->log_stdio, -1, 1);
+  DEFAULT(config->log_syslog, -1, 0);
   DEFAULT(config->frontend.port, 0, 1443);
   DEFAULT(config->frontend.host, NULL, "0.0.0.0");
   DEFAULT(config->frontend.proxyline, -1, 0);

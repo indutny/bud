@@ -9,13 +9,16 @@ typedef struct bud_logger_s bud_logger_t;
 
 enum bud_log_level_e {
   kBudLogDebug = 0,
-  kBudLogInfo = 1,
-  kBudLogWarning = 2,
-  kBudLogFatal = 3
+  kBudLogNotice = 1,
+  kBudLogInfo = 2,
+  kBudLogWarning = 3,
+  kBudLogFatal = 4
 };
 
 struct bud_logger_s {
   bud_log_level_t level;
+  int stdio_enabled;
+  int syslog_enabled;
 };
 
 bud_error_t bud_logger_new(bud_config_t* config);

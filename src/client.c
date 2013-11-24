@@ -507,8 +507,8 @@ void bud_client_log(bud_client_t* client,
   if (client->destroying)
     return;
   bud_log(client->server->config,
-          side == kBudBackend ? kBudLogWarning : kBudLogInfo,
-          fmt,
+          side == kBudBackend ? kBudLogWarning : kBudLogNotice,
+          (char*) fmt,
           code,
           bud_side_str(side));
 }

@@ -54,6 +54,9 @@ struct bud_config_s {
   int restart_timeout;
   int is_daemon;
   int is_worker;
+  const char* log_level;
+  int log_stdio;
+  int log_syslog;
 
   struct {
     uint16_t port;
