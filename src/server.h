@@ -17,6 +17,6 @@ struct bud_server_s {
 };
 
 bud_error_t bud_server_new(bud_config_t* config);
-void bud_server_destroy(bud_server_t* server);
+void bud_server_free(bud_config_t* config);
 
 #endif  /* SRC_SERVER_H_ */

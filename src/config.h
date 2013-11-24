@@ -13,6 +13,7 @@
 /* Forward declarations */
 struct bud_server_s;
 struct bud_worker_s;
+struct bud_logger_s;
 
 typedef struct bud_context_s bud_context_t;
 typedef struct bud_config_s bud_config_t;
@@ -46,6 +47,7 @@ struct bud_config_s {
   uv_pipe_t ipc;
   struct bud_server_s* server;
   struct bud_worker_s* workers;
+  struct bud_logger_s* logger;
 
   /* Options from config file */
   int worker_count;

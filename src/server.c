@@ -95,9 +95,10 @@ failed_str_to_addr:
 }
 
 
-void bud_server_destroy(bud_server_t* server) {
-  server->config = NULL;
-  uv_close((uv_handle_t*) &server->tcp, bud_server_close_cb);
+void bud_server_free(bud_config_t* config) {
+  config->server->config = NULL;
+  uv_close((uv_handle_t*) &config->server->tcp, bud_server_close_cb);
+  config->server = NULL;
 }
 
 

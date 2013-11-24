@@ -17,6 +17,7 @@
       "src/client.c",
       "src/config.c",
       "src/error.c",
+      "src/logger.c",
       "src/master.c",
       "src/server.c",
       "src/worker.c",

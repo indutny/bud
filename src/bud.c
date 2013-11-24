@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
   if (config->server != NULL) {
     if (!config->is_worker)
       err = bud_master_finalize(config);
-    bud_server_destroy(config->server);
+    bud_server_free(config);
   }
 
   uv_run(config->loop, UV_RUN_ONCE);
