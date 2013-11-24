@@ -339,13 +339,13 @@ void bud_config_print_default() {
   fprintf(stdout, "  \"frontend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.frontend.host);
-  fprintf(stdout, "    \"keepalive\": \"%d\",\n", config.frontend.keepalive);
+  fprintf(stdout, "    \"keepalive\": %d,\n", config.frontend.keepalive);
   fprintf(stdout, "    \"proxyline\": \"false\"\n");
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"backend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.backend.port);
   fprintf(stdout, "    \"host\": \"%s\"\n", config.backend.host);
-  fprintf(stdout, "    \"keepalive\": \"%d\"\n", config.backend.keepalive);
+  fprintf(stdout, "    \"keepalive\": %d\n", config.backend.keepalive);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"contexts\": [");
   for (i = 0; i < config.context_count; i++) {
