@@ -49,6 +49,7 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
     { NULL, 0, NULL, 0 }
   };
 
+  *err = bud_ok();
   config = NULL;
   is_daemon = 0;
   is_worker = 0;
@@ -61,6 +62,11 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
         break;
       case 'c':
         config = bud_config_load(optarg, err);
+        if (config == NULL) {
+          ASSERT(!bud_is_ok(*err), "Config load failed without error");
+          c = -1;
+          break;
+        }
         if (is_daemon)
           config->is_daemon = 1;
         if (is_worker)
@@ -89,8 +95,6 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
         break;
     }
   } while (c != -1);
-
-  *err = bud_ok();
 
   /* CLI options */
   if (config != NULL) {

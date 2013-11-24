@@ -10,6 +10,7 @@
 #include "common.h"
 #include "config.h"
 #include "error.h"
+#include "logger.h"
 #include "server.h"
 #include "worker.h"
 
@@ -168,6 +169,10 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
     uv_close((uv_handle_t*) &worker->ipc, bud_master_ipc_close_cb);
   } else {
     err = bud_ok();
+    bud_log(worker->config,
+            kBudLogInfo,
+            "spawned bud worker<%d>",
+            worker->proc.pid);
   }
 
   buf = uv_buf_init("ipc", 3);
@@ -192,11 +197,15 @@ void bud_master_respawn_worker(uv_process_t* proc,
                                int term_signal) {
   bud_worker_t* worker;
 
-  /* TODO(indutny): proper logging */
-  fprintf(stderr, "[%d] bud worker died, signal: %d\n", proc->pid, term_signal);
-
-  /* TODO(indutny): introduce delay */
   worker = container_of(proc, bud_worker_t, proc);
+  ASSERT(worker != NULL, "Proc has no worker");
+
+  bud_log(worker->config,
+          kBudLogWarning,
+          "bud worker<%d> died, signal: %d",
+          proc->pid,
+          term_signal);
+
   bud_master_kill_worker(worker,
                          (uint64_t) worker->config->restart_timeout,
                          bud_master_spawn_worker);

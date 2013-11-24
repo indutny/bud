@@ -1,6 +1,4 @@
-#include <stdio.h>  /* fprintf */
 #include <stdlib.h>  /* NULL */
-#include <unistd.h>  /* getpid */
 
 #include "uv.h"
 
@@ -8,6 +6,7 @@
 #include "common.h"
 #include "config.h"
 #include "error.h"
+#include "logger.h"
 #include "server.h"
 
 static void bud_worker_alloc_cb(uv_handle_t* handle,
@@ -81,13 +80,9 @@ void bud_worker_read_cb(uv_pipe_t* pipe,
   if (!bud_is_ok(err))
     goto fatal;
 
-  fprintf(stdout,
-          "[%d] bud is listening on [%s]:%d ...and routing to [%s]:%d\n",
-#ifndef _WIN32
-          getpid(),
-#else
-          0,
-#endif  /* !_WIN32 */
+  bud_log(config,
+          kBudLogInfo,
+          "bud is listening on [%s]:%d ...and routing to [%s]:%d",
           config->frontend.host,
           config->frontend.port,
           config->backend.host,

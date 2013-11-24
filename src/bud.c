@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "server.h"
+#include "logger.h"
 #include "master.h"
 #include "worker.h"
 
@@ -22,6 +23,11 @@ int main(int argc, char** argv) {
 
   /* NOTE: bud_config_load will print everything itself */
   if (config == NULL)
+    goto fatal;
+
+  /* Initialize logger */
+  err = bud_logger_new(config);
+  if (!bud_is_ok(err))
     goto fatal;
 
   config->loop = uv_default_loop();
@@ -41,9 +47,13 @@ int main(int argc, char** argv) {
   }
 
   uv_run(config->loop, UV_RUN_ONCE);
-  bud_config_free(config);
 
 fatal:
+  if (config != NULL) {
+    bud_logger_free(config);
+    bud_config_free(config);
+  }
+
   if (!bud_is_ok(err)) {
     bud_error_print(stderr, err);
     return -1;
