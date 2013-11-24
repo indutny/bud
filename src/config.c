@@ -96,8 +96,12 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
     }
   } while (c != -1);
 
-  /* CLI options */
   if (config != NULL) {
+    /* Single worker is a master of itself */
+    if (config->worker_count == 0)
+      config->is_worker = 1;
+
+    /* CLI options */
     config->argc = argc;
     config->argv = argv;
 
@@ -156,9 +160,14 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
   }
 
   /* Workers configuration */
-  config->worker_count = (int) json_object_get_number(obj, "workers");
-  config->restart_timeout = (int) json_object_get_number(obj,
-                                                         "restart_timeout");
+  config->worker_count = -1;
+  config->restart_timeout = 250;
+  val = json_object_get_value(obj, "workers");
+  if (val != NULL)
+    config->worker_count = json_value_get_number(val);
+  val = json_object_get_value(obj, "restart_timeout");
+  if (val != NULL)
+    config->restart_timeout = json_value_get_number(val);
 
   /* Logger configuration */
   log = json_object_get_object(obj, "log");
@@ -297,6 +306,7 @@ void bud_config_print_default() {
   bud_context_t* ctx;
 
   memset(&config, 0, sizeof(config));
+  config.worker_count = -1;
   config.log_stdio = -1;
   config.log_syslog = -1;
   bud_config_set_defaults(&config);
@@ -362,7 +372,7 @@ void bud_config_print_default() {
 void bud_config_set_defaults(bud_config_t* config) {
   int i;
 
-  DEFAULT(config->worker_count, 0, 1);
+  DEFAULT(config->worker_count, -1, 1);
   DEFAULT(config->restart_timeout, 0, 250);
   DEFAULT(config->log_level, NULL, "info");
   DEFAULT(config->log_stdio, -1, 1);

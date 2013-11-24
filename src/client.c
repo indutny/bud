@@ -425,6 +425,9 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   /* Consume written data */
   ringbuffer_read_skip(buffer, *size);
   *size = 0;
+
+  /* Cycle again */
+  bud_client_cycle(client);
 }
 
 

@@ -47,7 +47,7 @@ bud_error_t bud_server_new(bud_config_t* config) {
     goto failed_str_to_addr;
   }
 
-  if (config->is_worker) {
+  if (config->is_worker && config->worker_count > 0) {
     r = uv_accept((uv_stream_t*) &config->ipc, (uv_stream_t*) &server->tcp);
     if (r != 0) {
       err = bud_error_num(kBudErrServerIPCAccept, r);
@@ -62,16 +62,19 @@ bud_error_t bud_server_new(bud_config_t* config) {
         goto failed_bind;
       }
     }
-
-    r = uv_listen((uv_stream_t*) &server->tcp, 256, bud_server_connection_cb);
-    if (r != 0) {
-      err = bud_error_num(kBudErrServerListen, r);
-      goto failed_bind;
-    }
   } else {
     r = uv_tcp_bind(&server->tcp, (struct sockaddr*) &server->frontend);
     if (r != 0) {
       err = bud_error_num(kBudErrTcpServerBind, r);
+      goto failed_bind;
+    }
+  }
+
+  /* Worker = master */
+  if (config->is_worker && config->worker_count == 0) {
+    r = uv_listen((uv_stream_t*) &server->tcp, 256, bud_server_connection_cb);
+    if (r != 0) {
+      err = bud_error_num(kBudErrServerListen, r);
       goto failed_bind;
     }
   }
