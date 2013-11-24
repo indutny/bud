@@ -504,7 +504,7 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
 
   client = container_of(req, bud_client_t, connect_req);
 
-  if (status != 0) {
+  if (status != 0 && status != UV_ECANCELED) {
     bud_client_log(client,
                    kBudBackend,
                    "client uv_connect() failed with (%d) \"%s\" on %s",
