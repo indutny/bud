@@ -68,6 +68,16 @@ bud_error_t bud_master(bud_config_t* config) {
         bud_master_kill_worker(&config->workers[i], 0, NULL);
   }
 
+  if (bud_is_ok(err)) {
+    bud_log(config,
+            kBudLogInfo,
+            "bud listening on [%s]:%d and forwarding to [%s]:%d",
+            config->frontend.host,
+            config->frontend.port,
+            config->backend.host,
+            config->backend.port);
+  }
+
 fatal:
   return err;
 }
