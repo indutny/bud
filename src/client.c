@@ -100,6 +100,17 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   if (r != 0)
     goto failed_connect;
 
+  /* Adjust sockets */
+  r = uv_tcp_nodelay(&client->tcp_in, 1);
+  if (r == 0)
+    r = uv_tcp_nodelay(&client->tcp_out, 1);
+  if (r == 0 && config->frontend.keepalive > 0)
+    r = uv_tcp_keepalive(&client->tcp_in, 1, config->frontend.keepalive);
+  if (r == 0 && config->backend.keepalive > 0)
+    r = uv_tcp_keepalive(&client->tcp_out, 1, config->backend.keepalive);
+  if (r != 0)
+    goto failed_connect;
+
   /* Initialize SSL */
 
   /* First context is always default */

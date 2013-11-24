@@ -187,19 +187,27 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
 
   frontend = json_object_get_object(obj, "frontend");
   config->frontend.proxyline = -1;
+  config->frontend.keepalive = -1;
   if (frontend != NULL) {
     config->frontend.port = (uint16_t) json_object_get_number(frontend, "port");
     config->frontend.host = json_object_get_string(frontend, "host");
     val = json_object_get_value(frontend, "proxyline");
     if (val != NULL)
       config->frontend.proxyline = json_value_get_boolean(val);
+    val = json_object_get_value(frontend, "keepalive");
+    if (val != NULL)
+      config->frontend.keepalive = json_value_get_number(val);
   }
 
   /* Backend configuration */
   backend = json_object_get_object(obj, "backend");
+  config->backend.keepalive = -1;
   if (backend != NULL) {
     config->backend.port = (uint16_t) json_object_get_number(backend, "port");
     config->backend.host = json_object_get_string(backend, "host");
+    val = json_object_get_value(backend, "keepalive");
+    if (val != NULL)
+      config->backend.keepalive = json_value_get_number(val);
   }
 
   /* SSL Contexts */
@@ -305,9 +313,14 @@ void bud_config_print_default() {
   bud_context_t* ctx;
 
   memset(&config, 0, sizeof(config));
+
+  /* Set zero-y values */
   config.worker_count = -1;
   config.log_stdio = -1;
   config.log_syslog = -1;
+  config.frontend.keepalive = -1;
+  config.backend.keepalive = -1;
+
   bud_config_set_defaults(&config);
 
   fprintf(stdout, "{\n");
@@ -326,11 +339,13 @@ void bud_config_print_default() {
   fprintf(stdout, "  \"frontend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.frontend.host);
+  fprintf(stdout, "    \"keepalive\": \"%d\",\n", config.frontend.keepalive);
   fprintf(stdout, "    \"proxyline\": \"false\"\n");
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"backend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.backend.port);
   fprintf(stdout, "    \"host\": \"%s\"\n", config.backend.host);
+  fprintf(stdout, "    \"keepalive\": \"%d\"\n", config.backend.keepalive);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"contexts\": [");
   for (i = 0; i < config.context_count; i++) {
@@ -379,8 +394,10 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.port, 0, 1443);
   DEFAULT(config->frontend.host, NULL, "0.0.0.0");
   DEFAULT(config->frontend.proxyline, -1, 0);
+  DEFAULT(config->frontend.keepalive, -1, 3600);
   DEFAULT(config->backend.port, 0, 8000);
   DEFAULT(config->backend.host, NULL, "127.0.0.1");
+  DEFAULT(config->backend.keepalive, -1, 3600);
   DEFAULT(config->context_count, 0, 1);
 
   if (config->context_count == 0)

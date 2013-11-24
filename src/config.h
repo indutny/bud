@@ -66,6 +66,7 @@ struct bud_config_s {
     uint16_t port;
     const char* host;
     int proxyline;
+    int keepalive;
 
     /* internal */
     struct sockaddr_storage addr;
@@ -74,6 +75,7 @@ struct bud_config_s {
   struct {
     uint16_t port;
     const char* host;
+    int keepalive;
 
     /* internal */
     struct sockaddr_storage addr;
