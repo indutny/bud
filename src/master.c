@@ -316,7 +316,7 @@ void bud_master_balance(struct bud_server_s* server) {
   config->last_worker %= config->worker_count;
   worker = &config->workers[config->last_worker];
 
-  buf = uv_buf_init("ipc", 3);
+  buf = uv_buf_init("x", 1);
 
   r = uv_write2(&msg->req,
                 (uv_stream_t*) &worker->ipc,
