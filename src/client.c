@@ -35,7 +35,9 @@ static int bud_client_prepend_proxyline(bud_client_t* client);
 static void bud_client_log(bud_client_t* client,
                            bud_side_t side,
                            const char* fmt,
-                           int code);
+                           int code,
+                           const char* reason);
+static const char* bud_sslerror_str(int err);
 static const char* bud_side_str(bud_side_t side);
 
 
@@ -227,14 +229,16 @@ void bud_client_read_cb(uv_stream_t* stream,
       if (nread != UV_EOF) {
         bud_client_log(client,
                        side,
-                       "client read_cb failed with %d on %s",
-                       nread);
+                       "client read_cb failed with (%d) \"%s\" on %s",
+                       nread,
+                       uv_strerror(nread));
       }
     } else {
       bud_client_log(client,
                      side,
-                     "client write_append failed with %d on %s",
-                     r);
+                     "client write_append failed with (%d) \"%s\" on %s",
+                     r,
+                     NULL);
     }
     return bud_client_destroy(client, side);
   }
@@ -245,8 +249,9 @@ void bud_client_read_cb(uv_stream_t* stream,
     if (r != 0) {
       bud_client_log(client,
                      side,
-                     "client read_stop failed with %d on %s",
-                     r);
+                     "client read_stop failed with (%d) \"%s\" on %s",
+                     r,
+                     uv_strerror(r));
       return bud_client_destroy(client, side);
     }
   }
@@ -289,8 +294,9 @@ void bud_client_clear_in(bud_client_t* client) {
 
   bud_client_log(client,
                  kBudFrontend,
-                 "client SSL_write failed with %d on %s",
-                 err);
+                 "client SSL_write failed with (%d) \"%s\" on %s",
+                 err,
+                 bud_sslerror_str(err));
   bud_client_destroy(client, kBudFrontend);
 }
 
@@ -307,8 +313,9 @@ void bud_client_clear_out(bud_client_t* client) {
     if (err != 0) {
       bud_client_log(client,
                      kBudBackend,
-                     "client read_stop_failed failed with %d on %s",
-                     err);
+                     "client read_stop_failed failed with (%d) \"%s\" on %s",
+                     err,
+                     uv_strerror(err));
       return bud_client_destroy(client, kBudBackend);
     }
 
@@ -334,8 +341,9 @@ void bud_client_clear_out(bud_client_t* client) {
 
   bud_client_log(client,
                  kBudFrontend,
-                 "client SSL_read failed with %d",
-                 err);
+                 "client SSL_read failed with (%d) \"%s\"",
+                 err,
+                 bud_sslerror_str(err));
   bud_client_destroy(client, kBudFrontend);
 }
 
@@ -376,7 +384,11 @@ void bud_client_send(bud_client_t* client, uv_tcp_t* tcp) {
   if (r == 0)
     return;
 
-  bud_client_log(client, side, "client uv_write() failed with %d on %s", r);
+  bud_client_log(client,
+                 side,
+                 "client uv_write() failed with (%d) \"%s\" on %s",
+                 r,
+                 uv_strerror(r));
   bud_client_destroy(client, side);
 }
 
@@ -406,8 +418,9 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   if (status != 0) {
     bud_client_log(client,
                    side,
-                   "client uv_write() cb failed with %d on %s",
-                   status);
+                   "client uv_write() cb failed with (%d) \"%s\" on %s",
+                   status,
+                   uv_strerror(status));
     return bud_client_destroy(client, side);
   }
 
@@ -417,8 +430,9 @@ void bud_client_send_cb(uv_write_t* req, int status) {
     side = side == kBudFrontend ? kBudBackend : kBudFrontend;
     bud_client_log(client,
                    side,
-                   "client uv_read_start() failed with %d on %s",
-                   r);
+                   "client uv_read_start() failed with (%d) \"%s\" on %s",
+                   r,
+                   uv_strerror(r));
     return bud_client_destroy(client, side);
   }
 
@@ -439,8 +453,9 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
   if (status != 0) {
     bud_client_log(client,
                    kBudBackend,
-                   "client uv_connect() failed with %d on %s",
-                   status);
+                   "client uv_connect() failed with (%d) \"%s\" on %s",
+                   status,
+                   uv_strerror(status));
     return bud_client_destroy(client, kBudBackend);
   }
 
@@ -503,15 +518,41 @@ const char* bud_side_str(bud_side_t side) {
 }
 
 
+const char* bud_sslerror_str(int err) {
+  switch (err) {
+    case SSL_ERROR_SSL:
+      return "SSL";
+    case SSL_ERROR_WANT_READ:
+      return "WANT_READ";
+    case SSL_ERROR_WANT_WRITE:
+      return "WANT_WRITE";
+    case SSL_ERROR_WANT_X509_LOOKUP:
+      return "WANT_X509_LOOKUP";
+    case SSL_ERROR_SYSCALL:
+      return "SYSCALL";
+    case SSL_ERROR_ZERO_RETURN:
+      return "ZERO_RETURN";
+    case SSL_ERROR_WANT_CONNECT:
+      return "WANT_CONNECT";
+    case SSL_ERROR_WANT_ACCEPT:
+      return "WANT_ACCEPT";
+    default:
+      return "UKNOWN";
+  }
+}
+
+
 void bud_client_log(bud_client_t* client,
                     bud_side_t side,
                     const char* fmt,
-                    int code) {
+                    int code,
+                    const char* reason) {
   if (client->destroying)
     return;
   bud_log(client->server->config,
           side == kBudBackend ? kBudLogWarning : kBudLogNotice,
           (char*) fmt,
           code,
+          reason,
           bud_side_str(side));
 }
