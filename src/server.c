@@ -71,7 +71,7 @@ bud_error_t bud_server_new(bud_config_t* config) {
   }
 
   /* Worker = master */
-  if (!config->is_worker || config->worker_count == 0) {
+  if (config->is_worker || config->worker_count == 0) {
     r = uv_listen((uv_stream_t*) &server->tcp, 256, bud_server_connection_cb);
     if (r != 0) {
       err = bud_error_num(kBudErrServerListen, r);
