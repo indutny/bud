@@ -179,15 +179,15 @@ void bud_client_destroy(bud_client_t* client, bud_side_t error_side) {
   client->destroy_waiting = 2;
   client->destroying = 1;
 
-  if (error_side == kBudFrontend || client->current_enc_write == 0)
-    uv_close((uv_handle_t*) &client->tcp_in, bud_client_close_cb);
-  else
+  if (error_side == kBudBackend && client->current_enc_write != 0)
     client->current_enc_waiting = 1;
-
-  if (error_side == kBudBackend || client->current_clear_write == 0)
-      uv_close((uv_handle_t*) &client->tcp_out, bud_client_close_cb);
   else
+    uv_close((uv_handle_t*) &client->tcp_in, bud_client_close_cb);
+
+  if (error_side == kBudFrontend && client->current_clear_write != 0)
     client->current_clear_waiting = 1;
+  else
+    uv_close((uv_handle_t*) &client->tcp_out, bud_client_close_cb);
 }
 
 
@@ -523,6 +523,7 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
 int bud_client_shutdown(bud_client_t* client, bud_side_t side) {
   if (client->shutdown || side != kBudFrontend)
     return -1;
+
   client->shutdown = 1;
   if (SSL_shutdown(client->ssl) == 0)
     SSL_shutdown(client->ssl);
