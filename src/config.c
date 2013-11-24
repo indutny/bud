@@ -3,6 +3,7 @@
 #include <stdlib.h>  /* NULL */
 #include <string.h>  /* memset, strlen, strncmp */
 
+#include "uv.h"
 #include "openssl/err.h"
 #include "openssl/ssl.h"
 #include "parson.h"
@@ -10,6 +11,7 @@
 #include "config.h"
 #include "common.h"
 #include "version.h"
+#include "worker.h"
 
 static bud_error_t bud_config_init(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
@@ -29,8 +31,11 @@ static int bud_config_advertise_next_proto(SSL* s,
 
 bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   int c;
+  int r;
   int index;
   int is_daemon;
+  int is_worker;
+  size_t path_len;
   bud_config_t* config;
 
   struct option long_options[] = {
@@ -39,12 +44,14 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
 #ifndef _WIN32
     { "daemonize", 0, NULL, 'd' },
 #endif  /* !_WIN32 */
+    { "worker", 0, NULL, 1000 },
     { "default-config", 0, NULL, 1001 },
     { NULL, 0, NULL, 0 }
   };
 
   config = NULL;
   is_daemon = 0;
+  is_worker = 0;
   do {
     index = 0;
     c = getopt_long(argc, argv, "vc:d", long_options, &index);
@@ -56,6 +63,8 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
         config = bud_config_load(optarg, err);
         if (is_daemon)
           config->is_daemon = 1;
+        if (is_worker)
+          config->is_worker = 1;
         break;
 #ifndef _WIN32
       case 'd':
@@ -63,6 +72,11 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
         if (config != NULL)
           config->is_daemon = 1;
 #endif  /* !_WIN32 */
+        break;
+      case 1000:
+        is_worker = 1;
+        if (config != NULL)
+          config->is_worker = 1;
         break;
       case 1001:
         bud_config_print_default();
@@ -77,6 +91,25 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   } while (c != -1);
 
   *err = bud_ok();
+
+  /* CLI options */
+  if (config != NULL) {
+    config->argc = argc;
+    config->argv = argv;
+
+    /* Get executable path */
+    path_len = sizeof(config->exepath);
+    r = uv_exepath(config->exepath, &path_len);
+    ASSERT(path_len < sizeof(config->exepath), "Exepath OOB");
+
+    config->exepath[path_len] = 0;
+    if (r != 0) {
+      bud_config_free(config);
+      config = NULL;
+      *err = bud_error_num(kBudErrExePath, r);
+    }
+  }
+
   return config;
 }
 
@@ -116,6 +149,9 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
     *err = bud_error_str(kBudErrNoMem, "bud_config_t");
     goto failed_get_object;
   }
+  config->worker_count = (int) json_object_get_number(obj, "workers");
+  config->restart_timeout = (int) json_object_get_number(obj,
+                                                         "restart_timeout");
 
   frontend = json_object_get_object(obj, "frontend");
   if (frontend != NULL) {
@@ -200,6 +236,9 @@ void bud_config_free(bud_config_t* config) {
     free(config->contexts[i].npn_line);
     config->contexts[i].npn_line = NULL;
   }
+  free(config->workers);
+  config->workers = NULL;
+
   json_value_free(config->json);
   config->json = NULL;
   free(config);
@@ -234,6 +273,9 @@ void bud_config_print_default() {
   bud_config_set_defaults(&config);
 
   fprintf(stdout, "{\n");
+  fprintf(stdout, "  \"daemon\": false,\n");
+  fprintf(stdout, "  \"workers\": %d,\n", config.worker_count);
+  fprintf(stdout, "  \"restart_timeout\": %d,\n", config.restart_timeout);
   fprintf(stdout, "  \"frontend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.frontend.host);
@@ -282,6 +324,8 @@ void bud_config_print_default() {
 void bud_config_set_defaults(bud_config_t* config) {
   int i;
 
+  DEFAULT(config->worker_count, 0, 1);
+  DEFAULT(config->restart_timeout, 0, 250);
   DEFAULT(config->frontend.port, 0, 1443);
   DEFAULT(config->frontend.host, NULL, "0.0.0.0");
   DEFAULT(config->frontend.proxyline, -1, 0);
@@ -322,6 +366,15 @@ bud_error_t bud_config_init(bud_config_t* config) {
     goto fatal;
   }
 #endif  /* !SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
+
+  /* Allocate workers */
+  if (!config->is_worker) {
+    config->workers = calloc(config->worker_count, sizeof(*config->workers));
+    if (config->workers == NULL) {
+      err = bud_error_str(kBudErrNoMem, "workers");
+      goto fatal;
+    }
+  }
 
   /* Load all contexts */
   for (i = 0; i < config->context_count; i++) {

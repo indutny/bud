@@ -11,9 +11,6 @@ enum bud_error_code_e {
 
   /* General errors */
   kBudErrNoMem = 0x001,
-  kBudErrForkFailed = 0x002,
-  kBudErrSetsidFailed = 0x003,
-  kBudErrChdirFailed = 0x004,
 
   /* Config errors */
   kBudErrJSONParse = 0x100,
@@ -24,13 +21,26 @@ enum bud_error_code_e {
   kBudErrSNINotSupported = 0x105,
   kBudErrNPNNonString = 0x106,
   kBudErrNPNNotSupported = 0x107,
+  kBudErrExePath = 0x108,
+
+  /* Master/Worker errors */
+  kBudErrForkFailed = 0x200,
+  kBudErrSetsidFailed = 0x201,
+  kBudErrChdirFailed = 0x202,
+  kBudErrIPCPipeInit = 0x203,
+  kBudErrIPCPipeOpen = 0x204,
+  kBudErrIPCReadStart = 0x205,
+  kBudErrRestartTimer = 0x206,
+  kBudErrSpawn = 0x207,
 
   /* Server errors */
-  kBudErrTcpServerInit = 0x200,
-  kBudErrIpv4Addr = 0x201,
-  kBudErrIpv4Name = 0x202,
-  kBudErrTcpServerBind = 0x203,
-  kBudErrServerListen = 0x204
+  kBudErrTcpServerInit = 0x300,
+  kBudErrPton = 0x301,
+  kBudErrNtop = 0x302,
+  kBudErrTcpServerBind = 0x303,
+  kBudErrServerListen = 0x304,
+  kBudErrServerIPCAccept = 0x305,
+  kBudErrServerSimAccept = 0x306
 };
 
 struct bud_error_s {

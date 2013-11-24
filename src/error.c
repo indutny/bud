@@ -41,6 +41,12 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
   return err;
 }
 
+#define BUD_UV_ERROR(msg, err)                                                \
+    do {                                                                      \
+      fprintf(fp, msg " returned %d\n", err.ret);                             \
+      fprintf(fp, "%s\n", uv_strerror(err.ret));                              \
+    } while (0);                                                               \
+    break;
 
 void bud_error_print(FILE* fp, bud_error_t err) {
   switch (err.code) {
@@ -49,15 +55,6 @@ void bud_error_print(FILE* fp, bud_error_t err) {
       break;
     case kBudErrNoMem:
       fprintf(fp, "Allocation failed: %s\n", err.str);
-      break;
-    case kBudErrForkFailed:
-      fprintf(fp, "fork() failed, errno: %d\n", err.ret);
-      break;
-    case kBudErrSetsidFailed:
-      fprintf(fp, "setsid() failed, errno: %d\n", err.ret);
-      break;
-    case kBudErrChdirFailed:
-      fprintf(fp, "chdir() failed, errno: %d\n", err.ret);
       break;
     case kBudErrJSONParse:
       fprintf(fp, "Failed to load or parse JSON: %s\n", err.str);
@@ -85,26 +82,41 @@ void bud_error_print(FILE* fp, bud_error_t err) {
     case kBudErrNPNNotSupported:
       fprintf(fp, "NPN not supported, but present in config\n");
       break;
+    case kBudErrExePath:
+      BUD_UV_ERROR("uv_exe_path()", err)
+    case kBudErrForkFailed:
+      fprintf(fp, "fork() failed, errno: %d\n", err.ret);
+      break;
+    case kBudErrSetsidFailed:
+      fprintf(fp, "setsid() failed, errno: %d\n", err.ret);
+      break;
+    case kBudErrChdirFailed:
+      fprintf(fp, "chdir() failed, errno: %d\n", err.ret);
+      break;
+    case kBudErrIPCPipeInit:
+      BUD_UV_ERROR("uv_pipe_init(ipc)", err)
+    case kBudErrIPCPipeOpen:
+      BUD_UV_ERROR("uv_pipe_open(ipc)", err)
+    case kBudErrIPCReadStart:
+      BUD_UV_ERROR("uv_read_start(ipc)", err)
+    case kBudErrRestartTimer:
+      BUD_UV_ERROR("uv_timer_init(restart_timer)", err)
+    case kBudErrSpawn:
+      BUD_UV_ERROR("uv_spawn(worker)", err)
     case kBudErrTcpServerInit:
-      fprintf(fp, "uv_tcp_init(server) returned %d\n", err.ret);
-      fprintf(fp, "%s\n", uv_strerror(err.ret));
-      break;
-    case kBudErrIpv4Addr:
-      fprintf(fp, "uv_ipv4_addr() returned %d\n", err.ret);
-      fprintf(fp, "%s\n", uv_strerror(err.ret));
-      break;
-    case kBudErrIpv4Name:
-      fprintf(fp, "uv_ipv4_name() returned %d\n", err.ret);
-      fprintf(fp, "%s\n", uv_strerror(err.ret));
-      break;
+      BUD_UV_ERROR("uv_tcp_init(server)", err)
+    case kBudErrPton:
+      BUD_UV_ERROR("uv_inet_pton()", err)
+    case kBudErrNtop:
+      BUD_UV_ERROR("uv_inet_ntop()", err)
     case kBudErrTcpServerBind:
-      fprintf(fp, "uv_tcp_bind(server) returned %d\n", err.ret);
-      fprintf(fp, "%s\n", uv_strerror(err.ret));
-      break;
+      BUD_UV_ERROR("uv_tcp_bind(server)", err)
     case kBudErrServerListen:
-      fprintf(fp, "uv_listen(server) returned %d\n", err.ret);
-      fprintf(fp, "%s\n", uv_strerror(err.ret));
-      break;
+      BUD_UV_ERROR("uv_listen(server)", err)
+    case kBudErrServerIPCAccept:
+      BUD_UV_ERROR("uv_accept(ipc)", err)
+    case kBudErrServerSimAccept:
+      BUD_UV_ERROR("uv_tcp_simultaneous_accepts(server, 0)", err)
     default:
       UNEXPECTED;
   }

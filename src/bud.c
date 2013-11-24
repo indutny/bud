@@ -1,33 +1,22 @@
-#include <errno.h>  /* errno */
-#include <stdlib.h>  /* fprintf */
-#include <stdio.h>  /* NULL */
-#include <unistd.h>  /* fork, setsid */
+#include <stdio.h>  /* stderr */
+#include <stdlib.h>  /* NULL */
 
-#include "uv.h"
-#include "ringbuffer.h"
 #include "openssl/ssl.h"
 #include "openssl/err.h"
 
 #include "config.h"
-#include "common.h"
 #include "server.h"
+#include "master.h"
+#include "worker.h"
 
-#ifndef _WIN32
-static int bud_daemonize(bud_error_t* err);
-#endif  /* !_WIN32 */
+static void bud_init_openssl();
 
 
 int main(int argc, char** argv) {
   bud_config_t* config;
-  bud_server_t* server;
   bud_error_t err;
 
-  /* Initialize OpenSSL */
-  SSL_library_init();
-  OpenSSL_add_all_algorithms();
-  OpenSSL_add_all_digests();
-  SSL_load_error_strings();
-  ERR_load_crypto_strings();
+  bud_init_openssl();
 
   config = bud_config_cli_load(argc, argv, &err);
 
@@ -35,32 +24,24 @@ int main(int argc, char** argv) {
   if (config == NULL)
     goto fatal;
 
-#ifndef _WIN32
-  if (config->is_daemon)
-    if (bud_daemonize(&err) != 0)
-      goto fatal;
-#endif  /* !_WIN32 */
+  config->loop = uv_default_loop();
+  if (config->is_worker)
+    err = bud_worker(config);
+  else
+    err = bud_master(config);
 
-  server = bud_server_new(uv_default_loop(), config, &err);
-  if (server == NULL)
-    goto fatal;
+  if (bud_is_ok(err))
+    uv_run(config->loop, UV_RUN_DEFAULT);
 
-  fprintf(stdout,
-          "bud is listening on [%s]:%d\n",
-          config->frontend.host,
-          config->frontend.port);
-  fprintf(stdout,
-          "...and routing to [%s]:%d\n",
-          config->backend.host,
-          config->backend.port);
+  /* Finalize server */
+  if (config->server != NULL) {
+    if (!config->is_worker)
+      err = bud_master_finalize(config);
+    bud_server_destroy(config->server);
+  }
 
-  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-
-  bud_server_destroy(server);
-
-  uv_run(uv_default_loop(), UV_RUN_ONCE);
-
-  return 0;
+  uv_run(config->loop, UV_RUN_ONCE);
+  bud_config_free(config);
 
 fatal:
   if (!bud_is_ok(err)) {
@@ -71,41 +52,10 @@ fatal:
 }
 
 
-#ifndef _WIN32
-int bud_daemonize(bud_error_t* err) {
-  pid_t p;
-
-  p = fork();
-  if (p > 0) {
-    *err = bud_ok();
-
-    /* Make parent exit */
-    return -1;
-  } else if (p == -1) {
-    *err = bud_error_num(kBudErrForkFailed, errno);
-    return -1;
-  }
-
-  /* Child starts new life here */
-  if (chdir("/") != 0) {
-    *err = bud_error_num(kBudErrChdirFailed, errno);
-    return -1;
-  }
-
-  p = setsid();
-  if (p == -1) {
-    *err = bud_error_num(kBudErrSetsidFailed, errno);
-    return -1;
-  }
-
-  freopen("/dev/null", "r", stdin);
-  freopen("/dev/null", "w", stdout);
-  freopen("/dev/null", "w", stderr);
-  if (stdin == NULL || stdout == NULL || stderr == NULL) {
-    *err = bud_error(kBudErrNoMem);
-    return -1;
-  }
-
-  return 0;
+void bud_init_openssl() {
+  SSL_library_init();
+  OpenSSL_add_all_algorithms();
+  OpenSSL_add_all_digests();
+  SSL_load_error_strings();
+  ERR_load_crypto_strings();
 }
-#endif  /* !_WIN32 */

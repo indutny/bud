@@ -16,9 +16,7 @@ struct bud_server_s {
   char proxyline_fmt[256];
 };
 
-bud_server_t* bud_server_new(uv_loop_t* loop,
-                             bud_config_t* config,
-                             bud_error_t* err);
+bud_error_t bud_server_new(bud_config_t* config);
 void bud_server_destroy(bud_server_t* server);
 
 #endif  /* SRC_SERVER_H_ */

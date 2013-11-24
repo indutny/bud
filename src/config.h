@@ -3,11 +3,16 @@
 
 #include <stdint.h>
 
+#include "uv.h"
 #include "openssl/ssl.h"
 #include "parson.h"
 
 #include "common.h"
 #include "error.h"
+
+/* Forward declarations */
+struct bud_server_s;
+struct bud_worker_s;
 
 typedef struct bud_context_s bud_context_t;
 typedef struct bud_config_s bud_config_t;
@@ -33,8 +38,20 @@ struct bud_config_s {
   /* Internal, just to keep stuff allocated */
   JSON_Value* json;
 
+  /* Just internal things */
+  uv_loop_t* loop;
+  int argc;
+  char** argv;
+  char exepath[1024];
+  uv_pipe_t ipc;
+  struct bud_server_s* server;
+  struct bud_worker_s* workers;
+
   /* Options from config file */
+  int worker_count;
+  int restart_timeout;
   int is_daemon;
+  int is_worker;
 
   struct {
     uint16_t port;
