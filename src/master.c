@@ -12,8 +12,15 @@
 #include "error.h"
 #include "logger.h"
 #include "server.h"
-#include "worker.h"
+#include "client.h"
 
+typedef struct bud_master_msg_s bud_master_msg_t;
+
+struct bud_master_msg_s {
+  bud_config_t* config;
+  uv_tcp_t client;
+  uv_write_t req;
+};
 
 #ifndef _WIN32
 static int bud_daemonize(bud_error_t* err);
@@ -28,7 +35,8 @@ static void bud_master_respawn_worker(uv_process_t* proc,
                                       int64_t exit_status,
                                       int term_signal);
 static void bud_master_ipc_close_cb(uv_handle_t* handle);
-static void bud_master_ipc_send_cb(uv_write_t* req, int status);
+static void bud_master_msg_close_cb(uv_handle_t* handle);
+static void bud_master_msg_send_cb(uv_write_t* req, int status);
 
 
 bud_error_t bud_master(bud_config_t* config) {
@@ -36,6 +44,8 @@ bud_error_t bud_master(bud_config_t* config) {
   bud_error_t err;
 
   err = bud_ok();
+
+  bud_log(config, kBudLogDebug, "master starting");
 
 #ifndef _WIN32
   if (config->is_daemon)
@@ -118,7 +128,6 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   int i;
   int r;
   uv_process_options_t options;
-  uv_buf_t buf;
 
   config = worker->config;
   ASSERT(config != NULL, "Worker config absent");
@@ -174,14 +183,6 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
             "spawned bud worker<%d>",
             worker->proc.pid);
   }
-
-  buf = uv_buf_init("ipc", 3);
-  uv_write2(&worker->ipc_write,
-            (uv_stream_t*) &worker->ipc,
-            &buf,
-            1,
-            (uv_stream_t*) &config->server->tcp,
-            bud_master_ipc_send_cb);
 
 fatal:
   free(options.stdio);
@@ -255,11 +256,114 @@ void bud_worker_close_cb(uv_handle_t* handle) {
 }
 
 
-void bud_master_ipc_send_cb(uv_write_t* req, int status) {
-  ASSERT(status == 0 || status == UV_ECANCELED, "Failed to send to IPC");
+void bud_master_ipc_close_cb(uv_handle_t* handle) {
+  /* No-op */
 }
 
 
-void bud_master_ipc_close_cb(uv_handle_t* handle) {
-  /* No-op */
+void bud_master_balance(struct bud_server_s* server) {
+  int r;
+  bud_config_t* config;
+  bud_worker_t* worker;
+  bud_master_msg_t* msg;
+  uv_buf_t buf;
+
+  config = server->config;
+
+  if (config->worker_count == 0) {
+    bud_log(config, kBudLogDebug, "master self accept");
+
+    /* Master = worker */
+    return bud_client_create(config, (uv_stream_t*) &server->tcp);
+  }
+
+  bud_log(config,
+          kBudLogDebug,
+          "master balance");
+
+  msg = malloc(sizeof(*msg));
+  if (msg == NULL) {
+    bud_error_log(config,
+                  kBudLogNotice,
+                  bud_error_str(kBudErrNoMem, "bud_master_msg_t"));
+    return;
+  }
+  msg->config = config;
+
+  /* Accept handle */
+  r = uv_tcp_init(config->loop, &msg->client);
+  if (r != 0) {
+    bud_log(config,
+            kBudLogNotice,
+            "master uv_tcp_init() failed with (%d) \"%s\"",
+            r,
+            uv_strerror(r));
+    goto failed_tcp_init;
+  }
+
+  r = uv_accept((uv_stream_t*) &server->tcp, (uv_stream_t*) &msg->client);
+  if (r != 0) {
+    bud_log(config,
+            kBudLogNotice,
+            "master uv_accept() failed with (%d) \"%s\"",
+            r,
+            uv_strerror(r));
+    goto failed_accept;
+  }
+
+  /* Round-robin worker selection */
+  config->last_worker++;
+  config->last_worker %= config->worker_count;
+  worker = &config->workers[config->last_worker];
+
+  buf = uv_buf_init("ipc", 3);
+
+  r = uv_write2(&msg->req,
+                (uv_stream_t*) &worker->ipc,
+                &buf,
+                1,
+                (uv_stream_t*) &msg->client,
+                bud_master_msg_send_cb);
+  if (r != 0) {
+    bud_log(config,
+            kBudLogNotice,
+            "master uv_write2() failed with (%d) \"%s\"",
+            r,
+            uv_strerror(r));
+    goto failed_accept;
+  }
+  return;
+
+failed_accept:
+  uv_close((uv_handle_t*) &msg->client, bud_master_msg_close_cb);
+
+failed_tcp_init:
+  free(msg);
+}
+
+
+void bud_master_msg_close_cb(uv_handle_t* handle) {
+  bud_master_msg_t* msg;
+
+  msg = container_of(handle, bud_master_msg_t, client);
+  free(msg);
+}
+
+
+void bud_master_msg_send_cb(uv_write_t* req, int status) {
+  bud_master_msg_t* msg;
+
+  if (status == UV_ECANCELED)
+    return;
+
+  msg = container_of(req, bud_master_msg_t, req);
+  if (status != 0) {
+    bud_log(msg->config,
+            kBudLogNotice,
+            "master write_cb() failed with (%d) \"%s\"",
+            status,
+            uv_strerror(status));
+  }
+
+  uv_close((uv_handle_t*) &msg->client, bud_master_msg_close_cb);
 }

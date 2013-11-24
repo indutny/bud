@@ -11,7 +11,7 @@
 #include "config.h"
 #include "common.h"
 #include "version.h"
-#include "worker.h"
+#include "master.h"  /* bud_worker_t */
 
 static bud_error_t bud_config_init(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
@@ -27,6 +27,9 @@ static int bud_config_advertise_next_proto(SSL* s,
                                            unsigned int* len,
                                            void* arg);
 #endif  /* OPENSSL_NPN_NEGOTIATED */
+static int bud_config_str_to_addr(const char* host,
+                                  uint16_t port,
+                                  struct sockaddr_storage* addr);
 
 
 bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
@@ -97,10 +100,6 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   } while (c != -1);
 
   if (config != NULL) {
-    /* Single worker is a master of itself */
-    if (config->worker_count == 0)
-      config->is_worker = 1;
-
     /* CLI options */
     config->argc = argc;
     config->argv = argv;
@@ -399,6 +398,7 @@ void bud_config_set_defaults(bud_config_t* config) {
 
 bud_error_t bud_config_init(bud_config_t* config) {
   int i;
+  int r;
   bud_context_t* ctx;
   bud_error_t err;
 #ifdef OPENSSL_NPN_NEGOTIATED
@@ -410,6 +410,23 @@ bud_error_t bud_config_init(bud_config_t* config) {
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 
   i = 0;
+
+  /* Get addresses of frontend and backend */
+  r = bud_config_str_to_addr(config->frontend.host,
+                             config->frontend.port,
+                             &config->frontend.addr);
+  if (r != 0) {
+    err = bud_error_num(kBudErrPton, r);
+    goto fatal;
+  }
+
+  r = bud_config_str_to_addr(config->backend.host,
+                             config->backend.port,
+                             &config->backend.addr);
+  if (r != 0) {
+    err = bud_error_num(kBudErrPton, r);
+    goto fatal;
+  }
 
 #ifndef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
   if (config->context_count > 1) {
@@ -561,3 +578,28 @@ int bud_config_advertise_next_proto(SSL* s,
   return SSL_TLSEXT_ERR_OK;
 }
 #endif  /* OPENSSL_NPN_NEGOTIATED */
+
+
+int bud_config_str_to_addr(const char* host,
+                           uint16_t port,
+                           struct sockaddr_storage* addr) {
+  int r;
+  struct sockaddr_in* addr4;
+  struct sockaddr_in6* addr6;
+
+  addr4 = (struct sockaddr_in*) addr;
+  addr6 = (struct sockaddr_in6*) addr;
+
+  r = uv_inet_pton(AF_INET, host, &addr4->sin_addr);
+  if (r == 0) {
+    addr4->sin_family = AF_INET;
+    addr4->sin_port = htons(port);
+  } else {
+    addr6->sin6_family = AF_INET6;
+    r = uv_inet_pton(AF_INET6, host, &addr6->sin6_addr);
+    if (r == 0)
+      addr6->sin6_port = htons(port);
+  }
+
+  return r;
+}

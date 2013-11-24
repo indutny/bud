@@ -48,6 +48,10 @@ struct bud_config_s {
   struct bud_server_s* server;
   struct bud_worker_s* workers;
   struct bud_logger_s* logger;
+  int last_worker;
+
+  /* Used by client */
+  char proxyline_fmt[256];
 
   /* Options from config file */
   int worker_count;
@@ -62,11 +66,17 @@ struct bud_config_s {
     uint16_t port;
     const char* host;
     int proxyline;
+
+    /* internal */
+    struct sockaddr_storage addr;
   } frontend;
 
   struct {
     uint16_t port;
     const char* host;
+
+    /* internal */
+    struct sockaddr_storage addr;
   } backend;
 
   int context_count;

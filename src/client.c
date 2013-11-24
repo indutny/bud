@@ -41,7 +41,7 @@ static const char* bud_sslerror_str(int err);
 static const char* bud_side_str(bud_side_t side);
 
 
-void bud_client_create(bud_server_t* server) {
+void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   int r;
   bud_client_t* client;
   BIO* enc_in;
@@ -54,7 +54,7 @@ void bud_client_create(bud_server_t* server) {
   if (client == NULL)
     return;
 
-  client->server = server;
+  client->config = config;
   client->tcp_in.data = client;
   client->tcp_out.data = client;
   client->destroying = 0;
@@ -62,14 +62,20 @@ void bud_client_create(bud_server_t* server) {
   client->current_enc_write = 0;
   client->current_clear_write = 0;
 
+  /* Initialize buffers */
+  ringbuffer_init(&client->enc_in);
+  ringbuffer_init(&client->enc_out);
+  ringbuffer_init(&client->clear_in);
+  ringbuffer_init(&client->clear_out);
+
   /**
    * Accept client on frontend
    */
-  r = uv_tcp_init(server->tcp.loop, &client->tcp_in);
+  r = uv_tcp_init(config->loop, &client->tcp_in);
   if (r != 0)
     goto failed_tcp_in_init;
 
-  r = uv_accept((uv_stream_t*) &server->tcp, (uv_stream_t*) &client->tcp_in);
+  r = uv_accept(stream, (uv_stream_t*) &client->tcp_in);
   if (r != 0)
     goto failed_accept;
 
@@ -83,25 +89,21 @@ void bud_client_create(bud_server_t* server) {
    * Connect to backend
    * NOTE: We won't start reading until some SSL data will be sent.
    */
-  r = uv_tcp_init(server->tcp.loop, &client->tcp_out);
+  r = uv_tcp_init(config->loop, &client->tcp_out);
   if (r != 0)
     goto failed_accept;
 
   r = uv_tcp_connect(&client->connect_req,
                      &client->tcp_out,
-                     (struct sockaddr*) &client->server->backend,
+                     (struct sockaddr*) &client->config->backend.addr,
                      bud_client_connect_cb);
   if (r != 0)
     goto failed_connect;
 
-  /* Initialize buffers and SSL */
-  ringbuffer_init(&client->enc_in);
-  ringbuffer_init(&client->enc_out);
-  ringbuffer_init(&client->clear_in);
-  ringbuffer_init(&client->clear_out);
+  /* Initialize SSL */
 
   /* First context is always default */
-  client->ssl = SSL_new(server->config->contexts[0].ctx);
+  client->ssl = SSL_new(config->contexts[0].ctx);
   if (client->ssl == NULL)
     goto failed_connect;
 
@@ -122,7 +124,7 @@ void bud_client_create(bud_server_t* server) {
 
   SSL_set_accept_state(client->ssl);
 
-  if (server->config->frontend.proxyline) {
+  if (config->frontend.proxyline) {
     r = bud_client_prepend_proxyline(client);
     if (r != 0)
       goto failed_connect;
@@ -211,7 +213,8 @@ void bud_client_read_cb(uv_stream_t* stream,
 
     /* Try writing close_notify */
     if (nread == UV_EOF)
-      SSL_shutdown(client->ssl);
+      if (SSL_shutdown(client->ssl) == 0)
+        SSL_shutdown(client->ssl);
   } else {
     side = kBudBackend;
     buffer = &client->clear_in;
@@ -500,7 +503,7 @@ int bud_client_prepend_proxyline(bud_client_t* client) {
 
   r = snprintf(proxyline,
                sizeof(proxyline),
-               client->server->proxyline_fmt,
+               client->config->proxyline_fmt,
                family,
                host,
                ntohs(port));
@@ -549,7 +552,7 @@ void bud_client_log(bud_client_t* client,
                     const char* reason) {
   if (client->destroying)
     return;
-  bud_log(client->server->config,
+  bud_log(client->config,
           side == kBudBackend ? kBudLogWarning : kBudLogNotice,
           (char*) fmt,
           code,

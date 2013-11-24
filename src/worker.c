@@ -3,11 +3,11 @@
 #include "uv.h"
 
 #include "worker.h"
+#include "client.h"
 #include "common.h"
 #include "config.h"
 #include "error.h"
 #include "logger.h"
-#include "server.h"
 
 static void bud_worker_alloc_cb(uv_handle_t* handle,
                                 size_t suggested_size,
@@ -16,15 +16,12 @@ static void bud_worker_read_cb(uv_pipe_t* pipe,
                                ssize_t nread,
                                const uv_buf_t* buf,
                                uv_handle_type pending);
-static bud_error_t bud_worker_create_server(bud_config_t* config);
 
 bud_error_t bud_worker(bud_config_t* config) {
   int r;
   bud_error_t err;
 
-  /* Worker = master */
-  if (config->worker_count == 0)
-    return bud_worker_create_server(config);
+  bud_log(config, kBudLogDebug, "worker starting");
 
   r = uv_pipe_init(config->loop, &config->ipc, 1);
   if (r != 0) {
@@ -66,7 +63,6 @@ void bud_worker_read_cb(uv_pipe_t* pipe,
                         ssize_t nread,
                         const uv_buf_t* buf,
                         uv_handle_type pending) {
-  bud_error_t err;
   bud_config_t* config;
 
   config = container_of(pipe, bud_config_t, ipc);
@@ -77,33 +73,9 @@ void bud_worker_read_cb(uv_pipe_t* pipe,
   if (pending == UV_UNKNOWN_HANDLE)
     return;
 
-  ASSERT(0 == uv_read_stop((uv_stream_t*) pipe), "worker failed to stop ipc");
   ASSERT(pending == UV_TCP, "worker received non-tcp handle on ipc");
+  bud_log(config, kBudLogDebug, "worker received handle");
 
-  err = bud_worker_create_server(config);
-
-  if (!bud_is_ok(err)) {
-    bud_error_log(config, kBudLogFatal, err);
-    ASSERT(0, "Unrecoverable failure");
-  }
-}
-
-
-bud_error_t bud_worker_create_server(bud_config_t* config) {
-  bud_error_t err;
-
-  /* Create server */
-  err = bud_server_new(config);
-  if (!bud_is_ok(err))
-    return err;
-
-  bud_log(config,
-          kBudLogInfo,
-          "bud is listening on [%s]:%d ...and routing to [%s]:%d",
-          config->frontend.host,
-          config->frontend.port,
-          config->backend.host,
-          config->backend.port);
-
-  return bud_ok();
+  /* Accept client */
+  bud_client_create(config, (uv_stream_t*) &config->ipc);
 }

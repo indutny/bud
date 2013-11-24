@@ -7,10 +7,13 @@
 
 #include "server.h"
 
+/* Forward declaration */
+struct bud_config_s;
+
 typedef struct bud_client_s bud_client_t;
 
 struct bud_client_s {
-  bud_server_t* server;
+  struct bud_config_s* config;
 
   uv_tcp_t tcp_in;
   uv_tcp_t tcp_out;
@@ -31,6 +34,6 @@ struct bud_client_s {
   uv_write_t clear_write_req;
 };
 
-void bud_client_create(bud_server_t* server);
+void bud_client_create(bud_config_t* config, uv_stream_t* stream);
 
 #endif  /* SRC_CLIENT_H_ */
