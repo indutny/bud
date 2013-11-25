@@ -28,7 +28,10 @@ struct bud_client_side_s {
   uv_write_t write_req;
   uv_shutdown_t shutdown_req;
 
-  int shutdown_sent;
+  int reading;
+  int eof;
+  int shutdown;
+
   int pending_shutdown;
   int pending_destroy;
   ssize_t pending_write;

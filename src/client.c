@@ -33,7 +33,7 @@ static int bud_client_throttle(bud_client_t* client,
 static void bud_client_send(bud_client_t* client, bud_client_side_t* side);
 static void bud_client_send_cb(uv_write_t* req, int status);
 static void bud_client_connect_cb(uv_connect_t* req, int status);
-static int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side);
+static void bud_client_shutdown(bud_client_t* client, bud_client_side_t* side);
 static void bud_client_shutdown_cb(uv_shutdown_t* req, int status);
 static int bud_client_prepend_proxyline(bud_client_t* client);
 static void bud_client_log(bud_client_t* client,
@@ -63,6 +63,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
     return;
 
   client->config = config;
+  client->ssl = NULL;
   client->destroying = 0;
   client->destroy_waiting = 0;
 
@@ -86,6 +87,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
                     bud_client_read_cb);
   if (r != 0)
     goto failed_accept;
+  client->frontend.reading = 1;
 
   /*
    * Connect to backend
@@ -143,6 +145,10 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
       goto failed_connect;
   }
 
+  bud_client_debug(client,
+                   &client->frontend,
+                   "client %p new (%d) %s",
+                   0);
   return;
 
 failed_connect:
@@ -166,7 +172,9 @@ void bud_client_side_init(bud_client_side_t* side,
   side->tcp.data = client;
   ringbuffer_init(&side->input);
   ringbuffer_init(&side->output);
-  side->shutdown_sent = 0;
+  side->reading = 0;
+  side->eof = 0;
+  side->shutdown = 0;
   side->pending_shutdown = 0;
   side->pending_destroy = 0;
   side->pending_write = 0;
@@ -193,9 +201,9 @@ void bud_client_close(bud_client_t* client, bud_client_side_t* side) {
     if (side->pending_destroy) {
       bud_client_debug(client,
                        side,
-                       "client force closing (%d) %s",
+                       "client %p force closing (%d) %s",
                        0);
-      uv_close((uv_handle_t*) &client->frontend.tcp, bud_client_close_cb);
+      uv_close((uv_handle_t*) &side->tcp, bud_client_close_cb);
       side->pending_destroy = 0;
     }
     return;
@@ -206,25 +214,23 @@ void bud_client_close(bud_client_t* client, bud_client_side_t* side) {
   client->destroying = 1;
 
   if (side->type == kBudBackend &&
-      (ringbuffer_size(&client->frontend.output) != 0 ||
-       client->frontend.pending_shutdown)) {
+      !ringbuffer_is_empty(&client->frontend.output)) {
     client->frontend.pending_destroy = 1;
   } else {
     bud_client_debug(client,
                      &client->frontend,
-                     "client force closing (%d) %s (and waiting for other)",
+                     "client %p force closing (%d) %s (and waiting for other)",
                      0);
     uv_close((uv_handle_t*) &client->frontend.tcp, bud_client_close_cb);
   }
 
   if (side->type == kBudFrontend &&
-      (ringbuffer_size(&client->backend.output) != 0 ||
-       client->backend.pending_shutdown)) {
+      !ringbuffer_is_empty(&client->backend.output)) {
     client->backend.pending_destroy = 1;
   } else {
     bud_client_debug(client,
                      &client->backend,
-                     "client force closing (%d) %s (and waiting for other)",
+                     "client %p force closing (%d) %s (and waiting for other)",
                      0);
     uv_close((uv_handle_t*) &client->backend.tcp, bud_client_close_cb);
   }
@@ -242,7 +248,8 @@ void bud_client_close_cb(uv_handle_t* handle) {
   bud_client_side_destroy(&client->frontend);
   bud_client_side_destroy(&client->backend);
 
-  SSL_free(client->ssl);
+  if (client->ssl != NULL)
+    SSL_free(client->ssl);
   client->ssl = NULL;
   free(client);
 }
@@ -271,56 +278,55 @@ void bud_client_read_cb(uv_stream_t* stream,
   int r;
   bud_client_t* client;
   bud_client_side_t* side;
+  bud_client_side_t* opposite;
 
   client = stream->data;
   side = bud_client_side_by_tcp(client, (uv_tcp_t*) stream);
 
-  if (side->type == kBudBackend) {
-    /* Try writing close_notify */
-    if (nread == UV_EOF)
-      bud_client_shutdown(client, &client->frontend);
-  }
-
-  bud_client_debug(client,
-                   side,
-                   "client before read_cb() => %d on %s",
-                   ringbuffer_size(&side->input));
-
   /* Commit data if there was no error */
+  r = 0;
   if (nread >= 0)
     r = ringbuffer_write_append(&side->input, nread);
 
   bud_client_debug(client,
                    side,
-                   "client after read_cb() => %d on %s",
-                   ringbuffer_size(&side->input));
-  if (nread < 0 || r != 0) {
-    /* Write out all data, before closing socket */
-    bud_client_cycle(client);
+                   "client %p after read_cb() => %d on %s",
+                   nread);
 
+  /* Handle EOF */
+  if (nread == UV_EOF) {
+    side->eof = 1;
+
+    /* Shutdown opposite side */
+    opposite = side == &client->frontend ? &client->backend : &client->frontend;
+    bud_client_shutdown(client, opposite);
+  }
+
+  /* Try writing out data anyway */
+  bud_client_cycle(client);
+
+  if ((r != 0 || nread < 0) && nread != UV_EOF) {
     if (nread < 0) {
-      if (nread != UV_EOF) {
-        bud_client_log(client,
-                       side,
-                       "client read_cb failed with (%d) \"%s\" on %s",
-                       nread,
-                       uv_strerror(nread));
-      }
+      bud_client_log(client,
+                     side,
+                     "client %p read_cb failed with (%d) \"%s\" on %s",
+                     nread,
+                     uv_strerror(nread));
     } else {
       bud_client_log(client,
                      side,
-                     "client write_append failed with (%d) \"%s\" on %s",
+                     "client %p write_append failed with (%d) \"%s\" on %s",
                      r,
                      NULL);
     }
+
+    /* Unrecoverable socket error, close */
     return bud_client_close(client, side);
   }
 
   /* If buffer is full - stop reading */
   if (bud_client_throttle(client, side, &side->input) == -1)
-    return;
-
-  bud_client_cycle(client);
+    return bud_client_close(client, side);
 }
 
 
@@ -343,12 +349,12 @@ void bud_client_backend_in(bud_client_t* client) {
     data = ringbuffer_read_next(&client->backend.input, &size);
     written = SSL_write(client->ssl, data, size);
     bud_client_debug(client,
-                     &client->backend,
-                     "client SSL_write(%d) on %s",
+                     &client->frontend,
+                     "client %p SSL_write() => %d on %s",
                      written);
     bud_client_debug(client,
-                     &client->backend,
-                     "client frontend.output => (%d) on %s",
+                     &client->frontend,
+                     "client %p frontend.output => (%d) on %s",
                      ringbuffer_size(&client->frontend.output));
     if (written < 0)
       break;
@@ -361,6 +367,7 @@ void bud_client_backend_in(bud_client_t* client) {
                           &client->frontend,
                           &client->frontend.output) == -1) {
     /* Throttle error */
+    bud_client_close(client, &client->frontend);
     return;
   }
 
@@ -373,7 +380,7 @@ void bud_client_backend_in(bud_client_t* client) {
 
   bud_client_log(client,
                  &client->frontend,
-                 "client SSL_write failed with (%d) \"%s\" on %s",
+                 "client %p SSL_write failed with (%d) \"%s\" on %s",
                  err,
                  bud_sslerror_str(err));
   bud_client_close(client, &client->frontend);
@@ -387,19 +394,21 @@ void bud_client_backend_out(bud_client_t* client) {
   char* out;
 
   /* If buffer is full - stop reading */
-  if (bud_client_throttle(client,
-                          &client->backend,
-                          &client->backend.output) != 0) {
+  err = bud_client_throttle(client,
+                            &client->backend,
+                            &client->backend.output);
+  if (err < 0)
+    return bud_client_close(client, &client->backend);
+  else if (err == 1)
     return;
-  }
 
   do {
     avail = 0;
     out = ringbuffer_write_ptr(&client->backend.output, &avail);
     read = SSL_read(client->ssl, out, avail);
     bud_client_debug(client,
-                     &client->backend,
-                     "client SSL_read(%d) on %s",
+                     &client->frontend,
+                     "client %p SSL_read() => %d on %s",
                      read);
     if (read > 0) {
       ringbuffer_write_append(&client->backend.output, read);
@@ -416,7 +425,7 @@ void bud_client_backend_out(bud_client_t* client) {
 
   bud_client_log(client,
                  &client->frontend,
-                 "client SSL_read failed with (%d) \"%s\" on %s",
+                 "client %p SSL_read failed with (%d) \"%s\" on %s",
                  err,
                  bud_sslerror_str(err));
   bud_client_close(client, &client->frontend);
@@ -433,19 +442,22 @@ int bud_client_throttle(bud_client_t* client,
     opposite = side == &client->frontend ? &client->backend : &client->frontend;
     bud_client_debug(client,
                      opposite,
-                     "client throttle (%d) on %s",
+                     "client %p throttle (%d) on %s",
                      ringbuffer_size(buf));
+    if (!opposite->reading)
+      return 1;
 
     err = uv_read_stop((uv_stream_t*) &opposite->tcp);
     if (err != 0) {
       bud_client_log(client,
                      opposite,
-                     "client read_stop failed with (%d) \"%s\" on %s",
+                     "client %p read_stop failed with (%d) \"%s\" on %s",
                      err,
                      uv_strerror(err));
       bud_client_close(client, opposite);
       return -1;
     }
+    opposite->reading = 0;
 
     return 1;
   }
@@ -463,16 +475,16 @@ void bud_client_send(bud_client_t* client, bud_client_side_t* side) {
   if (side->pending_write != 0)
     return;
 
-  /* Try writing close_notify */
-  if (client->destroying)
-    bud_client_shutdown(client, side);
+  /* If side is destroyed - stop sending */
+  if (client->destroying && !side->pending_destroy)
+    return;
 
   out = ringbuffer_read_next(&side->output, &side->pending_write);
   if (side->pending_write == 0)
     return;
   bud_client_debug(client,
                    side,
-                   "client write(%d) on %s",
+                   "client %p write(%d) on %s",
                    side->pending_write);
 
   buf = uv_buf_init(out, side->pending_write);
@@ -488,7 +500,7 @@ void bud_client_send(bud_client_t* client, bud_client_side_t* side) {
 
   bud_client_log(client,
                  side,
-                 "client uv_write() failed with (%d) \"%s\" on %s",
+                 "client %p uv_write() failed with (%d) \"%s\" on %s",
                  r,
                  uv_strerror(r));
   bud_client_close(client, side);
@@ -514,7 +526,7 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   if (status != 0) {
     bud_client_log(client,
                    side,
-                   "client uv_write() cb failed with (%d) \"%s\" on %s",
+                   "client %p uv_write() cb failed with (%d) \"%s\" on %s",
                    status,
                    uv_strerror(status));
     return bud_client_close(client, side);
@@ -523,18 +535,20 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   /* Consume written data */
   bud_client_debug(client,
                    side,
-                   "client write_cb (%d) on: %s",
+                   "client %p write_cb (%d) on: %s",
                    side->pending_write);
   ringbuffer_read_skip(&side->output, side->pending_write);
   side->pending_write = 0;
 
   /* Start reading, if stopped */
-  if (!side->pending_destroy &&
-      !side->shutdown_sent &&
+  if (!opposite->reading &&
+      !opposite->eof &&
+      !side->pending_destroy &&
+      !side->shutdown &&
       !ringbuffer_is_full(&side->output)) {
     bud_client_debug(client,
                      opposite,
-                     "client read_start (%d) on: %s",
+                     "client %p read_start (%d) on: %s",
                      0);
     r = uv_read_start((uv_stream_t*) &opposite->tcp,
                       bud_client_alloc_cb,
@@ -542,24 +556,26 @@ void bud_client_send_cb(uv_write_t* req, int status) {
     if (r != 0) {
       bud_client_log(client,
                      opposite,
-                     "client uv_read_start() failed with (%d) \"%s\" on %s",
+                     "client %p uv_read_start() failed with (%d) \"%s\" on %s",
                      r,
                      uv_strerror(r));
       return bud_client_close(client, opposite);
     }
+    opposite->reading = 1;
   }
 
   /* Cycle again */
   bud_client_cycle(client);
 
-  /* In the destroy, but writing data */
-  if (side->pending_destroy && !side->pending_shutdown) {
-    ASSERT(client->destroying, "Waiting, but client not destroying");
+  if (side->pending_destroy || side->pending_shutdown) {
+    if (!ringbuffer_is_empty(&side->output))
+      return;
 
-    /* No new data, destroy */
-    if (ringbuffer_size(&side->output) == 0)
-      bud_client_close(client, side);
-    return;
+    /* No new data, destroy or shutdown */
+    if (side->pending_destroy)
+      return bud_client_close(client, side);
+
+    bud_client_shutdown(client, side);
   }
 }
 
@@ -570,13 +586,13 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
   client = container_of(req, bud_client_t, connect_req);
   bud_client_debug(client,
                    &client->backend,
-                   "client connect %d on %s",
+                   "client %p connect %d on %s",
                    status);
 
   if (status != 0 && status != UV_ECANCELED) {
     bud_client_log(client,
                    &client->backend,
-                   "client uv_connect() failed with (%d) \"%s\" on %s",
+                   "client %p uv_connect() failed with (%d) \"%s\" on %s",
                    status,
                    uv_strerror(status));
     return bud_client_close(client, &client->backend);
@@ -586,14 +602,27 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
 }
 
 
-int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side) {
+void bud_client_shutdown(bud_client_t* client, bud_client_side_t* side) {
   int r;
-  if (side->shutdown_sent)
-    return -1;
+
+  /* Ignore if already shutdown or destroyed */
+  if (side->shutdown || (client->destroying && !side->pending_destroy))
+    return;
+
+  side->pending_shutdown = 0;
+
+  /* Try cycling data to figure out if there is still something to send */
+  bud_client_cycle(client);
+
+  /* Not empty, send everything first */
+  if (!ringbuffer_is_empty(&side->output)) {
+    side->pending_shutdown = 1;
+    return;
+  }
 
   bud_client_debug(client,
                    side,
-                   "client shutdown (%d) on: %s",
+                   "client %p shutdown (%d) on: %s",
                    0);
 
   if (side == &client->frontend && SSL_shutdown(client->ssl) == 0)
@@ -606,16 +635,12 @@ int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side) {
   if (r != 0) {
     bud_client_log(client,
                    side,
-                   "client uv_shutdown() failed with (%d) \"%s\" on %s",
+                   "client %p uv_shutdown() failed with (%d) \"%s\" on %s",
                    r,
                    uv_strerror(r));
     bud_client_close(client, side);
-  } else {
-    side->pending_shutdown = 1;
   }
-  side->shutdown_sent = 1;
-
-  return r;
+  side->shutdown = 1;
 }
 
 
@@ -630,21 +655,19 @@ void bud_client_shutdown_cb(uv_shutdown_t* req, int status) {
   else
     side = &client->backend;
 
-  ASSERT(side->pending_shutdown, "shutdown_cb() without uv_shutdown()");
-  side->pending_shutdown = 0;
   if (status == UV_ECANCELED)
     return;
 
   if (status != 0) {
     bud_client_log(client,
                    side,
-                   "client shutdown_cb() failed with (%d) \"%s\" on %s",
+                   "client %p shutdown_cb() failed with (%d) \"%s\" on %s",
                    status,
                    uv_strerror(status));
   } else {
     bud_client_debug(client,
                      side,
-                     "client shutdown cb (%d) on: %s",
+                     "client %p shutdown cb (%d) on: %s",
                      0);
   }
 
@@ -741,6 +764,7 @@ void bud_client_log(bud_client_t* client,
   bud_log(client->config,
           side->type == kBudBackend ? kBudLogWarning : kBudLogNotice,
           (char*) fmt,
+          client,
           code,
           reason,
           bud_side_str(side->type));
@@ -754,6 +778,7 @@ void bud_client_debug(bud_client_t* client,
   bud_log(client->config,
           kBudLogDebug,
           (char*) fmt,
+          client,
           code,
           bud_side_str(side->type));
 }
