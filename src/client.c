@@ -17,7 +17,7 @@ enum bud_side_e {
   kBudBackend
 };
 
-static void bud_client_destroy(bud_client_t* client, bud_side_t error_side);
+static void bud_client_close(bud_client_t* client, bud_side_t error_side);
 static void bud_client_close_cb(uv_handle_t* handle);
 static void bud_client_alloc_cb(uv_handle_t* handle,
                                 size_t suggested_size,
@@ -165,7 +165,7 @@ failed_tcp_in_init:
 }
 
 
-void bud_client_destroy(bud_client_t* client, bud_side_t error_side) {
+void bud_client_close(bud_client_t* client, bud_side_t error_side) {
   if (client->destroying) {
     /* Force close, even if waiting */
     if (error_side == kBudFrontend && client->current_enc_waiting) {
@@ -283,7 +283,7 @@ void bud_client_read_cb(uv_stream_t* stream,
                      r,
                      NULL);
     }
-    return bud_client_destroy(client, side);
+    return bud_client_close(client, side);
   }
 
   /* If buffer is full - stop reading */
@@ -299,7 +299,7 @@ void bud_client_read_cb(uv_stream_t* stream,
                      "client read_stop failed with (%d) \"%s\" on %s",
                      r,
                      uv_strerror(r));
-      return bud_client_destroy(client, side);
+      return bud_client_close(client, side);
     }
   }
 
@@ -344,7 +344,7 @@ void bud_client_clear_in(bud_client_t* client) {
                  "client SSL_write failed with (%d) \"%s\" on %s",
                  err,
                  bud_sslerror_str(err));
-  bud_client_destroy(client, kBudFrontend);
+  bud_client_close(client, kBudFrontend);
 }
 
 
@@ -368,7 +368,7 @@ void bud_client_clear_out(bud_client_t* client) {
                      "client read_stop_failed failed with (%d) \"%s\" on %s",
                      err,
                      uv_strerror(err));
-      return bud_client_destroy(client, kBudBackend);
+      return bud_client_close(client, kBudBackend);
     }
 
     return;
@@ -396,7 +396,7 @@ void bud_client_clear_out(bud_client_t* client) {
                  "client SSL_read failed with (%d) \"%s\"",
                  err,
                  bud_sslerror_str(err));
-  bud_client_destroy(client, kBudFrontend);
+  bud_client_close(client, kBudFrontend);
 }
 
 
@@ -449,7 +449,7 @@ void bud_client_send(bud_client_t* client, uv_tcp_t* tcp) {
                  "client uv_write() failed with (%d) \"%s\" on %s",
                  r,
                  uv_strerror(r));
-  bud_client_destroy(client, side);
+  bud_client_close(client, side);
 }
 
 
@@ -487,7 +487,7 @@ void bud_client_send_cb(uv_write_t* req, int status) {
                    "client uv_write() cb failed with (%d) \"%s\" on %s",
                    status,
                    uv_strerror(status));
-    return bud_client_destroy(client, side);
+    return bud_client_close(client, side);
   }
 
   /* Start reading, if stopped */
@@ -504,7 +504,7 @@ void bud_client_send_cb(uv_write_t* req, int status) {
                      "client uv_read_start() failed with (%d) \"%s\" on %s",
                      r,
                      uv_strerror(r));
-      return bud_client_destroy(client, side);
+      return bud_client_close(client, side);
     }
   }
 
@@ -521,7 +521,7 @@ void bud_client_send_cb(uv_write_t* req, int status) {
 
     /* No new data, destroy */
     if (ringbuffer_size(buffer) == 0)
-      bud_client_destroy(client, side);
+      bud_client_close(client, side);
     return;
   }
 }
@@ -542,7 +542,7 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
                    "client uv_connect() failed with (%d) \"%s\" on %s",
                    status,
                    uv_strerror(status));
-    return bud_client_destroy(client, kBudBackend);
+    return bud_client_close(client, kBudBackend);
   }
 
   /* Do nothing, we will start reading once handshake will be performed */
