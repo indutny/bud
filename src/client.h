@@ -25,7 +25,11 @@ struct bud_client_side_s {
   ringbuffer input;
   ringbuffer output;
 
-  uv_write_t req;
+  uv_write_t write_req;
+  uv_shutdown_t shutdown_req;
+
+  int shutdown_sent;
+  int pending_shutdown;
   int pending_destroy;
   ssize_t pending_write;
 };
@@ -42,7 +46,6 @@ struct bud_client_s {
   /* State */
   uv_connect_t connect_req;
   int destroying;
-  int shutdown;
   int destroy_waiting;
 };
 
