@@ -352,6 +352,10 @@ void bud_client_backend_in(bud_client_t* client) {
   while (!ringbuffer_is_empty(&client->backend.input)) {
     data = ringbuffer_read_next(&client->backend.input, &size);
     written = SSL_write(client->ssl, data, size);
+    bud_client_debug(client,
+                     &client->backend,
+                     "client SSL_write(%d) on %s",
+                     written);
     if (written < 0)
       break;
 
@@ -405,6 +409,10 @@ void bud_client_backend_out(bud_client_t* client) {
     avail = 0;
     out = ringbuffer_write_ptr(&client->backend.output, &avail);
     read = SSL_read(client->ssl, out, avail);
+    bud_client_debug(client,
+                     &client->backend,
+                     "client SSL_read(%d) on %s",
+                     read);
     if (read > 0) {
       ringbuffer_write_append(&client->backend.output, read);
       bud_client_send(client, &client->backend);
