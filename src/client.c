@@ -284,8 +284,7 @@ void bud_client_read_cb(uv_stream_t* stream,
 
   bud_client_debug(client,
                    side,
-                   "client read_cb(%d) => %d on %s",
-                   nread,
+                   "client read_cb() => %d on %s",
                    ringbuffer_size(&side->input));
   if (nread < 0 || r != 0) {
     /* Write out all data, before closing socket */
