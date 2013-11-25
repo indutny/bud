@@ -278,13 +278,18 @@ void bud_client_read_cb(uv_stream_t* stream,
       bud_client_shutdown(client, &client->frontend);
   }
 
+  bud_client_debug(client,
+                   side,
+                   "client before read_cb() => %d on %s",
+                   ringbuffer_size(&side->input));
+
   /* Commit data if there was no error */
   if (nread >= 0)
     r = ringbuffer_write_append(&side->input, nread);
 
   bud_client_debug(client,
                    side,
-                   "client read_cb() => %d on %s",
+                   "client after read_cb() => %d on %s",
                    ringbuffer_size(&side->input));
   if (nread < 0 || r != 0) {
     /* Write out all data, before closing socket */
