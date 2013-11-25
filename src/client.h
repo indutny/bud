@@ -13,10 +13,17 @@ struct bud_config_s;
 typedef struct bud_client_s bud_client_t;
 typedef struct bud_client_side_s bud_client_side_t;
 typedef enum bud_client_side_type_e bud_client_side_type_t;
+typedef enum bud_client_progress_e bud_client_progress_t;
 
 enum bud_client_side_type_e {
   kBudFrontend,
   kBudBackend
+};
+
+enum bud_client_progress_e {
+  kBudProgressNone,
+  kBudProgressRunning,
+  kBudProgressDone
 };
 
 struct bud_client_side_s {
@@ -28,13 +35,12 @@ struct bud_client_side_s {
   uv_write_t write_req;
   uv_shutdown_t shutdown_req;
 
-  int reading;
-  int eof;
-  int shutdown;
+  bud_client_progress_t reading;
+  bud_client_progress_t shutdown;
+  bud_client_progress_t close;
+  bud_client_progress_t write;
 
-  int pending_shutdown;
-  int pending_destroy;
-  ssize_t pending_write;
+  ssize_t write_size;
 };
 
 struct bud_client_s {
@@ -48,7 +54,7 @@ struct bud_client_s {
 
   /* State */
   uv_connect_t connect_req;
-  int destroying;
+  bud_client_progress_t close;
   int destroy_waiting;
 };
 
