@@ -11,30 +11,39 @@
 struct bud_config_s;
 
 typedef struct bud_client_s bud_client_t;
+typedef struct bud_client_side_s bud_client_side_t;
+typedef enum bud_client_side_type_e bud_client_side_type_t;
+
+enum bud_client_side_type_e {
+  kBudFrontend,
+  kBudBackend
+};
+
+struct bud_client_side_s {
+  bud_client_side_type_t type;
+  uv_tcp_t tcp;
+  ringbuffer input;
+  ringbuffer output;
+
+  uv_write_t req;
+  int pending_destroy;
+  ssize_t pending_write;
+};
 
 struct bud_client_s {
   struct bud_config_s* config;
 
-  uv_tcp_t tcp_in;
-  uv_tcp_t tcp_out;
-  ringbuffer enc_in;
-  ringbuffer enc_out;
-  ringbuffer clear_in;
-  ringbuffer clear_out;
-
   SSL* ssl;
+
+  /* Compact representation of both sides */
+  bud_client_side_t frontend;
+  bud_client_side_t backend;
 
   /* State */
   uv_connect_t connect_req;
   int destroying;
   int shutdown;
   int destroy_waiting;
-  ssize_t current_enc_write;
-  ssize_t current_clear_write;
-  int current_enc_waiting;
-  int current_clear_waiting;
-  uv_write_t enc_write_req;
-  uv_write_t clear_write_req;
 };
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream);

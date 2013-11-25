@@ -10,14 +10,15 @@
 #include "client.h"
 #include "logger.h"
 
-typedef enum bud_side_e bud_side_t;
-
-enum bud_side_e {
-  kBudFrontend,
-  kBudBackend
-};
-
-static void bud_client_close(bud_client_t* client, bud_side_t error_side);
+static void bud_client_side_init(bud_client_side_t* side,
+                                 bud_client_side_type_t type,
+                                 bud_client_t* client);
+static void bud_client_side_destroy(bud_client_side_t* side);
+static bud_client_side_t* bud_client_side_by_tcp(bud_client_t* client,
+                                                 uv_tcp_t* tcp);
+static bud_client_side_t* bud_client_side_by_req(bud_client_t* client,
+                                                 uv_write_t* req);
+static void bud_client_close(bud_client_t* client, bud_client_side_t* side);
 static void bud_client_close_cb(uv_handle_t* handle);
 static void bud_client_alloc_cb(uv_handle_t* handle,
                                 size_t suggested_size,
@@ -26,24 +27,24 @@ static void bud_client_read_cb(uv_stream_t* stream,
                                ssize_t nread,
                                const uv_buf_t* buf);
 static void bud_client_cycle(bud_client_t* client);
-static void bud_client_clear_in(bud_client_t* client);
-static void bud_client_clear_out(bud_client_t* client);
-static void bud_client_send(bud_client_t* client, uv_tcp_t* tcp);
+static void bud_client_backend_in(bud_client_t* client);
+static void bud_client_backend_out(bud_client_t* client);
+static void bud_client_send(bud_client_t* client, bud_client_side_t* side);
 static void bud_client_send_cb(uv_write_t* req, int status);
 static void bud_client_connect_cb(uv_connect_t* req, int status);
-static int bud_client_shutdown(bud_client_t* client, bud_side_t side);
+static int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side);
 static int bud_client_prepend_proxyline(bud_client_t* client);
 static void bud_client_log(bud_client_t* client,
-                           bud_side_t side,
+                           bud_client_side_t* side,
                            const char* fmt,
                            int code,
                            const char* reason);
 static void bud_client_debug(bud_client_t* client,
-                             bud_side_t side,
+                             bud_client_side_t* side,
                              const char* fmt,
                              int code);
 static const char* bud_sslerror_str(int err);
-static const char* bud_side_str(bud_side_t side);
+static const char* bud_side_str(bud_client_side_type_t side);
 
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
@@ -60,34 +61,26 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
     return;
 
   client->config = config;
-  client->tcp_in.data = client;
-  client->tcp_out.data = client;
   client->destroying = 0;
   client->shutdown = 0;
   client->destroy_waiting = 0;
-  client->current_enc_write = 0;
-  client->current_clear_write = 0;
-  client->current_enc_waiting = 0;
-  client->current_clear_waiting = 0;
 
   /* Initialize buffers */
-  ringbuffer_init(&client->enc_in);
-  ringbuffer_init(&client->enc_out);
-  ringbuffer_init(&client->clear_in);
-  ringbuffer_init(&client->clear_out);
+  bud_client_side_init(&client->frontend, kBudFrontend, client);
+  bud_client_side_init(&client->backend, kBudBackend, client);
 
   /**
    * Accept client on frontend
    */
-  r = uv_tcp_init(config->loop, &client->tcp_in);
+  r = uv_tcp_init(config->loop, &client->frontend.tcp);
   if (r != 0)
     goto failed_tcp_in_init;
 
-  r = uv_accept(stream, (uv_stream_t*) &client->tcp_in);
+  r = uv_accept(stream, (uv_stream_t*) &client->frontend.tcp);
   if (r != 0)
     goto failed_accept;
 
-  r = uv_read_start((uv_stream_t*) &client->tcp_in,
+  r = uv_read_start((uv_stream_t*) &client->frontend.tcp,
                     bud_client_alloc_cb,
                     bud_client_read_cb);
   if (r != 0)
@@ -97,25 +90,25 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
    * Connect to backend
    * NOTE: We won't start reading until some SSL data will be sent.
    */
-  r = uv_tcp_init(config->loop, &client->tcp_out);
+  r = uv_tcp_init(config->loop, &client->backend.tcp);
   if (r != 0)
     goto failed_accept;
 
   r = uv_tcp_connect(&client->connect_req,
-                     &client->tcp_out,
+                     &client->backend.tcp,
                      (struct sockaddr*) &client->config->backend.addr,
                      bud_client_connect_cb);
   if (r != 0)
     goto failed_connect;
 
   /* Adjust sockets */
-  r = uv_tcp_nodelay(&client->tcp_in, 1);
+  r = uv_tcp_nodelay(&client->frontend.tcp, 1);
   if (r == 0)
-    r = uv_tcp_nodelay(&client->tcp_out, 1);
+    r = uv_tcp_nodelay(&client->backend.tcp, 1);
   if (r == 0 && config->frontend.keepalive > 0)
-    r = uv_tcp_keepalive(&client->tcp_in, 1, config->frontend.keepalive);
+    r = uv_tcp_keepalive(&client->frontend.tcp, 1, config->frontend.keepalive);
   if (r == 0 && config->backend.keepalive > 0)
-    r = uv_tcp_keepalive(&client->tcp_out, 1, config->backend.keepalive);
+    r = uv_tcp_keepalive(&client->backend.tcp, 1, config->backend.keepalive);
   if (r != 0)
     goto failed_connect;
 
@@ -126,10 +119,10 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   if (client->ssl == NULL)
     goto failed_connect;
 
-  enc_in = bud_bio_new(&client->enc_in);
+  enc_in = bud_bio_new(&client->frontend.input);
   if (enc_in == NULL)
     goto failed_connect;
-  enc_out = bud_bio_new(&client->enc_out);
+  enc_out = bud_bio_new(&client->frontend.output);
   if (enc_out == NULL) {
     BIO_free_all(enc_in);
     goto failed_connect;
@@ -153,11 +146,11 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
 
 failed_connect:
   client->destroy_waiting++;
-  uv_close((uv_handle_t*) &client->tcp_out, bud_client_close_cb);
+  uv_close((uv_handle_t*) &client->backend.tcp, bud_client_close_cb);
 
 failed_accept:
   client->destroy_waiting++;
-  uv_close((uv_handle_t*) &client->tcp_in, bud_client_close_cb);
+  uv_close((uv_handle_t*) &client->frontend.tcp, bud_client_close_cb);
   return;
 
 failed_tcp_in_init:
@@ -165,16 +158,47 @@ failed_tcp_in_init:
 }
 
 
-void bud_client_close(bud_client_t* client, bud_side_t error_side) {
+void bud_client_side_init(bud_client_side_t* side,
+                          bud_client_side_type_t type,
+                          bud_client_t* client) {
+  side->type = type;
+  side->tcp.data = client;
+  ringbuffer_init(&side->input);
+  ringbuffer_init(&side->output);
+  side->pending_destroy = 0;
+  side->pending_write = 0;
+}
+
+
+void bud_client_side_destroy(bud_client_side_t* side) {
+  ringbuffer_destroy(&side->input);
+  ringbuffer_destroy(&side->output);
+}
+
+
+bud_client_side_t* bud_client_side_by_tcp(bud_client_t* client, uv_tcp_t* tcp) {
+  if (tcp == &client->frontend.tcp)
+    return &client->frontend;
+  else
+    return &client->backend;
+}
+
+
+bud_client_side_t* bud_client_side_by_req(bud_client_t* client,
+                                          uv_write_t* req) {
+  if (req == &client->frontend.req)
+    return &client->frontend;
+  else
+    return &client->backend;
+}
+
+
+void bud_client_close(bud_client_t* client, bud_client_side_t* side) {
   if (client->destroying) {
     /* Force close, even if waiting */
-    if (error_side == kBudFrontend && client->current_enc_waiting) {
-      uv_close((uv_handle_t*) &client->tcp_in, bud_client_close_cb);
-      client->current_enc_waiting = 0;
-    }
-    if (error_side == kBudBackend && client->current_clear_waiting) {
-      uv_close((uv_handle_t*) &client->tcp_out, bud_client_close_cb);
-      client->current_clear_waiting = 0;
+    if (side->pending_destroy) {
+      uv_close((uv_handle_t*) &client->frontend.tcp, bud_client_close_cb);
+      side->pending_destroy = 0;
     }
     return;
   }
@@ -183,15 +207,19 @@ void bud_client_close(bud_client_t* client, bud_side_t error_side) {
   client->destroy_waiting = 2;
   client->destroying = 1;
 
-  if (error_side == kBudBackend && ringbuffer_size(&client->enc_out) != 0)
-    client->current_enc_waiting = 1;
-  else
-    uv_close((uv_handle_t*) &client->tcp_in, bud_client_close_cb);
+  if (side->type == kBudBackend &&
+      ringbuffer_size(&client->frontend.output) != 0) {
+    client->frontend.pending_destroy = 1;
+  } else {
+    uv_close((uv_handle_t*) &client->frontend.tcp, bud_client_close_cb);
+  }
 
-  if (error_side == kBudFrontend && ringbuffer_size(&client->clear_out) != 0)
-    client->current_clear_waiting = 1;
-  else
-    uv_close((uv_handle_t*) &client->tcp_out, bud_client_close_cb);
+  if (side->type == kBudFrontend &&
+      ringbuffer_size(&client->backend.output) != 0) {
+    client->backend.pending_destroy = 1;
+  } else {
+    uv_close((uv_handle_t*) &client->backend.tcp, bud_client_close_cb);
+  }
 }
 
 
@@ -203,10 +231,8 @@ void bud_client_close_cb(uv_handle_t* handle) {
   if (--client->destroy_waiting != 0)
     return;
 
-  ringbuffer_destroy(&client->enc_in);
-  ringbuffer_destroy(&client->enc_out);
-  ringbuffer_destroy(&client->clear_in);
-  ringbuffer_destroy(&client->clear_out);
+  bud_client_side_destroy(&client->frontend);
+  bud_client_side_destroy(&client->backend);
 
   SSL_free(client->ssl);
   client->ssl = NULL;
@@ -218,19 +244,15 @@ void bud_client_alloc_cb(uv_handle_t* handle,
                          size_t suggested_size,
                          uv_buf_t* buf) {
   bud_client_t* client;
+  bud_client_side_t* side;
   ssize_t avail;
   char* ptr;
-  ringbuffer* buffer;
 
   client = handle->data;
-
-  if (handle == (uv_handle_t*) &client->tcp_in)
-    buffer = &client->enc_in;
-  else
-    buffer = &client->clear_in;
+  side = bud_client_side_by_tcp(client, (uv_tcp_t*) handle);
 
   avail = 0;
-  ptr = ringbuffer_write_ptr(buffer, &avail);
+  ptr = ringbuffer_write_ptr(&side->input, &avail);
   *buf = uv_buf_init(ptr, avail);
 }
 
@@ -240,21 +262,15 @@ void bud_client_read_cb(uv_stream_t* stream,
                         const uv_buf_t* buf) {
   int r;
   bud_client_t* client;
-  ringbuffer* buffer;
-  bud_side_t side;
+  bud_client_side_t* side;
 
   client = stream->data;
+  side = bud_client_side_by_tcp(client, (uv_tcp_t*) stream);
 
-  if (stream == (uv_stream_t*) &client->tcp_in) {
-    side = kBudFrontend;
-    buffer = &client->enc_in;
-  } else {
-    side = kBudBackend;
-    buffer = &client->clear_in;
-
+  if (side->type == kBudBackend) {
     /* Try writing close_notify */
     if (nread == UV_EOF)
-      bud_client_shutdown(client, kBudFrontend);
+      bud_client_shutdown(client, &client->frontend);
   }
   bud_client_debug(client,
                    side,
@@ -263,7 +279,8 @@ void bud_client_read_cb(uv_stream_t* stream,
 
   /* Commit data if there was no error */
   if (nread >= 0)
-    r = ringbuffer_write_append(buffer, nread);
+    r = ringbuffer_write_append(&side->input, nread);
+
   if (nread < 0 || r != 0) {
     /* Write out all data, before closing socket */
     bud_client_cycle(client);
@@ -287,11 +304,11 @@ void bud_client_read_cb(uv_stream_t* stream,
   }
 
   /* If buffer is full - stop reading */
-  if (ringbuffer_is_full(buffer)) {
+  if (ringbuffer_is_full(&side->input)) {
     bud_client_debug(client,
                      side,
                      "client throttle (%d) on %s",
-                     ringbuffer_size(buffer));
+                     ringbuffer_size(&side->input));
     r = uv_read_stop(stream);
     if (r != 0) {
       bud_client_log(client,
@@ -308,28 +325,28 @@ void bud_client_read_cb(uv_stream_t* stream,
 
 
 void bud_client_cycle(bud_client_t* client) {
-  bud_client_clear_in(client);
-  bud_client_clear_out(client);
-  bud_client_send(client, &client->tcp_in);
-  bud_client_send(client, &client->tcp_out);
+  bud_client_backend_in(client);
+  bud_client_backend_out(client);
+  bud_client_send(client, &client->frontend);
+  bud_client_send(client, &client->backend);
 }
 
 
-void bud_client_clear_in(bud_client_t* client) {
+void bud_client_backend_in(bud_client_t* client) {
   char* data;
   ssize_t size;
   int written;
   int err;
 
   written = 0;
-  while (!ringbuffer_is_empty(&client->clear_in)) {
-    data = ringbuffer_read_next(&client->clear_in, &size);
+  while (!ringbuffer_is_empty(&client->backend.input)) {
+    data = ringbuffer_read_next(&client->backend.input, &size);
     written = SSL_write(client->ssl, data, size);
     if (written < 0)
       break;
 
     ASSERT(written == size, "SSL_write() did unexpected partial write");
-    ringbuffer_read_skip(&client->clear_in, written);
+    ringbuffer_read_skip(&client->backend.input, written);
   }
 
   if (written >= 0)
@@ -340,35 +357,35 @@ void bud_client_clear_in(bud_client_t* client) {
     return;
 
   bud_client_log(client,
-                 kBudFrontend,
+                 &client->frontend,
                  "client SSL_write failed with (%d) \"%s\" on %s",
                  err,
                  bud_sslerror_str(err));
-  bud_client_close(client, kBudFrontend);
+  bud_client_close(client, &client->frontend);
 }
 
 
-void bud_client_clear_out(bud_client_t* client) {
+void bud_client_backend_out(bud_client_t* client) {
   int read;
   int err;
   ssize_t avail;
   char* out;
 
   /* If buffer is full - stop reading */
-  if (ringbuffer_is_full(&client->clear_out)) {
+  if (ringbuffer_is_full(&client->backend.output)) {
     bud_client_debug(client,
-                     kBudBackend,
+                     &client->backend,
                      "client throttle (%d) on %s",
-                     ringbuffer_size(&client->clear_out));
+                     ringbuffer_size(&client->backend.output));
 
-    err = uv_read_stop((uv_stream_t*) &client->tcp_in);
+    err = uv_read_stop((uv_stream_t*) &client->frontend.tcp);
     if (err != 0) {
       bud_client_log(client,
-                     kBudBackend,
+                     &client->backend,
                      "client read_stop_failed failed with (%d) \"%s\" on %s",
                      err,
                      uv_strerror(err));
-      return bud_client_close(client, kBudBackend);
+      return bud_client_close(client, &client->backend);
     }
 
     return;
@@ -376,11 +393,11 @@ void bud_client_clear_out(bud_client_t* client) {
 
   do {
     avail = 0;
-    out = ringbuffer_write_ptr(&client->clear_out, &avail);
+    out = ringbuffer_write_ptr(&client->backend.output, &avail);
     read = SSL_read(client->ssl, out, avail);
     if (read > 0) {
-      ringbuffer_write_append(&client->clear_out, read);
-      bud_client_send(client, &client->tcp_out);
+      ringbuffer_write_append(&client->backend.output, read);
+      bud_client_send(client, &client->backend);
     }
   } while (read > 0);
 
@@ -392,54 +409,42 @@ void bud_client_clear_out(bud_client_t* client) {
     return;
 
   bud_client_log(client,
-                 kBudFrontend,
-                 "client SSL_read failed with (%d) \"%s\"",
+                 &client->frontend,
+                 "client SSL_read failed with (%d) \"%s\" on %s",
                  err,
                  bud_sslerror_str(err));
-  bud_client_close(client, kBudFrontend);
+  bud_client_close(client, &client->frontend);
 }
 
 
-void bud_client_send(bud_client_t* client, uv_tcp_t* tcp) {
-  uv_write_t* req;
-  bud_side_t side;
-  ringbuffer* buffer;
-  ssize_t* size;;
+void bud_client_send(bud_client_t* client, bud_client_side_t* side) {
   char* out;
   uv_buf_t buf;
   int r;
 
-  if (tcp == &client->tcp_in) {
-    side = kBudFrontend;
-    req = &client->enc_write_req;
-    buffer = &client->enc_out;
-    size = &client->current_enc_write;
-  } else {
-    side = kBudBackend;
-    req = &client->clear_write_req;
-    buffer = &client->clear_out;
-    size = &client->current_clear_write;
-  }
-
   /* Already writing */
-  if (*size != 0)
+  if (side->pending_write != 0)
     return;
 
   /* Try writing close_notify */
   if (client->destroying)
     bud_client_shutdown(client, side);
 
-  out = ringbuffer_read_next(buffer, size);
-  if (*size == 0)
-      return;
+  out = ringbuffer_read_next(&side->output, &side->pending_write);
+  if (side->pending_write == 0)
+    return;
   bud_client_debug(client,
                    side,
                    "client write(%d) on %s",
-                   *size);
+                   side->pending_write);
 
-  buf = uv_buf_init(out, *size);
-  req->data = client;
-  r = uv_write(req, (uv_stream_t*) tcp, &buf, 1, bud_client_send_cb);
+  buf = uv_buf_init(out, side->pending_write);
+  side->req.data = client;
+  r = uv_write(&side->req,
+               (uv_stream_t*) &side->tcp,
+               &buf,
+               1,
+               bud_client_send_cb);
 
   if (r == 0)
     return;
@@ -455,31 +460,17 @@ void bud_client_send(bud_client_t* client, uv_tcp_t* tcp) {
 
 void bud_client_send_cb(uv_write_t* req, int status) {
   int r;
-  bud_side_t side;
   bud_client_t* client;
-  ringbuffer* buffer;
-  ssize_t* size;
-  int waiting;
-  uv_tcp_t* current;
-  uv_stream_t* opposite;
+  bud_client_side_t* side;
+  bud_client_side_t* opposite;
 
   client = req->data;
 
-  if (req == &client->enc_write_req) {
-    side = kBudFrontend;
-    buffer = &client->enc_out;
-    size = &client->current_enc_write;
-    waiting = client->current_enc_waiting;
-    current = &client->tcp_in;
-    opposite = (uv_stream_t*) &client->tcp_out;
-  } else {
-    side = kBudBackend;
-    buffer = &client->clear_out;
-    size = &client->current_clear_write;
-    waiting = client->current_clear_waiting;
-    current = &client->tcp_out;
-    opposite = (uv_stream_t*) &client->tcp_in;
-  }
+  side = bud_client_side_by_req(client, req);
+  if (side == &client->frontend)
+    opposite = &client->backend;
+  else
+    opposite = &client->frontend;
 
   if (status != 0) {
     bud_client_log(client,
@@ -491,36 +482,37 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   }
 
   /* Start reading, if stopped */
-  if (!waiting) {
+  if (!side->pending_destroy) {
     bud_client_debug(client,
-                     side,
-                     "client read_start (%d) on opposite of: %s",
+                     opposite,
+                     "client read_start (%d) on: %s",
                      0);
-    r = uv_read_start(opposite, bud_client_alloc_cb, bud_client_read_cb);
+    r = uv_read_start((uv_stream_t*) &opposite->tcp,
+                      bud_client_alloc_cb,
+                      bud_client_read_cb);
     if (r != 0) {
-      side = side == kBudFrontend ? kBudBackend : kBudFrontend;
       bud_client_log(client,
-                     side,
+                     opposite,
                      "client uv_read_start() failed with (%d) \"%s\" on %s",
                      r,
                      uv_strerror(r));
-      return bud_client_close(client, side);
+      return bud_client_close(client, opposite);
     }
   }
 
   /* Consume written data */
-  ringbuffer_read_skip(buffer, *size);
-  *size = 0;
+  ringbuffer_read_skip(&side->output, side->pending_write);
+  side->pending_write = 0;
 
   /* In the destroy, but writing data */
-  if (waiting) {
+  if (side->pending_destroy) {
     ASSERT(client->destroying, "Waiting, but client not destroying");
 
     /* Cycle again */
     bud_client_cycle(client);
 
     /* No new data, destroy */
-    if (ringbuffer_size(buffer) == 0)
+    if (ringbuffer_size(&side->output) == 0)
       bud_client_close(client, side);
     return;
   }
@@ -532,25 +524,25 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
 
   client = container_of(req, bud_client_t, connect_req);
   bud_client_debug(client,
-                   kBudBackend,
+                   &client->backend,
                    "client backend connect %d on %s",
                    status);
 
   if (status != 0 && status != UV_ECANCELED) {
     bud_client_log(client,
-                   kBudBackend,
+                   &client->backend,
                    "client uv_connect() failed with (%d) \"%s\" on %s",
                    status,
                    uv_strerror(status));
-    return bud_client_close(client, kBudBackend);
+    return bud_client_close(client, &client->backend);
   }
 
   /* Do nothing, we will start reading once handshake will be performed */
 }
 
 
-int bud_client_shutdown(bud_client_t* client, bud_side_t side) {
-  if (client->shutdown || side != kBudFrontend)
+int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side) {
+  if (client->shutdown || side->type != kBudFrontend)
     return -1;
 
   client->shutdown = 1;
@@ -573,7 +565,7 @@ int bud_client_prepend_proxyline(bud_client_t* client) {
   char proxyline[256];
 
   storage_size = sizeof(storage);
-  r = uv_tcp_getpeername(&client->tcp_in,
+  r = uv_tcp_getpeername(&client->frontend.tcp,
                          (struct sockaddr*) &storage,
                          &storage_size);
   if (r != 0)
@@ -604,11 +596,11 @@ int bud_client_prepend_proxyline(bud_client_t* client) {
                ntohs(port));
   ASSERT(r < (int) sizeof(proxyline), "Client proxyline overflow");
 
-  return (int) ringbuffer_write_into(&client->clear_in, proxyline, r);
+  return (int) ringbuffer_write_into(&client->backend.input, proxyline, r);
 }
 
 
-const char* bud_side_str(bud_side_t side) {
+const char* bud_side_str(bud_client_side_type_t side) {
   if (side == kBudFrontend)
     return "frontend";
   else
@@ -641,28 +633,28 @@ const char* bud_sslerror_str(int err) {
 
 
 void bud_client_log(bud_client_t* client,
-                    bud_side_t side,
+                    bud_client_side_t* side,
                     const char* fmt,
                     int code,
                     const char* reason) {
   if (client->destroying)
     return;
   bud_log(client->config,
-          side == kBudBackend ? kBudLogWarning : kBudLogNotice,
+          side->type == kBudBackend ? kBudLogWarning : kBudLogNotice,
           (char*) fmt,
           code,
           reason,
-          bud_side_str(side));
+          bud_side_str(side->type));
 }
 
 
 void bud_client_debug(bud_client_t* client,
-                      bud_side_t side,
+                      bud_client_side_t* side,
                       const char* fmt,
                       int code) {
   bud_log(client->config,
           kBudLogDebug,
           (char*) fmt,
           code,
-          bud_side_str(side));
+          bud_side_str(side->type));
 }
