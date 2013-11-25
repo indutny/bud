@@ -27,6 +27,9 @@ static void bud_client_read_cb(uv_stream_t* stream,
 static void bud_client_cycle(bud_client_t* client);
 static void bud_client_backend_in(bud_client_t* client);
 static void bud_client_backend_out(bud_client_t* client);
+static int bud_client_throttle(bud_client_t* client,
+                               bud_client_side_t* side,
+                               ringbuffer* buf);
 static void bud_client_send(bud_client_t* client, bud_client_side_t* side);
 static void bud_client_send_cb(uv_write_t* req, int status);
 static void bud_client_connect_cb(uv_connect_t* req, int status);
@@ -314,21 +317,8 @@ void bud_client_read_cb(uv_stream_t* stream,
   }
 
   /* If buffer is full - stop reading */
-  if (ringbuffer_is_full(&side->input)) {
-    bud_client_debug(client,
-                     side,
-                     "client throttle (%d) on %s",
-                     ringbuffer_size(&side->input));
-    r = uv_read_stop(stream);
-    if (r != 0) {
-      bud_client_log(client,
-                     side,
-                     "client read_stop failed with (%d) \"%s\" on %s",
-                     r,
-                     uv_strerror(r));
-      return bud_client_close(client, side);
-    }
-  }
+  if (bud_client_throttle(client, side, &side->input) == -1)
+    return;
 
   bud_client_cycle(client);
 }
@@ -356,11 +346,22 @@ void bud_client_backend_in(bud_client_t* client) {
                      &client->backend,
                      "client SSL_write(%d) on %s",
                      written);
+    bud_client_debug(client,
+                     &client->backend,
+                     "client frontend.output => (%d) on %s",
+                     ringbuffer_size(&client->frontend.output));
     if (written < 0)
       break;
 
     ASSERT(written == size, "SSL_write() did unexpected partial write");
     ringbuffer_read_skip(&client->backend.input, written);
+  }
+
+  if (bud_client_throttle(client,
+                          &client->frontend,
+                          &client->frontend.output) == -1) {
+    /* Throttle error */
+    return;
   }
 
   if (written >= 0)
@@ -386,22 +387,9 @@ void bud_client_backend_out(bud_client_t* client) {
   char* out;
 
   /* If buffer is full - stop reading */
-  if (ringbuffer_is_full(&client->backend.output)) {
-    bud_client_debug(client,
-                     &client->backend,
-                     "client throttle (%d) on %s",
-                     ringbuffer_size(&client->backend.output));
-
-    err = uv_read_stop((uv_stream_t*) &client->frontend.tcp);
-    if (err != 0) {
-      bud_client_log(client,
-                     &client->backend,
-                     "client read_stop_failed failed with (%d) \"%s\" on %s",
-                     err,
-                     uv_strerror(err));
-      return bud_client_close(client, &client->backend);
-    }
-
+  if (bud_client_throttle(client,
+                          &client->backend,
+                          &client->backend.output) != 0) {
     return;
   }
 
@@ -432,6 +420,37 @@ void bud_client_backend_out(bud_client_t* client) {
                  err,
                  bud_sslerror_str(err));
   bud_client_close(client, &client->frontend);
+}
+
+
+int bud_client_throttle(bud_client_t* client,
+                        bud_client_side_t* side,
+                        ringbuffer* buf) {
+  int err;
+  bud_client_side_t* opposite;
+
+  if (ringbuffer_is_full(buf)) {
+    opposite = side == &client->frontend ? &client->backend : &client->frontend;
+    bud_client_debug(client,
+                     opposite,
+                     "client throttle (%d) on %s",
+                     ringbuffer_size(buf));
+
+    err = uv_read_stop((uv_stream_t*) &opposite->tcp);
+    if (err != 0) {
+      bud_client_log(client,
+                     opposite,
+                     "client read_stop failed with (%d) \"%s\" on %s",
+                     err,
+                     uv_strerror(err));
+      bud_client_close(client, opposite);
+      return -1;
+    }
+
+    return 1;
+  }
+
+  return 0;
 }
 
 
@@ -501,8 +520,18 @@ void bud_client_send_cb(uv_write_t* req, int status) {
     return bud_client_close(client, side);
   }
 
+  /* Consume written data */
+  bud_client_debug(client,
+                   side,
+                   "client write_cb (%d) on: %s",
+                   side->pending_write);
+  ringbuffer_read_skip(&side->output, side->pending_write);
+  side->pending_write = 0;
+
   /* Start reading, if stopped */
-  if (!side->pending_destroy && !side->shutdown_sent) {
+  if (!side->pending_destroy &&
+      !side->shutdown_sent &&
+      !ringbuffer_is_full(&side->output)) {
     bud_client_debug(client,
                      opposite,
                      "client read_start (%d) on: %s",
@@ -519,14 +548,6 @@ void bud_client_send_cb(uv_write_t* req, int status) {
       return bud_client_close(client, opposite);
     }
   }
-
-  /* Consume written data */
-  bud_client_debug(client,
-                   opposite,
-                   "client write_cb (%d) on: %s",
-                   side->pending_write);
-  ringbuffer_read_skip(&side->output, side->pending_write);
-  side->pending_write = 0;
 
   /* In the destroy, but writing data */
   if (side->pending_destroy && !side->pending_shutdown) {
@@ -549,7 +570,7 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
   client = container_of(req, bud_client_t, connect_req);
   bud_client_debug(client,
                    &client->backend,
-                   "client backend connect %d on %s",
+                   "client connect %d on %s",
                    status);
 
   if (status != 0 && status != UV_ECANCELED) {
