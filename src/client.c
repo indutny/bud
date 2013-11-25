@@ -549,12 +549,12 @@ void bud_client_send_cb(uv_write_t* req, int status) {
     }
   }
 
+  /* Cycle again */
+  bud_client_cycle(client);
+
   /* In the destroy, but writing data */
   if (side->pending_destroy && !side->pending_shutdown) {
     ASSERT(client->destroying, "Waiting, but client not destroying");
-
-    /* Cycle again */
-    bud_client_cycle(client);
 
     /* No new data, destroy */
     if (ringbuffer_size(&side->output) == 0)
