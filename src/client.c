@@ -38,6 +38,10 @@ static void bud_client_log(bud_client_t* client,
                            const char* fmt,
                            int code,
                            const char* reason);
+static void bud_client_debug(bud_client_t* client,
+                             bud_side_t side,
+                             const char* fmt,
+                             int code);
 static const char* bud_sslerror_str(int err);
 static const char* bud_side_str(bud_side_t side);
 
@@ -252,6 +256,10 @@ void bud_client_read_cb(uv_stream_t* stream,
     if (nread == UV_EOF)
       bud_client_shutdown(client, kBudFrontend);
   }
+  bud_client_debug(client,
+                   side,
+                   "client read_cb() = %d on %s",
+                   nread);
 
   /* Commit data if there was no error */
   if (nread >= 0)
@@ -280,6 +288,10 @@ void bud_client_read_cb(uv_stream_t* stream,
 
   /* If buffer is full - stop reading */
   if (ringbuffer_is_full(buffer)) {
+    bud_client_debug(client,
+                     side,
+                     "client throttle (%d) on %s",
+                     ringbuffer_size(buffer));
     r = uv_read_stop(stream);
     if (r != 0) {
       bud_client_log(client,
@@ -344,6 +356,11 @@ void bud_client_clear_out(bud_client_t* client) {
 
   /* If buffer is full - stop reading */
   if (ringbuffer_is_full(&client->clear_out)) {
+    bud_client_debug(client,
+                     kBudBackend,
+                     "client throttle (%d) on %s",
+                     ringbuffer_size(&client->clear_out));
+
     err = uv_read_stop((uv_stream_t*) &client->tcp_in);
     if (err != 0) {
       bud_client_log(client,
@@ -415,6 +432,10 @@ void bud_client_send(bud_client_t* client, uv_tcp_t* tcp) {
   out = ringbuffer_read_next(buffer, size);
   if (*size == 0)
       return;
+  bud_client_debug(client,
+                   side,
+                   "client write(%d) on %s",
+                   *size);
 
   buf = uv_buf_init(out, *size);
   req->data = client;
@@ -471,6 +492,10 @@ void bud_client_send_cb(uv_write_t* req, int status) {
 
   /* Start reading, if stopped */
   if (!waiting) {
+    bud_client_debug(client,
+                     side,
+                     "client read_start (%d) on opposite of: %s",
+                     0);
     r = uv_read_start(opposite, bud_client_alloc_cb, bud_client_read_cb);
     if (r != 0) {
       side = side == kBudFrontend ? kBudBackend : kBudFrontend;
@@ -506,6 +531,10 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
   bud_client_t* client;
 
   client = container_of(req, bud_client_t, connect_req);
+  bud_client_debug(client,
+                   kBudBackend,
+                   "client backend connect %d on %s",
+                   status);
 
   if (status != 0 && status != UV_ECANCELED) {
     bud_client_log(client,
@@ -623,5 +652,17 @@ void bud_client_log(bud_client_t* client,
           (char*) fmt,
           code,
           reason,
+          bud_side_str(side));
+}
+
+
+void bud_client_debug(bud_client_t* client,
+                      bud_side_t side,
+                      const char* fmt,
+                      int code) {
+  bud_log(client->config,
+          kBudLogDebug,
+          (char*) fmt,
+          code,
           bud_side_str(side));
 }
