@@ -508,6 +508,10 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   }
 
   /* Consume written data */
+  bud_client_debug(client,
+                   opposite,
+                   "client write_cb (%d) on: %s",
+                   side->pending_write);
   ringbuffer_read_skip(&side->output, side->pending_write);
   side->pending_write = 0;
 
