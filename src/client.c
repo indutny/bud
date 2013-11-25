@@ -183,12 +183,12 @@ void bud_client_destroy(bud_client_t* client, bud_side_t error_side) {
   client->destroy_waiting = 2;
   client->destroying = 1;
 
-  if (error_side == kBudBackend && client->current_enc_write != 0)
+  if (error_side == kBudBackend && ringbuffer_size(&client->enc_out) != 0)
     client->current_enc_waiting = 1;
   else
     uv_close((uv_handle_t*) &client->tcp_in, bud_client_close_cb);
 
-  if (error_side == kBudFrontend && client->current_clear_write != 0)
+  if (error_side == kBudFrontend && ringbuffer_size(&client->clear_out) != 0)
     client->current_clear_waiting = 1;
   else
     uv_close((uv_handle_t*) &client->tcp_out, bud_client_close_cb);
@@ -519,8 +519,8 @@ void bud_client_send_cb(uv_write_t* req, int status) {
     /* Cycle again */
     bud_client_cycle(client);
 
-    /* No write happened, finalize destroy */
-    if (*size == 0)
+    /* No new data, destroy */
+    if (ringbuffer_size(buffer) == 0)
       bud_client_destroy(client, side);
     return;
   }
