@@ -49,6 +49,7 @@ struct bud_config_s {
   struct bud_worker_s* workers;
   struct bud_logger_s* logger;
   int last_worker;
+  int pending_accept;
 
   /* Used by client */
   char proxyline_fmt[256];

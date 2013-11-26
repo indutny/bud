@@ -187,11 +187,18 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
     uv_close((uv_handle_t*) &worker->restart_timer, bud_master_ipc_close_cb);
     uv_close((uv_handle_t*) &worker->ipc, bud_master_ipc_close_cb);
   } else {
+    worker->active = 1;
     err = bud_ok();
     bud_log(worker->config,
             kBudLogNotice,
             "spawned bud worker<%d>",
             worker->proc.pid);
+
+    /* Pending accept - try balancing */
+    if (config->pending_accept) {
+      config->pending_accept = 0;
+      bud_master_balance(config->server);
+    }
   }
 
 fatal:
@@ -229,6 +236,7 @@ void bud_master_kill_worker(bud_worker_t* worker,
   int r;
 
   uv_process_kill(&worker->proc, SIGKILL);
+  worker->active = 0;
   worker->kill_cb = cb;
   worker->proc.data = worker;
   worker->ipc.data = worker;
@@ -275,6 +283,7 @@ void bud_master_balance(struct bud_server_s* server) {
   int r;
   bud_config_t* config;
   bud_worker_t* worker;
+  int last_index;
   bud_master_msg_t* msg;
   uv_buf_t buf;
 
@@ -290,6 +299,20 @@ void bud_master_balance(struct bud_server_s* server) {
   bud_log(config,
           kBudLogDebug,
           "master balance");
+
+  /* Round-robin worker selection */
+  last_index = (config->last_worker + 1) % config->worker_count;
+  do {
+    config->last_worker++;
+    config->last_worker %= config->worker_count;
+    worker = &config->workers[config->last_worker];
+  } while (!worker->active && config->last_worker != last_index);
+
+  /* All workers are down... wait */
+  if (!worker->active) {
+    config->pending_accept = 1;
+    return;
+  }
 
   msg = malloc(sizeof(*msg));
   if (msg == NULL) {
@@ -320,11 +343,6 @@ void bud_master_balance(struct bud_server_s* server) {
             uv_strerror(r));
     goto failed_accept;
   }
-
-  /* Round-robin worker selection */
-  config->last_worker++;
-  config->last_worker %= config->worker_count;
-  worker = &config->workers[config->last_worker];
 
   buf = uv_buf_init("x", 1);
 

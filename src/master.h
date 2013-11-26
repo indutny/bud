@@ -11,6 +11,8 @@ typedef struct bud_worker_s bud_worker_t;
 typedef bud_error_t (*bud_worker_kill_cb)(bud_worker_t* worker);
 
 struct bud_worker_s {
+  int active;
+
   bud_config_t* config;
   uv_process_t proc;
   uv_pipe_t ipc;
