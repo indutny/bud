@@ -344,7 +344,7 @@ void bud_config_print_default() {
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"backend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.backend.port);
-  fprintf(stdout, "    \"host\": \"%s\"\n", config.backend.host);
+  fprintf(stdout, "    \"host\": \"%s\",\n", config.backend.host);
   fprintf(stdout, "    \"keepalive\": %d\n", config.backend.keepalive);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"contexts\": [");

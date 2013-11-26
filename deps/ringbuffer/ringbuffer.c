@@ -93,7 +93,7 @@ void ringbuffer_free_empty(ringbuffer* rb) {
 
 
 void ringbuffer_try_move_read_head(ringbuffer* rb) {
-  if (rb->read_head->read_pos == rb->read_head->write_pos) {
+  if (rb->read_head->read_pos == RING_BUFFER_LEN) {
     rb->read_head->read_pos = 0;
     rb->read_head->write_pos = 0;
 
