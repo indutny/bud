@@ -87,6 +87,10 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_UV_ERROR("uv_timer_init(restart_timer)", err)                       \
     case kBudErrSpawn:                                                        \
       BUD_UV_ERROR("uv_spawn(worker)", err)                                   \
+    case kBudErrSignalInit:                                                   \
+      BUD_UV_ERROR("uv_signal_init()", err)                                   \
+    case kBudErrSignalStart:                                                  \
+      BUD_UV_ERROR("uv_signal_start()", err)                                  \
     case kBudErrTcpServerInit:                                                \
       BUD_UV_ERROR("uv_tcp_init(server)", err)                                \
     case kBudErrPton:                                                         \

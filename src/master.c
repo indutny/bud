@@ -24,6 +24,9 @@ struct bud_master_msg_s {
 
 #ifndef _WIN32
 static int bud_daemonize(bud_error_t* err);
+static bud_error_t bud_master_init_signals(bud_config_t* config);
+static void bud_master_signal_close_cb(uv_handle_t* handle);
+static void bud_master_signal_cb(uv_signal_t* handle, int signum);
 #endif  /* !_WIN32 */
 static bud_error_t bud_master_spawn_worker(bud_worker_t* worker);
 static void bud_master_kill_worker(bud_worker_t* worker,
@@ -51,6 +54,11 @@ bud_error_t bud_master(bud_config_t* config) {
   if (config->is_daemon)
     if (bud_daemonize(&err) != 0)
       goto fatal;
+
+  /* Initialize signal watchers */
+  err = bud_master_init_signals(config);
+  if (!bud_is_ok(err))
+    goto fatal;
 #endif  /* !_WIN32 */
 
   /* Create server and send it to all workers */
@@ -87,7 +95,14 @@ bud_error_t bud_master_finalize(bud_config_t* config) {
   int i;
 
   for (i = 0; i < config->worker_count; i++)
-    bud_master_kill_worker(&config->workers[i], 0, NULL);
+    if (config->workers[i].active)
+      bud_master_kill_worker(&config->workers[i], 0, NULL);
+
+#ifndef _WIN32
+  uv_close((uv_handle_t*) &config->signal.sigterm, bud_master_signal_close_cb);
+  uv_close((uv_handle_t*) &config->signal.sigint, bud_master_signal_close_cb);
+#endif  /* !_WIN32 */
+
   return bud_ok();
 }
 
@@ -128,6 +143,53 @@ int bud_daemonize(bud_error_t* err) {
   }
 
   return 0;
+}
+
+
+bud_error_t bud_master_init_signals(bud_config_t* config) {
+  int r;
+  bud_error_t err;
+
+  config->signal.sigterm.data = config;
+  config->signal.sigint.data = config;
+
+  r = uv_signal_init(config->loop, &config->signal.sigterm);
+  if (r != 0) {
+    err = bud_error_num(kBudErrSignalInit, r);
+    goto fatal;
+  }
+  r = uv_signal_init(config->loop, &config->signal.sigint);
+  if (r != 0) {
+    err = bud_error_num(kBudErrSignalInit, r);
+    goto failed_sigint_init;
+  }
+
+  r = uv_signal_start(&config->signal.sigterm, bud_master_signal_cb, SIGTERM);
+  if (r == 0)
+    r = uv_signal_start(&config->signal.sigint, bud_master_signal_cb, SIGINT);
+  if (r != 0) {
+    err = bud_error_num(kBudErrSignalStart, r);
+    goto failed_sigint_init;
+  }
+
+  return bud_ok();
+
+failed_sigint_init:
+  uv_close((uv_handle_t*) &config->signal.sigterm, bud_master_signal_close_cb);
+
+fatal:
+  return err;
+}
+
+
+void bud_master_signal_close_cb(uv_handle_t* handle) {
+  /* No-op */
+}
+
+
+void bud_master_signal_cb(uv_signal_t* handle, int signum) {
+  /* Stop the loop and let finalize to be called */
+  uv_stop(handle->loop);
 }
 #endif  /* !_WIN32 */
 
@@ -234,6 +296,7 @@ void bud_master_kill_worker(bud_worker_t* worker,
                             uint64_t delay,
                             bud_worker_kill_cb cb) {
   int r;
+  ASSERT(worker->active, "Tried to kill inactive worker");
 
   uv_process_kill(&worker->proc, SIGKILL);
   worker->active = 0;

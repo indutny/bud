@@ -35,6 +35,8 @@ enum bud_error_code_e {
   kBudErrIPCReadStart = 0x205,
   kBudErrRestartTimer = 0x206,
   kBudErrSpawn = 0x207,
+  kBudErrSignalInit = 0x208,
+  kBudErrSignalStart = 0x209,
 
   /* Server errors */
   kBudErrTcpServerInit = 0x300,

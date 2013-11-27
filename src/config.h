@@ -44,14 +44,22 @@ struct bud_config_s {
   int argc;
   char** argv;
   char exepath[1024];
-  uv_pipe_t ipc;
   struct bud_server_s* server;
-  struct bud_worker_s* workers;
   struct bud_logger_s* logger;
+
+  /* Master state */
+  struct {
+    uv_signal_t sigterm;
+    uv_signal_t sigint;
+  } signal;
+  struct bud_worker_s* workers;
   int last_worker;
   int pending_accept;
 
-  /* Used by client */
+  /* Worker state */
+  uv_pipe_t ipc;
+
+  /* Used by client.c */
   char proxyline_fmt[256];
 
   /* Options from config file */
