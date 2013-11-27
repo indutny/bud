@@ -170,17 +170,18 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
 
   /* Logger configuration */
   log = json_object_get_object(obj, "log");
-  config->log_stdio = -1;
-  config->log_syslog = -1;
+  config->log.stdio = -1;
+  config->log.syslog = -1;
   if (log != NULL) {
-    config->log_level = json_object_get_string(log, "level");
+    config->log.level = json_object_get_string(log, "level");
+    config->log.facility = json_object_get_string(log, "facility");
 
     val = json_object_get_value(log, "stdio");
     if (val != NULL)
-      config->log_stdio = json_value_get_boolean(val);
+      config->log.stdio = json_value_get_boolean(val);
     val = json_object_get_value(log, "syslog");
     if (val != NULL)
-      config->log_syslog = json_value_get_boolean(val);
+      config->log.syslog = json_value_get_boolean(val);
   }
 
   /* Frontend configuration */
@@ -317,8 +318,8 @@ void bud_config_print_default() {
 
   /* Set zero-y values */
   config.worker_count = -1;
-  config.log_stdio = -1;
-  config.log_syslog = -1;
+  config.log.stdio = -1;
+  config.log.syslog = -1;
   config.frontend.keepalive = -1;
   config.backend.keepalive = -1;
 
@@ -329,13 +330,14 @@ void bud_config_print_default() {
   fprintf(stdout, "  \"workers\": %d,\n", config.worker_count);
   fprintf(stdout, "  \"restart_timeout\": %d,\n", config.restart_timeout);
   fprintf(stdout, "  \"log\": {\n");
-  fprintf(stdout, "    \"level\": \"%s\",\n", config.log_level);
+  fprintf(stdout, "    \"level\": \"%s\",\n", config.log.level);
+  fprintf(stdout, "    \"facility\": \"%s\",\n", config.log.facility);
   fprintf(stdout,
           "    \"stdio\": %s,\n",
-          config.log_stdio ? "true" : "false");
+          config.log.stdio ? "true" : "false");
   fprintf(stdout,
           "    \"syslog\": %s\n",
-          config.log_syslog ? "true" : "false");
+          config.log.syslog ? "true" : "false");
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"frontend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
@@ -390,13 +392,14 @@ void bud_config_set_defaults(bud_config_t* config) {
 
   DEFAULT(config->worker_count, -1, 1);
   DEFAULT(config->restart_timeout, 0, 250);
-  DEFAULT(config->log_level, NULL, "info");
-  DEFAULT(config->log_stdio, -1, 1);
-  DEFAULT(config->log_syslog, -1, 0);
+  DEFAULT(config->log.level, NULL, "info");
+  DEFAULT(config->log.facility, NULL, "user");
+  DEFAULT(config->log.stdio, -1, 1);
+  DEFAULT(config->log.syslog, -1, 0);
   DEFAULT(config->frontend.port, 0, 1443);
   DEFAULT(config->frontend.host, NULL, "0.0.0.0");
   DEFAULT(config->frontend.proxyline, -1, 0);
-  DEFAULT(config->frontend.security, NULL, "tls1.2");
+  DEFAULT(config->frontend.security, NULL, "ssl23");
   DEFAULT(config->frontend.keepalive, -1, 3600);
   DEFAULT(config->backend.port, 0, 8000);
   DEFAULT(config->backend.host, NULL, "127.0.0.1");

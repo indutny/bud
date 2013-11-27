@@ -14,19 +14,70 @@ static const char* bud_log_level_str(bud_log_level_t level);
 
 
 bud_error_t bud_logger_new(bud_config_t* config) {
+#ifndef _WIN32
+  int facility;
+#endif  /* !_WIN32 */
+
   config->logger = calloc(1, sizeof(*config->logger));
-  if (strcmp(config->log_level, "debug") == 0)
+  if (strcmp(config->log.level, "debug") == 0)
     config->logger->level = kBudLogDebug;
-  else if (strcmp(config->log_level, "notice") == 0)
+  else if (strcmp(config->log.level, "notice") == 0)
     config->logger->level = kBudLogNotice;
-  else if (strcmp(config->log_level, "fatal") == 0)
+  else if (strcmp(config->log.level, "fatal") == 0)
     config->logger->level = kBudLogFatal;
-  else if (strcmp(config->log_level, "warning") == 0)
+  else if (strcmp(config->log.level, "warning") == 0)
     config->logger->level = kBudLogWarning;
   else
     config->logger->level = kBudLogInfo;
-  config->logger->stdio_enabled = config->log_stdio;
-  config->logger->syslog_enabled = config->log_syslog;
+  config->logger->stdio_enabled = config->log.stdio;
+  config->logger->syslog_enabled = config->log.syslog;
+
+#ifndef _WIN32
+  if (config->logger->syslog_enabled) {
+    if (strcmp(config->log.facility, "auth") == 0)
+      facility = LOG_AUTH;
+    else if (strcmp(config->log.facility, "authpriv") == 0)
+      facility = LOG_AUTHPRIV;
+    else if (strcmp(config->log.facility, "cron") == 0)
+      facility = LOG_CRON;
+    else if (strcmp(config->log.facility, "ftp") == 0)
+      facility = LOG_FTP;
+    else if (strcmp(config->log.facility, "kern") == 0)
+      facility = LOG_KERN;
+    else if (strcmp(config->log.facility, "lpr") == 0)
+      facility = LOG_LPR;
+    else if (strcmp(config->log.facility, "mail") == 0)
+      facility = LOG_MAIL;
+    else if (strcmp(config->log.facility, "news") == 0)
+      facility = LOG_NEWS;
+    else if (strcmp(config->log.facility, "syslog") == 0)
+      facility = LOG_SYSLOG;
+    else if (strcmp(config->log.facility, "daemon") == 0)
+      facility = LOG_DAEMON;
+    else if (strcmp(config->log.facility, "uucp") == 0)
+      facility = LOG_UUCP;
+    else if (strcmp(config->log.facility, "local0") == 0)
+      facility = LOG_LOCAL0;
+    else if (strcmp(config->log.facility, "local1") == 0)
+      facility = LOG_LOCAL1;
+    else if (strcmp(config->log.facility, "local2") == 0)
+      facility = LOG_LOCAL2;
+    else if (strcmp(config->log.facility, "local3") == 0)
+      facility = LOG_LOCAL3;
+    else if (strcmp(config->log.facility, "local4") == 0)
+      facility = LOG_LOCAL4;
+    else if (strcmp(config->log.facility, "local5") == 0)
+      facility = LOG_LOCAL5;
+    else if (strcmp(config->log.facility, "local6") == 0)
+      facility = LOG_LOCAL6;
+    else if (strcmp(config->log.facility, "local7") == 0)
+      facility = LOG_LOCAL7;
+    else
+      facility = LOG_USER;
+    openlog("bud", LOG_PID | LOG_NDELAY, facility);
+  }
+#endif  /* !_WIN32 */
+
   return bud_ok();
 }
 
@@ -35,6 +86,10 @@ void bud_logger_free(bud_config_t* config) {
   if (config->logger == NULL)
     return;
 
+#ifndef _WIN32
+  if (config->logger->syslog_enabled)
+    closelog();
+#endif  /* !_WIN32 */
   free(config->logger);
   config->logger = NULL;
 }
