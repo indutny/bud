@@ -511,6 +511,9 @@ bud_error_t bud_config_init(bud_config_t* config) {
     if (ctx->server_preference)
       SSL_CTX_set_options(ctx->ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
 
+    /* Disable SSL2 */
+    SSL_CTX_set_options(ctx->ctx, SSL_OP_NO_SSLv2 | SSL_OP_ALL);
+
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
     if (config->context_count > 1) {
       SSL_CTX_set_tlsext_servername_callback(ctx->ctx,
