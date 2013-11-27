@@ -689,6 +689,7 @@
           # Enable asm
           'defines': [
             'AES_ASM',
+            'VPAES_ASM',
             'BF_ASM',
             'BNCO_ASM',
             'BN_ASM',
@@ -712,6 +713,7 @@
               'sources': [
                 'asm/x86-elf-gas/aes/aes-586.s',
                 'asm/x86-elf-gas/aes/aesni-x86.s',
+                'asm/x86-elf-gas/aes/vpaes-x86.s',
                 'asm/x86-elf-gas/bf/bf-686.s',
                 'asm/x86-elf-gas/bn/x86-mont.s',
                 'asm/x86-elf-gas/bn/x86.s',
@@ -735,10 +737,14 @@
               'defines': [
                 'OPENSSL_BN_ASM_MONT5',
                 'OPENSSL_BN_ASM_GF2m',
+                'OPENSSL_IA32_SSE2',
+                'BSAES_ASM',
               ],
               'sources': [
                 'asm/x64-elf-gas/aes/aes-x86_64.s',
                 'asm/x64-elf-gas/aes/aesni-x86_64.s',
+                'asm/x64-elf-gas/aes/vpaes-x86_64.s',
+                'asm/x64-elf-gas/aes/bsaes-x86_64.s',
                 'asm/x64-elf-gas/aes/aesni-sha1-x86_64.s',
                 'asm/x64-elf-gas/bn/modexp512-x86_64.s',
                 'asm/x64-elf-gas/bn/x86_64-mont.s',
@@ -767,6 +773,7 @@
               'sources': [
                 'asm/x86-macosx-gas/aes/aes-586.s',
                 'asm/x86-macosx-gas/aes/aesni-x86.s',
+                'asm/x86-macosx-gas/aes/vpaes-x86.s',
                 'asm/x86-macosx-gas/bf/bf-686.s',
                 'asm/x86-macosx-gas/bn/x86-mont.s',
                 'asm/x86-macosx-gas/bn/x86.s',
@@ -790,10 +797,14 @@
               'defines': [
                 'OPENSSL_BN_ASM_MONT5',
                 'OPENSSL_BN_ASM_GF2m',
+                'OPENSSL_IA32_SSE2',
+                'BSAES_ASM',
               ],
               'sources': [
                 'asm/x64-macosx-gas/aes/aes-x86_64.s',
                 'asm/x64-macosx-gas/aes/aesni-x86_64.s',
+                'asm/x64-macosx-gas/aes/vpaes-x86_64.s',
+                'asm/x64-macosx-gas/aes/bsaes-x86_64.s',
                 'asm/x64-macosx-gas/aes/aesni-sha1-x86_64.s',
                 'asm/x64-macosx-gas/bn/modexp512-x86_64.s',
                 'asm/x64-macosx-gas/bn/x86_64-mont.s',
@@ -822,6 +833,7 @@
               'sources': [
                 'asm/x86-win32-masm/aes/aes-586.asm',
                 'asm/x86-win32-masm/aes/aesni-x86.asm',
+                'asm/x86-win32-masm/aes/vpaes-x86.asm',
                 'asm/x86-win32-masm/bf/bf-686.asm',
                 'asm/x86-win32-masm/bn/x86-mont.asm',
                 'asm/x86-win32-masm/bn/x86.asm',
@@ -864,10 +876,14 @@
               'defines': [
                 'OPENSSL_BN_ASM_MONT5',
                 'OPENSSL_BN_ASM_GF2m',
+                'OPENSSL_IA32_SSE2',
+                'BSAES_ASM',
               ],
               'sources': [
                 'asm/x64-win32-masm/aes/aes-x86_64.asm',
                 'asm/x64-win32-masm/aes/aesni-x86_64.asm',
+                'asm/x64-win32-masm/aes/vpaes-x86_64.asm',
+                'asm/x64-win32-masm/aes/bsaes-x86_64.asm',
                 'asm/x64-win32-masm/aes/aesni-sha1-x86_64.asm',
                 'asm/x64-win32-masm/bn/modexp512-x86_64.asm',
                 'asm/x64-win32-masm/bn/x86_64-mont.asm',
