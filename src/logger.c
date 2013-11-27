@@ -36,12 +36,8 @@ bud_error_t bud_logger_new(bud_config_t* config) {
   if (config->logger->syslog_enabled) {
     if (strcmp(config->log.facility, "auth") == 0)
       facility = LOG_AUTH;
-    else if (strcmp(config->log.facility, "authpriv") == 0)
-      facility = LOG_AUTHPRIV;
     else if (strcmp(config->log.facility, "cron") == 0)
       facility = LOG_CRON;
-    else if (strcmp(config->log.facility, "ftp") == 0)
-      facility = LOG_FTP;
     else if (strcmp(config->log.facility, "kern") == 0)
       facility = LOG_KERN;
     else if (strcmp(config->log.facility, "lpr") == 0)
