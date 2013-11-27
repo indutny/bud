@@ -474,8 +474,11 @@ int bud_client_throttle(bud_client_t* client,
 
 
 void bud_client_send(bud_client_t* client, bud_client_side_t* side) {
-  char* out;
-  uv_buf_t buf;
+  char* out[RING_BUFFER_COUNT];
+  uv_buf_t buf[RING_BUFFER_COUNT];
+  ssize_t size[ARRAY_SIZE(out)];
+  size_t count;
+  size_t i;
   int r;
 
   /* Already writing */
@@ -486,7 +489,8 @@ void bud_client_send(bud_client_t* client, bud_client_side_t* side) {
   if (client->close == kBudProgressDone)
     return;
 
-  out = ringbuffer_read_next(&side->output, &side->write_size);
+  count = ARRAY_SIZE(out);
+  side->write_size = ringbuffer_read_nextv(&side->output, out, size, &count);
   if (side->write_size == 0)
     return;
 
@@ -495,13 +499,14 @@ void bud_client_send(bud_client_t* client, bud_client_side_t* side) {
                    "client %p write(%d) on %s",
                    side->write_size);
 
-  buf = uv_buf_init(out, side->write_size);
+  for (i = 0; i < count; i++)
+    buf[i] = uv_buf_init(out[i], size[i]);
   side->write_req.data = client;
 
   r = uv_write(&side->write_req,
                (uv_stream_t*) &side->tcp,
-               &buf,
-               1,
+               buf,
+               count,
                bud_client_send_cb);
   if (r == 0) {
     side->write = kBudProgressRunning;

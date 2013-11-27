@@ -93,7 +93,8 @@ void ringbuffer_free_empty(ringbuffer* rb) {
 
 
 void ringbuffer_try_move_read_head(ringbuffer* rb) {
-  if (rb->read_head->read_pos == RING_BUFFER_LEN) {
+  while (rb->read_head->read_pos != 0 &&
+         rb->read_head->read_pos == rb->read_head->write_pos) {
     rb->read_head->read_pos = 0;
     rb->read_head->write_pos = 0;
 
@@ -148,9 +149,41 @@ ssize_t ringbuffer_read_into(ringbuffer* rb, char* out, ssize_t length) {
 
 
 char* ringbuffer_read_next(ringbuffer* rb, ssize_t* length) {
-  ringbuffer_try_move_read_head(rb);
   *length = rb->read_head->write_pos - rb->read_head->read_pos;
   return rb->read_head->data + rb->read_head->read_pos;
+}
+
+
+ssize_t ringbuffer_read_nextv(ringbuffer* rb,
+                              char** out,
+                              ssize_t* size,
+                              size_t* count) {
+  size_t i;
+  size_t max;
+  ssize_t total;
+  bufent* pos;
+
+  pos = rb->read_head;
+  max = *count;
+  total = 0;
+  for (i = 0; i < max; i++) {
+    size[i] = pos->write_pos - pos->read_pos;
+    total += size[i];
+    out[i] = pos->data + pos->read_pos;
+
+    /* Don't get past write head */
+    if (pos == rb->write_head)
+      break;
+    else
+      pos = pos->next;
+  }
+
+  if (i == max)
+    *count = i;
+  else
+    *count = i +1;
+
+  return total;
 }
 
 
@@ -226,6 +259,9 @@ ssize_t ringbuffer_write_into(ringbuffer* rb,
       if (ringbuffer_try_allocate_for_write(rb))
         return offset;
       rb->write_head = write_head->next;
+
+      /* Read head may be full */
+      ringbuffer_try_move_read_head(rb);
     }
   }
   assert(left == 0);
@@ -258,8 +294,12 @@ int ringbuffer_write_append(ringbuffer* rb, ssize_t length) {
   if (ringbuffer_try_allocate_for_write(rb))
     return -1;
 
-  if (rb->write_head->write_pos == RING_BUFFER_LEN)
+  if (rb->write_head->write_pos == RING_BUFFER_LEN) {
     rb->write_head = rb->write_head->next;
+
+    /* Read head may be full */
+    ringbuffer_try_move_read_head(rb);
+  }
 
   return 0;
 }

@@ -29,7 +29,8 @@
 
 /* 16 * 1024 - 3 * 8 - 360, to make `proxystate` aligned */
 #define RING_BUFFER_LEN 16000
-#define RING_MAX_SIZE 64000
+#define RING_BUFFER_COUNT 4
+#define RING_MAX_SIZE (RING_BUFFER_LEN * RING_BUFFER_COUNT)
 
 typedef struct bufent {
     ssize_t read_pos;
@@ -50,6 +51,10 @@ void ringbuffer_destroy(ringbuffer* rb);
 
 ssize_t ringbuffer_read_into(ringbuffer* rb, char* out, ssize_t length);
 char* ringbuffer_read_next(ringbuffer* rb, ssize_t* length);
+ssize_t ringbuffer_read_nextv(ringbuffer* rb,
+                              char** out,
+                              ssize_t* size,
+                              size_t* count);
 void ringbuffer_read_skip(ringbuffer* rb, ssize_t length);
 void ringbuffer_read_pop(ringbuffer *rb);
 

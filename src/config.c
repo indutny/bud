@@ -507,6 +507,7 @@ bud_error_t bud_config_init(bud_config_t* config) {
                                    SSL_SESS_CACHE_NO_AUTO_CLEAR);
     if (ctx->ciphers != NULL)
       SSL_CTX_set_cipher_list(ctx->ctx, ctx->ciphers);
+
     if (ctx->server_preference)
       SSL_CTX_set_options(ctx->ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
 
