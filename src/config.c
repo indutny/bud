@@ -474,8 +474,6 @@ bud_error_t bud_config_init(bud_config_t* config) {
     method = SSLv23_server_method();
   else if (strcmp(config->frontend.security, "ssl3") == 0)
     method = SSLv3_server_method();
-  else if (strcmp(config->frontend.security, "ssl2") == 0)
-    method = SSLv2_server_method();
   else
     method = TLSv1_2_server_method();
 

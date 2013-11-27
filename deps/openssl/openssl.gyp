@@ -23,6 +23,7 @@
         # Microsoft's IIS, which seems to be ignoring whole ClientHello after
         # seeing this extension.
         'OPENSSL_NO_HEARTBEATS',
+        'OPENSSL_NO_SSL2',
       ],
       'sources': [
         'openssl/ssl/bio_ssl.c',
