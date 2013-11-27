@@ -191,6 +191,7 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
   if (frontend != NULL) {
     config->frontend.port = (uint16_t) json_object_get_number(frontend, "port");
     config->frontend.host = json_object_get_string(frontend, "host");
+    config->frontend.security = json_object_get_string(frontend, "security");
     val = json_object_get_value(frontend, "proxyline");
     if (val != NULL)
       config->frontend.proxyline = json_value_get_boolean(val);
@@ -340,7 +341,8 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.frontend.host);
   fprintf(stdout, "    \"keepalive\": %d,\n", config.frontend.keepalive);
-  fprintf(stdout, "    \"proxyline\": \"false\"\n");
+  fprintf(stdout, "    \"proxyline\": \"false\",\n");
+  fprintf(stdout, "    \"security\": \"%s\"\n", config.frontend.security);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"backend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.backend.port);
@@ -394,6 +396,7 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.port, 0, 1443);
   DEFAULT(config->frontend.host, NULL, "0.0.0.0");
   DEFAULT(config->frontend.proxyline, -1, 0);
+  DEFAULT(config->frontend.security, NULL, "tls1.2");
   DEFAULT(config->frontend.keepalive, -1, 3600);
   DEFAULT(config->backend.port, 0, 8000);
   DEFAULT(config->backend.host, NULL, "127.0.0.1");
@@ -418,6 +421,7 @@ bud_error_t bud_config_init(bud_config_t* config) {
   int r;
   bud_context_t* ctx;
   bud_error_t err;
+  const SSL_METHOD* method;
 #ifdef OPENSSL_NPN_NEGOTIATED
   int j;
   unsigned int offset;
@@ -461,11 +465,25 @@ bud_error_t bud_config_init(bud_config_t* config) {
     }
   }
 
+  /* Choose method tlsv1_2 by default */
+  if (strcmp(config->frontend.security, "tls1.1") == 0)
+    method = TLSv1_1_server_method();
+  else if (strcmp(config->frontend.security, "tls1.0") == 0)
+    method = TLSv1_server_method();
+  else if (strcmp(config->frontend.security, "ssl23") == 0)
+    method = SSLv23_server_method();
+  else if (strcmp(config->frontend.security, "ssl3") == 0)
+    method = SSLv3_server_method();
+  else if (strcmp(config->frontend.security, "ssl2") == 0)
+    method = SSLv2_server_method();
+  else
+    method = TLSv1_2_server_method();
+
   /* Load all contexts */
   for (i = 0; i < config->context_count; i++) {
     ctx = &config->contexts[i];
 
-    ctx->ctx = SSL_CTX_new(SSLv23_server_method());
+    ctx->ctx = SSL_CTX_new(method);
     if (ctx->ctx == NULL) {
       err = bud_error_str(kBudErrNoMem, "SSL_CTX");
       goto fatal;

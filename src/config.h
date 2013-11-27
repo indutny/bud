@@ -68,6 +68,7 @@ struct bud_config_s {
     const char* host;
     int proxyline;
     int keepalive;
+    const char* security;
 
     /* internal */
     struct sockaddr_storage addr;
