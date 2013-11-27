@@ -21,6 +21,7 @@ OUTPUTS	= \
 	x86-elf-gas/sha/sha256-586.s \
 	x86-elf-gas/sha/sha512-586.s \
 	x86-elf-gas/whrlpool/wp-mmx.s \
+	x86-elf-gas/modes/ghash-x86.s \
 	x86-elf-gas/x86cpuid.s \
 	x64-elf-gas/aes/aes-x86_64.s \
 	x64-elf-gas/aes/aesni-x86_64.s \
@@ -39,6 +40,7 @@ OUTPUTS	= \
 	x64-elf-gas/sha/sha256-x86_64.s \
 	x64-elf-gas/sha/sha512-x86_64.s \
 	x64-elf-gas/whrlpool/wp-x86_64.s \
+	x64-elf-gas/modes/ghash-x86_64.s \
 	x64-elf-gas/x86_64cpuid.s \
 	x86-macosx-gas/aes/aes-586.s \
 	x86-macosx-gas/aes/aesni-x86.s \
@@ -58,6 +60,7 @@ OUTPUTS	= \
 	x86-macosx-gas/sha/sha256-586.s \
 	x86-macosx-gas/sha/sha512-586.s \
 	x86-macosx-gas/whrlpool/wp-mmx.s \
+	x86-macosx-gas/modes/ghash-x86.s \
 	x86-macosx-gas/x86cpuid.s \
 	x64-macosx-gas/aes/aes-x86_64.s \
 	x64-macosx-gas/aes/aesni-x86_64.s \
@@ -76,6 +79,7 @@ OUTPUTS	= \
 	x64-macosx-gas/sha/sha256-x86_64.s \
 	x64-macosx-gas/sha/sha512-x86_64.s \
 	x64-macosx-gas/whrlpool/wp-x86_64.s \
+	x64-macosx-gas/modes/ghash-x86_64.s \
 	x64-macosx-gas/x86_64cpuid.s \
 	x86-win32-masm/aes/aes-586.asm \
 	x86-win32-masm/aes/aesni-x86.asm \
@@ -95,6 +99,7 @@ OUTPUTS	= \
 	x86-win32-masm/sha/sha256-586.asm \
 	x86-win32-masm/sha/sha512-586.asm \
 	x86-win32-masm/whrlpool/wp-mmx.asm \
+	x86-win32-masm/modes/ghash-x86.asm \
 	x86-win32-masm/x86cpuid.asm \
 	x64-win32-masm/aes/aes-x86_64.asm \
 	x64-win32-masm/aes/aesni-x86_64.asm \
@@ -113,6 +118,7 @@ OUTPUTS	= \
 	x64-win32-masm/sha/sha256-x86_64.asm \
 	x64-win32-masm/sha/sha512-x86_64.asm \
 	x64-win32-masm/whrlpool/wp-x86_64.asm \
+	x64-win32-masm/modes/ghash-x86_64.asm \
 	x64-win32-masm/x86_64cpuid.asm \
 
 x64-elf-gas/%.s x86-elf-gas/%.s:
@@ -156,6 +162,7 @@ x64-elf-gas/sha/sha1-x86_64.s: ../openssl/crypto/sha/asm/sha1-x86_64.pl
 x64-elf-gas/sha/sha512-x86_64.s: ../openssl/crypto/sha/asm/sha512-x86_64.pl
 x64-elf-gas/sha/sha256-x86_64.s: ../openssl/crypto/sha/asm/sha256-x86_64.pl
 x64-elf-gas/whrlpool/wp-x86_64.s: ../openssl/crypto/whrlpool/asm/wp-x86_64.pl
+x64-elf-gas/modes/ghash-x86_64.s: ../openssl/crypto/modes/asm/ghash-x86_64.pl
 x64-elf-gas/x86_64cpuid.s: ../openssl/crypto/x86_64cpuid.pl
 x64-macosx-gas/aes/aes-x86_64.s: ../openssl/crypto/aes/asm/aes-x86_64.pl
 x64-macosx-gas/aes/aesni-x86_64.s: ../openssl/crypto/aes/asm/aesni-x86_64.pl
@@ -174,6 +181,7 @@ x64-macosx-gas/sha/sha1-x86_64.s: ../openssl/crypto/sha/asm/sha1-x86_64.pl
 x64-macosx-gas/sha/sha256-x86_64.s: ../openssl/crypto/sha/asm/sha256-x86_64.pl
 x64-macosx-gas/sha/sha512-x86_64.s: ../openssl/crypto/sha/asm/sha512-x86_64.pl
 x64-macosx-gas/whrlpool/wp-x86_64.s: ../openssl/crypto/whrlpool/asm/wp-x86_64.pl
+x64-macosx-gas/modes/ghash-x86_64.s: ../openssl/crypto/modes/asm/ghash-x86_64.pl
 x64-macosx-gas/x86_64cpuid.s: ../openssl/crypto/x86_64cpuid.pl
 x64-win32-masm/aes/aes-x86_64.asm: ../openssl/crypto/aes/asm/aes-x86_64.pl
 x64-win32-masm/aes/aesni-x86_64.asm: ../openssl/crypto/aes/asm/aesni-x86_64.pl
@@ -192,6 +200,7 @@ x64-win32-masm/sha/sha1-x86_64.asm: ../openssl/crypto/sha/asm/sha1-x86_64.pl
 x64-win32-masm/sha/sha256-x86_64.asm: ../openssl/crypto/sha/asm/sha256-x86_64.pl
 x64-win32-masm/sha/sha512-x86_64.asm: ../openssl/crypto/sha/asm/sha512-x86_64.pl
 x64-win32-masm/whrlpool/wp-x86_64.asm: ../openssl/crypto/whrlpool/asm/wp-x86_64.pl
+x64-win32-masm/modes/ghash-x86_64.asm: ../openssl/crypto/modes/asm/ghash-x86_64.pl
 x64-win32-masm/x86_64cpuid.asm: ../openssl/crypto/x86_64cpuid.pl
 x86-elf-gas/aes/aes-586.s: ../openssl/crypto/aes/asm/aes-586.pl
 x86-elf-gas/aes/aesni-x86.s: ../openssl/crypto/aes/asm/aesni-x86.pl
@@ -211,6 +220,7 @@ x86-elf-gas/sha/sha1-586.s: ../openssl/crypto/sha/asm/sha1-586.pl
 x86-elf-gas/sha/sha256-586.s: ../openssl/crypto/sha/asm/sha256-586.pl
 x86-elf-gas/sha/sha512-586.s: ../openssl/crypto/sha/asm/sha512-586.pl
 x86-elf-gas/whrlpool/wp-mmx.s: ../openssl/crypto/whrlpool/asm/wp-mmx.pl
+x86-elf-gas/modes/ghash-x86.s: ../openssl/crypto/modes/asm/ghash-x86.pl
 x86-elf-gas/x86cpuid.s: ../openssl/crypto/x86cpuid.pl
 x86-macosx-gas/aes/aes-586.s: ../openssl/crypto/aes/asm/aes-586.pl
 x86-macosx-gas/aes/aesni-x86.s: ../openssl/crypto/aes/asm/aesni-x86.pl
@@ -230,6 +240,7 @@ x86-macosx-gas/sha/sha1-586.s: ../openssl/crypto/sha/asm/sha1-586.pl
 x86-macosx-gas/sha/sha256-586.s: ../openssl/crypto/sha/asm/sha256-586.pl
 x86-macosx-gas/sha/sha512-586.s: ../openssl/crypto/sha/asm/sha512-586.pl
 x86-macosx-gas/whrlpool/wp-mmx.s: ../openssl/crypto/whrlpool/asm/wp-mmx.pl
+x86-macosx-gas/modes/ghash-x86.s: ../openssl/crypto/modes/asm/ghash-x86.pl
 x86-macosx-gas/x86cpuid.s: ../openssl/crypto/x86cpuid.pl
 x86-win32-masm/aes/aes-586.asm: ../openssl/crypto/aes/asm/aes-586.pl
 x86-win32-masm/aes/aesni-x86.asm: ../openssl/crypto/aes/asm/aesni-x86.pl
@@ -249,4 +260,5 @@ x86-win32-masm/sha/sha1-586.asm: ../openssl/crypto/sha/asm/sha1-586.pl
 x86-win32-masm/sha/sha256-586.asm: ../openssl/crypto/sha/asm/sha256-586.pl
 x86-win32-masm/sha/sha512-586.asm: ../openssl/crypto/sha/asm/sha512-586.pl
 x86-win32-masm/whrlpool/wp-mmx.asm: ../openssl/crypto/whrlpool/asm/wp-mmx.pl
+x86-win32-masm/modes/ghash-x86.asm: ../openssl/crypto/modes/asm/ghash-x86.pl
 x86-win32-masm/x86cpuid.asm: ../openssl/crypto/x86cpuid.pl
