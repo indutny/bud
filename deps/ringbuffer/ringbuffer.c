@@ -181,7 +181,7 @@ ssize_t ringbuffer_read_nextv(ringbuffer* rb,
   if (i == max)
     *count = i;
   else
-    *count = i +1;
+    *count = i + 1;
 
   return total;
 }
