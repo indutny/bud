@@ -147,7 +147,7 @@ bud_error_t bud_redis_connect(bud_redis_t* redis) {
     goto failed_attach;
   }
   r = redisAsyncSetConnectCallback(redis->ctx, bud_redis_connect_cb);
-  if (r != 0)
+  if (r == 0)
     r = redisAsyncSetDisconnectCallback(redis->ctx, bud_redis_disconnect_cb);
   if (r != 0) {
     err = bud_error_num(kBudErrRedisSetCallback, r);
@@ -168,6 +168,7 @@ fatal:
 
 void bud_redis_connect_cb(const redisAsyncContext* ctx, int status) {
   bud_redis_t* redis;
+  QUEUE* q;
 
   redis = ctx->data;
 
@@ -185,6 +186,11 @@ void bud_redis_connect_cb(const redisAsyncContext* ctx, int status) {
   }
 
   bud_log(redis->config, kBudLogNotice, "Connected to redis");
+
+  /* Run all pendings requests */
+  QUEUE_FOREACH(q, &redis->sni_queue) {
+    bud_redis_execute_sni(QUEUE_DATA(q, bud_redis_sni_t, member));
+  }
 }
 
 
