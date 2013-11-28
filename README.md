@@ -73,6 +73,18 @@ to get default configuration options (with comments and description below):
     "keepalive": 3600
   },
 
+  // Redis SNI context loading
+  "redis": {
+    "enabled": false,
+    "port": 6379,
+    "host": "127.0.0.1",
+
+    // %b will be replaced with actual servername
+    "query": "HGET bud/sni %b",
+
+    // timeout to wait after abnormal disconnection from redis
+    "reconnect_timeout": 250
+  },
 
   // Secure contexts (i.e. Server Name Indication support)
   // NOTE: First context will be used as a default one

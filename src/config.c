@@ -235,7 +235,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   /* Redis configuration */
   redis = json_object_get_object(obj, "redis");
   if (redis != NULL) {
-    config->redis.enabled = 1;
+    config->redis.enabled = json_object_get_boolean(redis, "enabled");
     config->redis.port = (uint16_t) json_object_get_number(redis, "port");
     config->redis.host = json_object_get_string(redis, "host");
     config->redis.query_fmt = json_object_get_string(redis, "query");
@@ -358,6 +358,8 @@ void bud_config_print_default() {
   config.log.syslog = -1;
   config.frontend.keepalive = -1;
   config.backend.keepalive = -1;
+  config.redis.reconnect_timeout = -1;
+  config.restart_timeout = -1;
 
   bud_config_set_defaults(&config);
 
@@ -391,6 +393,15 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"port\": %d,\n", config.backend.port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.backend.host);
   fprintf(stdout, "    \"keepalive\": %d\n", config.backend.keepalive);
+  fprintf(stdout, "  },\n");
+  fprintf(stdout, "  \"redis\": {\n");
+  fprintf(stdout, "    \"enabled\": false,\n");
+  fprintf(stdout, "    \"port\": %d,\n", config.redis.port);
+  fprintf(stdout, "    \"host\": \"%s\",\n", config.redis.host);
+  fprintf(stdout, "    \"query\": \"%s\",\n", config.redis.query_fmt);
+  fprintf(stdout,
+          "    \"reconnect_timeout\": %d\n",
+          config.redis.reconnect_timeout);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"contexts\": [");
   for (i = 0; i < config.context_count; i++) {
@@ -448,12 +459,10 @@ void bud_config_set_defaults(bud_config_t* config) {
   if (config->context_count == 0)
     config->context_count = 1;
 
-  if (config->redis.enabled) {
-    DEFAULT(config->redis.reconnect_timeout, -1, 250);
-    DEFAULT(config->redis.port, 0, 6379);
-    DEFAULT(config->redis.host, NULL, "127.0.0.1");
-    DEFAULT(config->redis.query_fmt, NULL, "HGET bud/sni %b");
-  }
+  DEFAULT(config->redis.reconnect_timeout, -1, 250);
+  DEFAULT(config->redis.port, 0, 6379);
+  DEFAULT(config->redis.host, NULL, "127.0.0.1");
+  DEFAULT(config->redis.query_fmt, NULL, "HGET bud/sni %b");
 
   for (i = 0; i < config->context_count; i++) {
     DEFAULT(config->contexts[i].cert_file, NULL, "keys/cert.pem");
@@ -512,6 +521,7 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
                                    bud_context_t* context) {
   SSL_CTX* ctx;
   bud_error_t err;
+  int options;
 
   /* Choose method, tlsv1_2 by default */
   if (config->frontend.method == NULL) {
@@ -537,11 +547,12 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   if (config->frontend.ciphers != NULL)
     SSL_CTX_set_cipher_list(ctx, config->frontend.ciphers);
 
-  if (config->frontend.server_preference)
-    SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
-
   /* Disable SSL2 */
-  SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_ALL);
+  options = SSL_OP_NO_SSLv2 | SSL_OP_ALL;
+
+  if (config->frontend.server_preference)
+    options |= SSL_OP_CIPHER_SERVER_PREFERENCE;
+  SSL_CTX_set_options(ctx, options);
 
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
   if (config->context_count > 1) {
