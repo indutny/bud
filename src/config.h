@@ -83,6 +83,8 @@ struct bud_config_s {
     int server_preference;
     const JSON_Array* npn;
     const char* ciphers;
+    const char* cert_file;
+    const char* key_file;
 
     /* internal */
     struct sockaddr_storage addr;

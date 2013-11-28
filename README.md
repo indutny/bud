@@ -61,9 +61,24 @@ to get default configuration options (with comments and description below):
     // "PROXY TCP4 ... ... ... ..."
     "proxyline": false,
 
+    // if true - server listed ciphers will be preferenced
+    "server_preference": true,
+
     // Which protocol versions to support:
     // "ssl23" (implies tls1.*) , "ssl3", "tls1", "tls1.1", "tls1.2"
-    "security": "ssl23"
+    "security": "ssl23",
+
+    // Path to default TLS certificate
+    "cert": "keys/cert.pem",
+
+    // Path to default TLS private key
+    "key": "keys/key.pem",
+
+    // Cipherlist to use
+    "ciphers": null,
+
+    // NPN protocols to advertise
+    "npn": ["http/1.1", "http/1.0"]
   },
 
   // Backend configuration (i.e. address of Cleartext server)
@@ -87,10 +102,9 @@ to get default configuration options (with comments and description below):
   },
 
   // Secure contexts (i.e. Server Name Indication support)
-  // NOTE: First context will be used as a default one
   "contexts": [{
     // Servername to match against
-    "servername": null,
+    "servername": "blog.indutny.com",
 
     // Path to TLS certificate
     "cert": "keys/cert.pem",
@@ -98,13 +112,11 @@ to get default configuration options (with comments and description below):
     // Path to TLS private key
     "key": "keys/key.pem",
 
-    // Cipherlist to use
+    // Cipherlist to use (overrides frontend.ciphers, if not null)
     "ciphers": null,
 
-    // if true - server listed ciphers will be preferenced
-    "server_preference": true,
-
     // NPN protocols to advertise
+    // (overrides frontend.npn, if not null)
     "npn": ["http/1.1", "http/1.0"]
   }]
 }
