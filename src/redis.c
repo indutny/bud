@@ -6,6 +6,7 @@
 #include "openssl/err.h"
 #include "openssl/evp.h"
 #include "openssl/ssl.h"
+#include "parson.h"
 
 #include "redis.h"
 #include "common.h"
@@ -372,9 +373,16 @@ void bud_redis_execute_sni_cb(redisAsyncContext* ctx, void* reply, void* arg) {
     goto fatal;
   }
 
-  sni->sni = bud_config_new_ssl_ctx(redis->config, &err);
+  sni->sni = malloc(sizeof(*sni->sni));
   if (sni->sni == NULL)
     goto fatal;
+
+  /* NPN is unsupported for now */
+  sni->sni->npn = NULL;
+
+  sni->sni->ctx = bud_config_new_ssl_ctx(redis->config, sni->sni, &err);
+  if (sni->sni->ctx == NULL)
+    goto failed_alloc;
 
   bio = BIO_new_mem_buf(rep->str, rep->len);
   if (bio == NULL) {
@@ -382,7 +390,7 @@ void bud_redis_execute_sni_cb(redisAsyncContext* ctx, void* reply, void* arg) {
     goto failed_alloc;
   }
 
-  r = SSL_CTX_use_certificate_chain(sni->sni, bio);
+  r = SSL_CTX_use_certificate_chain(sni->sni->ctx, bio);
   BIO_free_all(bio);
   if (!r) {
     err = bud_error_str(kBudErrParseCert, "<redis>");
@@ -402,16 +410,19 @@ void bud_redis_execute_sni_cb(redisAsyncContext* ctx, void* reply, void* arg) {
     goto failed_alloc;
   }
 
-  r = SSL_CTX_use_PrivateKey(sni->sni, key);
+  r = SSL_CTX_use_PrivateKey(sni->sni->ctx, key);
   EVP_PKEY_free(key);
   if (!r) {
     err = bud_error_str(kBudErrParseKey, "<redis>");
     goto failed_alloc;
   }
 
+  err = bud_ok();
+
 failed_alloc:
   if (!bud_is_ok(err)) {
-    SSL_CTX_free(sni->sni);
+    SSL_CTX_free(sni->sni->ctx);
+    free(sni->sni);
     sni->sni = NULL;
   }
 

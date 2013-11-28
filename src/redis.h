@@ -33,7 +33,7 @@ struct bud_redis_sni_s {
   bud_redis_sni_cb cb;
   void* data;
 
-  SSL_CTX* sni;
+  bud_context_t* sni;
 };
 
 

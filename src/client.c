@@ -263,8 +263,10 @@ void bud_client_close_cb(uv_handle_t* handle) {
   if (client->ssl != NULL)
     SSL_free(client->ssl);
   client->ssl = NULL;
-  if (client->sni_ctx != NULL)
-    SSL_CTX_free(client->sni_ctx);
+  if (client->sni_ctx != NULL) {
+    bud_context_free(client->sni_ctx);
+    free(client->sni_ctx);
+  }
   client->ssl = NULL;
   if (client->sni_req != NULL)
     bud_redis_sni_close(client->config->redis.ctx, client->sni_req);

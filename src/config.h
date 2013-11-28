@@ -26,9 +26,12 @@ struct bud_context_s {
 
   const char* cert_file;
   const char* key_file;
+  const JSON_Array* npn;
 
   /* Various */
   SSL_CTX* ctx;
+  char* npn_line;
+  size_t npn_line_len;
 };
 
 struct bud_config_s {
@@ -78,13 +81,10 @@ struct bud_config_s {
     const char* security;
     const char* ciphers;
     int server_preference;
-    const JSON_Array* npn;
 
     /* internal */
     struct sockaddr_storage addr;
     const SSL_METHOD* method;
-    char* npn_line;
-    size_t npn_line_len;
   } frontend;
 
   struct {
@@ -120,8 +120,11 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
                               const char* path,
                               bud_error_t* err);
 void bud_config_free(bud_config_t* config);
+void bud_context_free(bud_context_t* context);
 
 /* Helper for redis.c */
-SSL_CTX* bud_config_new_ssl_ctx(bud_config_t* config, bud_error_t* err);
+SSL_CTX* bud_config_new_ssl_ctx(bud_config_t* config,
+                                bud_context_t* context,
+                                bud_error_t* err);
 
 #endif  /* SRC_CONFIG_H_ */

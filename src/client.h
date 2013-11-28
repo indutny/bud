@@ -63,7 +63,7 @@ struct bud_client_s {
   bud_client_progress_t hello_parse;
   bud_client_hello_t hello;
   bud_redis_sni_t* sni_req;
-  SSL_CTX* sni_ctx;
+  bud_context_t* sni_ctx;
 };
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream);

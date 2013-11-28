@@ -209,7 +209,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     config->frontend.port = (uint16_t) json_object_get_number(frontend, "port");
     config->frontend.host = json_object_get_string(frontend, "host");
     config->frontend.security = json_object_get_string(frontend, "security");
-    config->frontend.ciphers = json_object_get_string(obj, "ciphers");
+    config->frontend.ciphers = json_object_get_string(frontend, "ciphers");
     val = json_object_get_value(frontend, "proxyline");
     if (val != NULL)
       config->frontend.proxyline = json_value_get_boolean(val);
@@ -219,19 +219,6 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     val = json_object_get_value(frontend, "server_preference");
     if (val != NULL)
       config->frontend.server_preference = json_value_get_boolean(val);
-    config->frontend.npn = json_object_get_array(frontend, "npn");
-
-    /* Verify that all indexes are strings */
-    if (config->frontend.npn != NULL) {
-      npn_count = json_array_get_count(config->frontend.npn);
-      for (j = 0; j < npn_count; j++) {
-        if (json_value_get_type(
-                json_array_get_value(config->frontend.npn, j)) != JSONString) {
-          *err = bud_error(kBudErrNPNNonString);
-          goto failed_get_index;
-        }
-      }
-    }
   }
 
   /* Backend configuration */
@@ -274,6 +261,20 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     ctx->servername_len = ctx->servername == NULL ? 0 : strlen(ctx->servername);
     ctx->cert_file = json_object_get_string(obj, "cert");
     ctx->key_file = json_object_get_string(obj, "key");
+    ctx->npn = json_object_get_array(obj, "npn");
+
+    /* Verify that all indexes are strings */
+    if (ctx->npn == NULL)
+      continue;
+
+    npn_count = json_array_get_count(ctx->npn);
+    for (j = 0; j < npn_count; j++) {
+      if (json_value_get_type(json_array_get_value(ctx->npn, j)) !=
+          JSONString) {
+        *err = bud_error(kBudErrNPNNonString);
+        goto failed_get_index;
+      }
+    }
   }
   config->context_count = context_count;
 
@@ -301,11 +302,8 @@ end:
 void bud_config_free(bud_config_t* config) {
   int i;
 
-  for (i = 0; i < config->context_count; i++) {
-    SSL_CTX_free(config->contexts[i].ctx);
-  }
-  free(config->frontend.npn_line);
-  config->frontend.npn_line = NULL;
+  for (i = 0; i < config->context_count; i++)
+    bud_context_free(&config->contexts[i]);
   free(config->workers);
   config->workers = NULL;
   if (config->redis.ctx != NULL)
@@ -318,6 +316,13 @@ void bud_config_free(bud_config_t* config) {
   json_value_free(config->json);
   config->json = NULL;
   free(config);
+}
+
+
+void bud_context_free(bud_context_t* context) {
+  SSL_CTX_free(context->ctx);
+  free(context->npn_line);
+  context->npn_line = NULL;
 }
 
 
@@ -375,7 +380,8 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"host\": \"%s\",\n", config.frontend.host);
   fprintf(stdout, "    \"keepalive\": %d,\n", config.frontend.keepalive);
   fprintf(stdout, "    \"proxyline\": false,\n");
-  fprintf(stdout, "    \"security\": \"%s\"\n", config.frontend.security);
+  fprintf(stdout, "    \"security\": \"%s\",\n", config.frontend.security);
+  fprintf(stdout, "    \"server_preference\": true,\n");
   if (config.frontend.ciphers != NULL)
     fprintf(stdout, "    \"ciphers\": \"%s\"\n", config.frontend.ciphers);
   else
@@ -399,13 +405,14 @@ void bud_config_print_default() {
     fprintf(stdout, "    \"key\": \"%s\",\n", ctx->key_file);
 
     /* Sorry, hard-coded */
-    fprintf(stdout, "    \"server_preference\": true,\n");
 #ifdef OPENSSL_NPN_NEGOTIATED
     fprintf(stdout, "    \"npn\": [\"http/1.1\", \"http/1.0\"]\n");
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 
     if (i == config.context_count - 1)
       fprintf(stdout, "  }");
+    else
+      fprintf(stdout, "  },\n");
   }
   fprintf(stdout, "]\n");
   fprintf(stdout, "}\n");
@@ -501,7 +508,9 @@ char* bud_config_encode_npn(const JSON_Array* npn,
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 
 
-SSL_CTX* bud_config_new_ssl_ctx(bud_config_t* config, bud_error_t* err) {
+SSL_CTX* bud_config_new_ssl_ctx(bud_config_t* config,
+                                bud_context_t* context,
+                                bud_error_t* err) {
   SSL_CTX* ctx;
 
   /* Choose method, tlsv1_2 by default */
@@ -544,20 +553,17 @@ SSL_CTX* bud_config_new_ssl_ctx(bud_config_t* config, bud_error_t* err) {
   }
 #endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
 
-  if (config->frontend.npn != NULL) {
+  if (context->npn != NULL) {
 #ifdef OPENSSL_NPN_NEGOTIATED
-    if (config->frontend.npn_line == NULL) {
-      config->frontend.npn_line =
-          bud_config_encode_npn(config->frontend.npn,
-                                &config->frontend.npn_line_len,
-                                err);
-      if (!bud_is_ok(*err))
-        goto fatal;
-    }
+    context->npn_line = bud_config_encode_npn(context->npn,
+                                              &context->npn_line_len,
+                                              err);
+    if (!bud_is_ok(*err))
+      goto fatal;
 
     SSL_CTX_set_next_protos_advertised_cb(ctx,
                                           bud_config_advertise_next_proto,
-                                          config);
+                                          context);
 #else  /* !OPENSSL_NPN_NEGOTIATED */
     err = bud_error(kBudErrNPNNotSupported);
     goto fatal;
@@ -629,7 +635,7 @@ bud_error_t bud_config_init(bud_config_t* config) {
   for (i = 0; i < config->context_count; i++) {
     ctx = &config->contexts[i];
 
-    ctx->ctx = bud_config_new_ssl_ctx(config, &err);
+    ctx->ctx = bud_config_new_ssl_ctx(config, ctx, &err);
     if (ctx->ctx == NULL)
       goto fatal;
 
@@ -651,8 +657,7 @@ bud_error_t bud_config_init(bud_config_t* config) {
 fatal:
   /* Free all allocated contexts */
   do {
-    SSL_CTX_free(config->contexts[i].ctx);
-    config->contexts[i].ctx = NULL;
+    bud_context_free(&config->contexts[i]);
 
     i--;
   } while (i >= 0);
@@ -664,7 +669,6 @@ fatal:
   if (config->logger != NULL)
     bud_logger_free(config);
   config->logger = NULL;
-  free(config->frontend.npn_line);
 
   return err;
 }
@@ -675,16 +679,15 @@ int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
   int i;
   bud_config_t* config;
   bud_context_t* ctx;
-  SSL_CTX* selected;
   const char* servername;
 
   config = arg;
   servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
 
   /* SNI redis */
-  selected = SSL_get_app_data(s);
-  if (selected != NULL) {
-    SSL_set_SSL_CTX(s, selected);
+  ctx = SSL_get_app_data(s);
+  if (ctx != NULL) {
+    SSL_set_SSL_CTX(s, ctx->ctx);
     return SSL_TLSEXT_ERR_OK;
   }
 
@@ -711,12 +714,12 @@ int bud_config_advertise_next_proto(SSL* s,
                                     const unsigned char** data,
                                     unsigned int* len,
                                     void* arg) {
-  bud_config_t* config;
+  bud_context_t* context;
 
-  config = arg;
+  context = arg;
 
-  *data = (const unsigned char*) config->frontend.npn_line;
-  *len = config->frontend.npn_line_len;
+  *data = (const unsigned char*) context->npn_line;
+  *len = context->npn_line_len;
 
   return SSL_TLSEXT_ERR_OK;
 }
