@@ -25,7 +25,9 @@ static void bud_config_print_default();
 static int bud_config_select_sni_context(SSL* s, int* ad, void* arg);
 #endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
 #ifdef OPENSSL_NPN_NEGOTIATED
-static bud_error_t bud_config_fill_npn(bud_config_t* config);
+static char* bud_config_encode_npn(const JSON_Array* npn,
+                                   size_t* len,
+                                   bud_error_t* err);
 static int bud_config_advertise_next_proto(SSL* s,
                                            const unsigned char** data,
                                            unsigned int* len,
@@ -456,41 +458,45 @@ void bud_config_set_defaults(bud_config_t* config) {
 
 
 #ifdef OPENSSL_NPN_NEGOTIATED
-bud_error_t bud_config_fill_npn(bud_config_t* config) {
+char* bud_config_encode_npn(const JSON_Array* npn,
+                            size_t* len,
+                            bud_error_t* err) {
   int i;
+  char* npn_line;
+  size_t npn_line_len;
   unsigned int offset;
   int npn_count;
-  int npn_len;
-  const char* npn;
-
-  /* Already filled or no NPN enabled */
-  if (config->frontend.npn_line != NULL || config->frontend.npn == NULL)
-    return bud_ok();
+  const char* npn_item;
+  int npn_item_len;
 
   /* Calculate storage requirements */
-  npn_count = json_array_get_count(config->frontend.npn);
-  config->frontend.npn_line_len = 0;
+  npn_count = json_array_get_count(npn);
+  npn_line_len = 0;
   for (i = 0; i < npn_count; i++) {
-    config->frontend.npn_line_len +=
-        1 + strlen(json_array_get_string(config->frontend.npn, i));
+    npn_line_len += 1 + strlen(json_array_get_string(npn, i));
   }
 
-  config->frontend.npn_line = malloc(config->frontend.npn_line_len);
-  if (config->frontend.npn_line == NULL)
-    return bud_error_str(kBudErrNoMem, "NPN copy");
+  npn_line = malloc(npn_line_len);
+  if (npn_line == NULL) {
+    *err = bud_error_str(kBudErrNoMem, "NPN copy");
+    return NULL;
+  }
 
   /* Fill npn line */
   for (i = 0, offset = 0; i < npn_count; i++) {
-    npn = json_array_get_string(config->frontend.npn, i);
-    npn_len = strlen(npn);
+    npn_item = json_array_get_string(npn, i);
+    npn_item_len = strlen(npn_item);
 
-    config->frontend.npn_line[offset++] = npn_len;
-    memcpy(config->frontend.npn_line + offset, npn, npn_len);
-    offset += npn_len;
+    npn_line[offset++] = npn_item_len;
+    memcpy(npn_line + offset, npn_item, npn_item_len);
+    offset += npn_item_len;
   }
-  ASSERT(offset == config->frontend.npn_line_len, "NPN Line overflow");
+  ASSERT(offset == npn_line_len, "NPN Line overflow");
 
-  return bud_ok();
+  *len = npn_line_len;
+  *err = bud_ok();
+
+  return npn_line;
 }
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 
@@ -540,9 +546,14 @@ SSL_CTX* bud_config_new_ssl_ctx(bud_config_t* config, bud_error_t* err) {
 
   if (config->frontend.npn != NULL) {
 #ifdef OPENSSL_NPN_NEGOTIATED
-    *err = bud_config_fill_npn(config);
-    if (!bud_is_ok(*err))
-      goto fatal;
+    if (config->frontend.npn_line == NULL) {
+      config->frontend.npn_line =
+          bud_config_encode_npn(config->frontend.npn,
+                                &config->frontend.npn_line_len,
+                                err);
+      if (!bud_is_ok(*err))
+        goto fatal;
+    }
 
     SSL_CTX_set_next_protos_advertised_cb(ctx,
                                           bud_config_advertise_next_proto,

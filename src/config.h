@@ -84,7 +84,7 @@ struct bud_config_s {
     struct sockaddr_storage addr;
     const SSL_METHOD* method;
     char* npn_line;
-    unsigned int npn_line_len;
+    size_t npn_line_len;
   } frontend;
 
   struct {
