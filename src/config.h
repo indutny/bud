@@ -27,6 +27,7 @@ struct bud_context_s {
   const char* cert_file;
   const char* key_file;
   const JSON_Array* npn;
+  const char* ciphers;
 
   /* Various */
   SSL_CTX* ctx;
@@ -79,8 +80,9 @@ struct bud_config_s {
     int proxyline;
     int keepalive;
     const char* security;
-    const char* ciphers;
     int server_preference;
+    const JSON_Array* npn;
+    const char* ciphers;
 
     /* internal */
     struct sockaddr_storage addr;

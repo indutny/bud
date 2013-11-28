@@ -25,7 +25,8 @@ static void bud_config_print_default();
 static int bud_config_select_sni_context(SSL* s, int* ad, void* arg);
 #endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
 #ifdef OPENSSL_NPN_NEGOTIATED
-static char* bud_config_encode_npn(const JSON_Array* npn,
+static char* bud_config_encode_npn(bud_config_t* config,
+                                   const JSON_Array* npn,
                                    size_t* len,
                                    bud_error_t* err);
 static int bud_config_advertise_next_proto(SSL* s,
@@ -36,6 +37,7 @@ static int bud_config_advertise_next_proto(SSL* s,
 static int bud_config_str_to_addr(const char* host,
                                   uint16_t port,
                                   struct sockaddr_storage* addr);
+static bud_error_t bud_config_verify_npn(const JSON_Array* npn);
 
 
 bud_config_t* bud_config_cli_load(uv_loop_t* loop,
@@ -137,12 +139,28 @@ bud_config_t* bud_config_cli_load(uv_loop_t* loop,
 }
 
 
+bud_error_t bud_config_verify_npn(const JSON_Array* npn) {
+  int i;
+  int npn_count;
+
+  if (npn == NULL)
+    return bud_ok();
+
+  npn_count = json_array_get_count(npn);
+  for (i = 0; i < npn_count; i++) {
+    if (json_value_get_type(json_array_get_value(npn, i)) == JSONString)
+      continue;
+    return bud_error(kBudErrNPNNonString);
+  }
+
+  return bud_ok();
+}
+
+
 bud_config_t* bud_config_load(uv_loop_t* loop,
                               const char* path,
                               bud_error_t* err) {
   int i;
-  int j;
-  int npn_count;
   int context_count;
   JSON_Value* json;
   JSON_Value* val;
@@ -216,7 +234,13 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     config->frontend.port = (uint16_t) json_object_get_number(frontend, "port");
     config->frontend.host = json_object_get_string(frontend, "host");
     config->frontend.security = json_object_get_string(frontend, "security");
+    config->frontend.npn = json_object_get_array(frontend, "npn");
     config->frontend.ciphers = json_object_get_string(frontend, "ciphers");
+
+    *err = bud_config_verify_npn(config->frontend.npn);
+    if (!bud_is_ok(*err))
+      goto failed_get_index;
+
     val = json_object_get_value(frontend, "proxyline");
     if (val != NULL)
       config->frontend.proxyline = json_value_get_boolean(val);
@@ -269,19 +293,11 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     ctx->cert_file = json_object_get_string(obj, "cert");
     ctx->key_file = json_object_get_string(obj, "key");
     ctx->npn = json_object_get_array(obj, "npn");
+    ctx->ciphers = json_object_get_string(obj, "ciphers");
 
-    /* Verify that all indexes are strings */
-    if (ctx->npn == NULL)
-      continue;
-
-    npn_count = json_array_get_count(ctx->npn);
-    for (j = 0; j < npn_count; j++) {
-      if (json_value_get_type(json_array_get_value(ctx->npn, j)) !=
-          JSONString) {
-        *err = bud_error(kBudErrNPNNonString);
-        goto failed_get_index;
-      }
-    }
+    *err = bud_config_verify_npn(ctx->npn);
+    if (!bud_is_ok(*err))
+      goto failed_get_index;
   }
   config->context_count = context_count;
 
@@ -386,6 +402,10 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"proxyline\": false,\n");
   fprintf(stdout, "    \"security\": \"%s\",\n", config.frontend.security);
   fprintf(stdout, "    \"server_preference\": true,\n");
+#ifdef OPENSSL_NPN_NEGOTIATED
+  /* Sorry, hard-coded */
+  fprintf(stdout, "    \"npn\": [\"http/1.1\", \"http/1.0\"],\n");
+#endif  /* OPENSSL_NPN_NEGOTIATED */
   if (config.frontend.ciphers != NULL)
     fprintf(stdout, "    \"ciphers\": \"%s\"\n", config.frontend.ciphers);
   else
@@ -416,11 +436,11 @@ void bud_config_print_default() {
       fprintf(stdout, "    \"servername\": null,\n");
     fprintf(stdout, "    \"cert\": \"%s\",\n", ctx->cert_file);
     fprintf(stdout, "    \"key\": \"%s\",\n", ctx->key_file);
-
-    /* Sorry, hard-coded */
 #ifdef OPENSSL_NPN_NEGOTIATED
-    fprintf(stdout, "    \"npn\": [\"http/1.1\", \"http/1.0\"]\n");
+    /* Sorry, hard-coded */
+    fprintf(stdout, "    \"npn\": null,\n");
 #endif  /* OPENSSL_NPN_NEGOTIATED */
+    fprintf(stdout, "    \"ciphers\": null\n");
 
     if (i == config.context_count - 1)
       fprintf(stdout, "  }");
@@ -476,7 +496,8 @@ void bud_config_set_defaults(bud_config_t* config) {
 
 
 #ifdef OPENSSL_NPN_NEGOTIATED
-char* bud_config_encode_npn(const JSON_Array* npn,
+char* bud_config_encode_npn(bud_config_t* config,
+                            const JSON_Array* npn,
                             size_t* len,
                             bud_error_t* err) {
   int i;
@@ -486,6 +507,15 @@ char* bud_config_encode_npn(const JSON_Array* npn,
   int npn_count;
   const char* npn_item;
   int npn_item_len;
+
+  /* Try global defaults */
+  if (npn == NULL)
+    npn = config->frontend.npn;
+  if (npn == NULL) {
+    *err = bud_ok();
+    *len = 0;
+    return NULL;
+  }
 
   /* Calculate storage requirements */
   npn_count = json_array_get_count(npn);
@@ -546,7 +576,9 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
                                  SSL_SESS_CACHE_SERVER |
                                  SSL_SESS_CACHE_NO_INTERNAL |
                                  SSL_SESS_CACHE_NO_AUTO_CLEAR);
-  if (config->frontend.ciphers != NULL)
+  if (context->ciphers != NULL)
+    SSL_CTX_set_cipher_list(ctx, context->ciphers);
+  else if (config->frontend.ciphers != NULL)
     SSL_CTX_set_cipher_list(ctx, config->frontend.ciphers);
 
   /* Disable SSL2 */
@@ -566,15 +598,18 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
 
   if (context->npn != NULL) {
 #ifdef OPENSSL_NPN_NEGOTIATED
-    context->npn_line = bud_config_encode_npn(context->npn,
+    context->npn_line = bud_config_encode_npn(config,
+                                              context->npn,
                                               &context->npn_line_len,
                                               &err);
     if (!bud_is_ok(err))
       goto fatal;
 
-    SSL_CTX_set_next_protos_advertised_cb(ctx,
-                                          bud_config_advertise_next_proto,
-                                          context);
+    if (context->npn_line != NULL) {
+      SSL_CTX_set_next_protos_advertised_cb(ctx,
+                                            bud_config_advertise_next_proto,
+                                            context);
+    }
 #else  /* !OPENSSL_NPN_NEGOTIATED */
     err = bud_error(kBudErrNPNNotSupported);
     goto fatal;

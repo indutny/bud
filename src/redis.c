@@ -406,6 +406,7 @@ void bud_redis_execute_sni_cb(redisAsyncContext* ctx, void* reply, void* arg) {
   /* Load NPN from response */
   sni->sni->servername = NULL;
   sni->sni->servername_len = 0;
+  sni->sni->ciphers = json_object_get_string(obj, "ciphers");
   sni->sni->npn = json_object_get_array(obj, "npn");
 
   err = bud_config_new_ssl_ctx(redis->config, sni->sni);
