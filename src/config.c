@@ -343,7 +343,7 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.frontend.host);
   fprintf(stdout, "    \"keepalive\": %d,\n", config.frontend.keepalive);
-  fprintf(stdout, "    \"proxyline\": \"false\",\n");
+  fprintf(stdout, "    \"proxyline\": false,\n");
   fprintf(stdout, "    \"security\": \"%s\"\n", config.frontend.security);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"backend\": {\n");
@@ -473,12 +473,12 @@ bud_error_t bud_config_init(bud_config_t* config) {
     method = TLSv1_1_server_method();
   else if (strcmp(config->frontend.security, "tls1.0") == 0)
     method = TLSv1_server_method();
-  else if (strcmp(config->frontend.security, "ssl23") == 0)
-    method = SSLv23_server_method();
+  else if (strcmp(config->frontend.security, "tls1.2") == 0)
+    method = TLSv1_2_server_method();
   else if (strcmp(config->frontend.security, "ssl3") == 0)
     method = SSLv3_server_method();
   else
-    method = TLSv1_2_server_method();
+    method = SSLv23_server_method();
 
   /* Load all contexts */
   for (i = 0; i < config->context_count; i++) {
