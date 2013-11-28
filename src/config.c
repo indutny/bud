@@ -124,6 +124,13 @@ bud_config_t* bud_config_cli_load(uv_loop_t* loop,
       config = NULL;
       *err = bud_error_num(kBudErrExePath, r);
     }
+
+    /* Initialize config */
+    *err = bud_config_init(config);
+    if (!bud_is_ok(*err)) {
+      bud_config_free(config);
+      return NULL;
+    }
   }
 
   return config;
@@ -279,11 +286,6 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   config->context_count = context_count;
 
   bud_config_set_defaults(config);
-  *err = bud_config_init(config);
-  if (!bud_is_ok(*err)) {
-    bud_config_free(config);
-    return NULL;
-  }
 
   *err = bud_ok();
   return config;
