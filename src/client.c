@@ -68,6 +68,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
 
   client->config = config;
   client->ssl = NULL;
+  client->sni_ctx = NULL;
   client->close = kBudProgressNone;
   client->hello_parse = config->redis.enabled ? kBudProgressRunning :
                                                 kBudProgressDone;
@@ -262,6 +263,9 @@ void bud_client_close_cb(uv_handle_t* handle) {
   if (client->ssl != NULL)
     SSL_free(client->ssl);
   client->ssl = NULL;
+  if (client->sni_ctx != NULL)
+    SSL_CTX_free(client->sni_ctx);
+  client->ssl = NULL;
   if (client->sni_req != NULL)
     bud_redis_sni_close(client->config->redis.ctx, client->sni_req);
   client->sni_req = NULL;
@@ -436,6 +440,7 @@ void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err) {
                    0,
                    NULL);
     SSL_set_app_data(client->ssl, req->sni);
+    client->sni_ctx = req->sni;
   }
   client->hello_parse = kBudProgressDone;
   bud_client_cycle(client);
