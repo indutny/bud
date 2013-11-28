@@ -29,12 +29,12 @@ static void bud_client_read_cb(uv_stream_t* stream,
 static void bud_client_cycle(bud_client_t* client);
 static void bud_client_parse_hello(bud_client_t* client);
 static void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err);
-static void bud_client_backend_in(bud_client_t* client);
-static void bud_client_backend_out(bud_client_t* client);
+static int bud_client_backend_in(bud_client_t* client);
+static int bud_client_backend_out(bud_client_t* client);
 static int bud_client_throttle(bud_client_t* client,
                                bud_client_side_t* side,
                                ringbuffer* buf);
-static void bud_client_send(bud_client_t* client, bud_client_side_t* side);
+static int bud_client_send(bud_client_t* client, bud_client_side_t* side);
 static void bud_client_send_cb(uv_write_t* req, int status);
 static void bud_client_connect_cb(uv_connect_t* req, int status);
 static int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side);
@@ -346,8 +346,7 @@ void bud_client_read_cb(uv_stream_t* stream,
   }
 
   /* If buffer is full - stop reading */
-  if (bud_client_throttle(client, side, &side->input) == -1)
-    return bud_client_close(client, side);
+  bud_client_throttle(client, side, &side->input);
 }
 
 
@@ -356,10 +355,14 @@ void bud_client_cycle(bud_client_t* client) {
   if (client->hello_parse != kBudProgressDone) {
     bud_client_parse_hello(client);
   } else {
-    bud_client_backend_in(client);
-    bud_client_backend_out(client);
-    bud_client_send(client, &client->frontend);
-    bud_client_send(client, &client->backend);
+    if (bud_client_backend_in(client) != 0)
+      return;
+    if (bud_client_backend_out(client) != 0)
+      return;
+    if (bud_client_send(client, &client->frontend) != 0)
+      return;
+    if (bud_client_send(client, &client->backend) != 0)
+      return;
   }
 }
 
@@ -457,7 +460,7 @@ void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err) {
 }
 
 
-void bud_client_backend_in(bud_client_t* client) {
+int bud_client_backend_in(bud_client_t* client) {
   char* data;
   size_t size;
   int written;
@@ -486,16 +489,15 @@ void bud_client_backend_in(bud_client_t* client) {
                           &client->frontend,
                           &client->frontend.output) == -1) {
     /* Throttle error */
-    bud_client_close(client, &client->frontend);
-    return;
+    return -1;
   }
 
   if (written >= 0)
-    return;
+    return 0;
 
   err = SSL_get_error(client->ssl, written);
   if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
-    return;
+    return 0;
 
   bud_client_log(client,
                  &client->frontend,
@@ -503,10 +505,11 @@ void bud_client_backend_in(bud_client_t* client) {
                  err,
                  bud_sslerror_str(err));
   bud_client_close(client, &client->frontend);
+  return -1;
 }
 
 
-void bud_client_backend_out(bud_client_t* client) {
+int bud_client_backend_out(bud_client_t* client) {
   int read;
   int err;
   size_t avail;
@@ -516,10 +519,11 @@ void bud_client_backend_out(bud_client_t* client) {
   err = bud_client_throttle(client,
                             &client->backend,
                             &client->backend.output);
-  if (err < 0)
-    return bud_client_close(client, &client->backend);
-  else if (err == 1)
-    return;
+  if (err < 0) {
+    return err;
+  } else if (err == 1) {
+    return 0;
+  }
 
   do {
     avail = 0;
@@ -531,16 +535,17 @@ void bud_client_backend_out(bud_client_t* client) {
                      read);
     if (read > 0) {
       ringbuffer_write_append(&client->backend.output, read);
-      bud_client_send(client, &client->backend);
+      if (bud_client_send(client, &client->backend) != 0)
+        return -1;
     }
   } while (read > 0);
 
   if (read > 0)
-    return;
+    return 0;
 
   err = SSL_get_error(client->ssl, read);
   if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
-    return;
+    return 0;
 
   if (err != SSL_ERROR_ZERO_RETURN) {
     bud_client_log(client,
@@ -550,6 +555,7 @@ void bud_client_backend_out(bud_client_t* client) {
                    bud_sslerror_str(err));
   }
   bud_client_close(client, &client->frontend);
+  return -1;
 }
 
 
@@ -588,7 +594,7 @@ int bud_client_throttle(bud_client_t* client,
 }
 
 
-void bud_client_send(bud_client_t* client, bud_client_side_t* side) {
+int bud_client_send(bud_client_t* client, bud_client_side_t* side) {
   char* out[RING_BUFFER_COUNT];
   uv_buf_t buf[RING_BUFFER_COUNT];
   size_t size[ARRAY_SIZE(out)];
@@ -598,16 +604,16 @@ void bud_client_send(bud_client_t* client, bud_client_side_t* side) {
 
   /* Already writing */
   if (side->write != kBudProgressNone)
-    return;
+    return 0;
 
   /* If client is closed - stop sending */
   if (client->close == kBudProgressDone)
-    return;
+    return 0;
 
   count = ARRAY_SIZE(out);
   side->write_size = ringbuffer_read_nextv(&side->output, out, size, &count);
   if (side->write_size == 0)
-    return;
+    return 0;
 
   bud_client_debug(client,
                    side,
@@ -625,7 +631,7 @@ void bud_client_send(bud_client_t* client, bud_client_side_t* side) {
                bud_client_send_cb);
   if (r == 0) {
     side->write = kBudProgressRunning;
-    return;
+    return 0;
   }
 
   side->write = kBudProgressDone;
@@ -635,6 +641,7 @@ void bud_client_send(bud_client_t* client, bud_client_side_t* side) {
                  r,
                  uv_strerror(r));
   bud_client_close(client, side);
+  return -1;
 }
 
 
