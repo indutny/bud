@@ -448,7 +448,9 @@ failed_alloc:
 
 fatal:
   sni->cb(sni, err);
-  sni->sni->npn = NULL;
+  if (sni->sni != NULL)
+    sni->sni->npn = NULL;
   free(sni);
-  json_value_free(json);
+  if (json != NULL)
+    json_value_free(json);
 }
