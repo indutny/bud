@@ -4,3 +4,6 @@
 [submodule "deps/parson/parson"]
 	path = deps/parson/parson
 	url = git://github.com/kgabis/parson.git
+[submodule "deps/hiredis/hiredis"]
+	path = deps/hiredis/hiredis
+	url = git@github.com:redis/hiredis.git

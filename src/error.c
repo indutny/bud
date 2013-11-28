@@ -105,6 +105,10 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_UV_ERROR("uv_accept(ipc)", err)                                     \
     case kBudErrServerSimAccept:                                              \
       BUD_UV_ERROR("uv_tcp_simultaneous_accepts(server, 0)", err)             \
+    case kBudErrParserNeedMore:                                               \
+      BUD_ERROR("client hello parser needs more data")                        \
+    case kBudErrParserErr:                                                    \
+      BUD_ERROR("client hello parser failure: %s", err.str)                   \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }

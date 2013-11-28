@@ -7,6 +7,7 @@
       "deps/uv/uv.gyp:libuv",
       "deps/ringbuffer/ringbuffer.gyp:ringbuffer",
       "deps/parson/parson.gyp:parson",
+      "deps/hiredis/hiredis.gyp:hiredis",
     ],
     "include_dirs": [
       "src",
@@ -17,6 +18,7 @@
       "src/client.c",
       "src/config.c",
       "src/error.c",
+      "src/hello-parser.c",
       "src/logger.c",
       "src/master.c",
       "src/server.c",

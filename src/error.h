@@ -45,7 +45,11 @@ enum bud_error_code_e {
   kBudErrTcpServerBind = 0x303,
   kBudErrServerListen = 0x304,
   kBudErrServerIPCAccept = 0x305,
-  kBudErrServerSimAccept = 0x306
+  kBudErrServerSimAccept = 0x306,
+
+  /* Client hello parser errors */
+  kBudErrParserNeedMore = 0x400,
+  kBudErrParserErr = 0x401
 };
 
 struct bud_error_s {
