@@ -70,7 +70,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->ssl = NULL;
   client->sni_ctx = NULL;
   client->close = kBudProgressNone;
-  client->hello_parse = config->redis.enabled ? kBudProgressRunning :
+  client->hello_parse = config->redis.enabled ? kBudProgressNone :
                                                 kBudProgressDone;
   client->sni_req = NULL;
   client->destroy_waiting = 0;
@@ -368,6 +368,10 @@ void bud_client_parse_hello(bud_client_t* client) {
   char* data;
   size_t size;
 
+  /* Already running, ignore */
+  if (client->hello_parse != kBudProgressNone)
+    return;
+
   if (ringbuffer_is_empty(&client->frontend.input))
     return;
 
@@ -394,6 +398,7 @@ void bud_client_parse_hello(bud_client_t* client) {
   }
 
   /* Parse success, perform redis lookup */
+  client->hello_parse = kBudProgressRunning;
   client->sni_req = bud_redis_sni(client->config->redis.ctx,
                                   client->hello.servername,
                                   client->hello.servername_len,
