@@ -624,7 +624,8 @@ bud_error_t bud_config_init(bud_config_t* config) {
     goto fatal;
 
   /* Connect to redis */
-  if (config->redis.enabled) {
+  if (config->redis.enabled &&
+      (config->is_worker || config->worker_count == 0)) {
     config->redis.ctx = bud_redis_new(config, &err);
     if (config->redis.ctx == NULL)
       goto fatal;
