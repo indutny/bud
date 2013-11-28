@@ -6,7 +6,6 @@
 
 #include "config.h"
 #include "server.h"
-#include "logger.h"
 #include "master.h"
 #include "worker.h"
 
@@ -19,18 +18,12 @@ int main(int argc, char** argv) {
 
   bud_init_openssl();
 
-  config = bud_config_cli_load(argc, argv, &err);
+  config = bud_config_cli_load(uv_default_loop(), argc, argv, &err);
 
   /* NOTE: bud_config_load will print everything itself */
   if (config == NULL)
     goto fatal;
 
-  /* Initialize logger */
-  err = bud_logger_new(config);
-  if (!bud_is_ok(err))
-    goto fatal;
-
-  config->loop = uv_default_loop();
   if (config->is_worker)
     err = bud_worker(config);
   else
@@ -49,10 +42,8 @@ int main(int argc, char** argv) {
   uv_run(config->loop, UV_RUN_ONCE);
 
 fatal:
-  if (config != NULL) {
-    bud_logger_free(config);
+  if (config != NULL)
     bud_config_free(config);
-  }
 
   if (!bud_is_ok(err)) {
     bud_error_print(stderr, err);

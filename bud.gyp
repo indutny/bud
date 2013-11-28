@@ -21,6 +21,7 @@
       "src/hello-parser.c",
       "src/logger.c",
       "src/master.c",
+      "src/redis.c",
       "src/server.c",
       "src/worker.c",
     ],

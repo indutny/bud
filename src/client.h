@@ -5,7 +5,9 @@
 #include "ringbuffer.h"
 #include "openssl/ssl.h"
 
+#include "hello-parser.h"
 #include "server.h"
+#include "redis.h"
 
 /* Forward declaration */
 struct bud_config_s;
@@ -40,7 +42,7 @@ struct bud_client_side_s {
   bud_client_progress_t close;
   bud_client_progress_t write;
 
-  ssize_t write_size;
+  size_t write_size;
 };
 
 struct bud_client_s {
@@ -56,6 +58,11 @@ struct bud_client_s {
   uv_connect_t connect_req;
   bud_client_progress_t close;
   int destroy_waiting;
+
+  /* Client hello parser */
+  bud_client_progress_t hello_parse;
+  bud_client_hello_t hello;
+  bud_redis_sni_t* sni_req;
 };
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream);

@@ -23,7 +23,7 @@
 #define RINGBUFFER_H
 
 #include <stddef.h>
-#include <sys/types.h>  /* ssize_t */
+#include <sys/types.h>  /* size_t */
 
 /* Tweak these for potential memory/throughput tradeoffs */
 
@@ -33,14 +33,14 @@
 #define RING_MAX_SIZE (RING_BUFFER_LEN * RING_BUFFER_COUNT)
 
 typedef struct bufent {
-    ssize_t read_pos;
-    ssize_t write_pos;
+    size_t read_pos;
+    size_t write_pos;
     struct bufent* next;
     char data[RING_BUFFER_LEN];
 } bufent;
 
 typedef struct ringbuffer {
-    ssize_t length;
+    size_t length;
     bufent* read_head;
     bufent* write_head;
     bufent head;
@@ -49,20 +49,20 @@ typedef struct ringbuffer {
 void ringbuffer_init(ringbuffer* rb);
 void ringbuffer_destroy(ringbuffer* rb);
 
-ssize_t ringbuffer_read_into(ringbuffer* rb, char* out, ssize_t length);
-char* ringbuffer_read_next(ringbuffer* rb, ssize_t* length);
-ssize_t ringbuffer_read_nextv(ringbuffer* rb,
-                              char** out,
-                              ssize_t* size,
-                              size_t* count);
-void ringbuffer_read_skip(ringbuffer* rb, ssize_t length);
+size_t ringbuffer_read_into(ringbuffer* rb, char* out, size_t length);
+char* ringbuffer_read_next(ringbuffer* rb, size_t* length);
+size_t ringbuffer_read_nextv(ringbuffer* rb,
+                             char** out,
+                             size_t* size,
+                             size_t* count);
+void ringbuffer_read_skip(ringbuffer* rb, size_t length);
 void ringbuffer_read_pop(ringbuffer *rb);
 
-ssize_t ringbuffer_write_into(ringbuffer* rb, const char* data, ssize_t length);
-char* ringbuffer_write_ptr(ringbuffer* rb, ssize_t* length);
-int ringbuffer_write_append(ringbuffer* rb, ssize_t length);
+size_t ringbuffer_write_into(ringbuffer* rb, const char* data, size_t length);
+char* ringbuffer_write_ptr(ringbuffer* rb, size_t* length);
+int ringbuffer_write_append(ringbuffer* rb, size_t length);
 
-ssize_t ringbuffer_size(ringbuffer* rb);
+size_t ringbuffer_size(ringbuffer* rb);
 int ringbuffer_is_empty(ringbuffer* rb);
 int ringbuffer_is_full(ringbuffer* rb);
 

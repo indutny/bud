@@ -3,7 +3,7 @@
     "target_name": "hiredis",
     "type": "<(library)",
     "direct_dependent_settings": {
-      "include_dirs": [ "hiredis" ],
+      "include_dirs": [ "." ],
     },
     "sources": [
       "hiredis/async.c",

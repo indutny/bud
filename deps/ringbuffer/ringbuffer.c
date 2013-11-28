@@ -105,13 +105,13 @@ void ringbuffer_try_move_read_head(ringbuffer* rb) {
 }
 
 
-ssize_t ringbuffer_read_into(ringbuffer* rb, char* out, ssize_t length) {
-  ssize_t bytes_read;
-  ssize_t expected;
-  ssize_t offset;
-  ssize_t left;
+size_t ringbuffer_read_into(ringbuffer* rb, char* out, size_t length) {
+  size_t bytes_read;
+  size_t expected;
+  size_t offset;
+  size_t left;
   bufent* read_head;
-  ssize_t avail;
+  size_t avail;
 
   bytes_read = 0;
   expected = ringbuffer_size(rb) > length ? length : ringbuffer_size(rb);
@@ -148,19 +148,19 @@ ssize_t ringbuffer_read_into(ringbuffer* rb, char* out, ssize_t length) {
 }
 
 
-char* ringbuffer_read_next(ringbuffer* rb, ssize_t* length) {
+char* ringbuffer_read_next(ringbuffer* rb, size_t* length) {
   *length = rb->read_head->write_pos - rb->read_head->read_pos;
   return rb->read_head->data + rb->read_head->read_pos;
 }
 
 
-ssize_t ringbuffer_read_nextv(ringbuffer* rb,
-                              char** out,
-                              ssize_t* size,
-                              size_t* count) {
+size_t ringbuffer_read_nextv(ringbuffer* rb,
+                             char** out,
+                             size_t* size,
+                             size_t* count) {
   size_t i;
   size_t max;
-  ssize_t total;
+  size_t total;
   bufent* pos;
 
   pos = rb->read_head;
@@ -187,13 +187,13 @@ ssize_t ringbuffer_read_nextv(ringbuffer* rb,
 }
 
 
-void ringbuffer_read_skip(ringbuffer* rb, ssize_t length) {
+void ringbuffer_read_skip(ringbuffer* rb, size_t length) {
   ringbuffer_read_into(rb, NULL, length);
 }
 
 
 void ringbuffer_read_pop(ringbuffer* rb) {
-  ssize_t avail;
+  size_t avail;
 
   avail = rb->read_head->write_pos - rb->read_head->read_pos;
   ringbuffer_read_skip(rb, avail);
@@ -221,13 +221,13 @@ int ringbuffer_try_allocate_for_write(ringbuffer* rb) {
 }
 
 
-ssize_t ringbuffer_write_into(ringbuffer* rb,
-                              const char* data,
-                              ssize_t length) {
-  ssize_t offset;
-  ssize_t left;
-  ssize_t to_write;
-  ssize_t avail;
+size_t ringbuffer_write_into(ringbuffer* rb,
+                             const char* data,
+                             size_t length) {
+  size_t offset;
+  size_t left;
+  size_t to_write;
+  size_t avail;
   bufent* write_head;
 
   offset = 0;
@@ -270,8 +270,8 @@ ssize_t ringbuffer_write_into(ringbuffer* rb,
 }
 
 
-char* ringbuffer_write_ptr(ringbuffer* rb, ssize_t* length) {
-  ssize_t available;
+char* ringbuffer_write_ptr(ringbuffer* rb, size_t* length) {
+  size_t available;
 
   available = RING_BUFFER_LEN - rb->write_head->write_pos;
   if (*length != 0 && available > *length)
@@ -283,7 +283,7 @@ char* ringbuffer_write_ptr(ringbuffer* rb, ssize_t* length) {
 }
 
 
-int ringbuffer_write_append(ringbuffer* rb, ssize_t length) {
+int ringbuffer_write_append(ringbuffer* rb, size_t length) {
   rb->write_head->write_pos += length;
   rb->length += length;
   assert(rb->write_head->write_pos <= RING_BUFFER_LEN);
@@ -305,7 +305,7 @@ int ringbuffer_write_append(ringbuffer* rb, ssize_t length) {
 }
 
 
-ssize_t ringbuffer_size(ringbuffer* rb) {
+size_t ringbuffer_size(ringbuffer* rb) {
   return rb->length;
 }
 

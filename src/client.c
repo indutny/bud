@@ -8,7 +8,9 @@
 
 #include "common.h"
 #include "client.h"
+#include "hello-parser.h"
 #include "logger.h"
+#include "redis.h"
 
 static void bud_client_side_init(bud_client_side_t* side,
                                  bud_client_side_type_t type,
@@ -25,6 +27,8 @@ static void bud_client_read_cb(uv_stream_t* stream,
                                ssize_t nread,
                                const uv_buf_t* buf);
 static void bud_client_cycle(bud_client_t* client);
+static void bud_client_parse_hello(bud_client_t* client);
+static void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err);
 static void bud_client_backend_in(bud_client_t* client);
 static void bud_client_backend_out(bud_client_t* client);
 static int bud_client_throttle(bud_client_t* client,
@@ -65,6 +69,9 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->config = config;
   client->ssl = NULL;
   client->close = kBudProgressNone;
+  client->hello_parse = config->redis.enabled ? kBudProgressRunning :
+                                                kBudProgressDone;
+  client->sni_req = NULL;
   client->destroy_waiting = 0;
 
   /* Initialize buffers */
@@ -255,6 +262,9 @@ void bud_client_close_cb(uv_handle_t* handle) {
   if (client->ssl != NULL)
     SSL_free(client->ssl);
   client->ssl = NULL;
+  if (client->sni_req != NULL)
+    bud_redis_sni_close(client->config->redis.ctx, client->sni_req);
+  client->sni_req = NULL;
   free(client);
 }
 
@@ -264,7 +274,7 @@ void bud_client_alloc_cb(uv_handle_t* handle,
                          uv_buf_t* buf) {
   bud_client_t* client;
   bud_client_side_t* side;
-  ssize_t avail;
+  size_t avail;
   char* ptr;
 
   client = handle->data;
@@ -335,16 +345,106 @@ void bud_client_read_cb(uv_stream_t* stream,
 
 
 void bud_client_cycle(bud_client_t* client) {
-  bud_client_backend_in(client);
-  bud_client_backend_out(client);
-  bud_client_send(client, &client->frontend);
-  bud_client_send(client, &client->backend);
+  /* Parsing, must wait */
+  if (client->hello_parse != kBudProgressDone) {
+    bud_client_parse_hello(client);
+  } else {
+    bud_client_backend_in(client);
+    bud_client_backend_out(client);
+    bud_client_send(client, &client->frontend);
+    bud_client_send(client, &client->backend);
+  }
+}
+
+
+void bud_client_parse_hello(bud_client_t* client) {
+  bud_error_t err;
+  char* data;
+  size_t size;
+
+  if (ringbuffer_is_empty(&client->frontend.input))
+    return;
+
+  data = ringbuffer_read_next(&client->frontend.input, &size);
+  err = bud_parse_client_hello(data, (size_t) size, &client->hello);
+  if (err.code == kBudErrParserNeedMore)
+    return;
+
+  if (!bud_is_ok(err)) {
+    bud_client_log(client,
+                   &client->frontend,
+                   "client %p failed to parse hello with (%d) \"%s\" on %s",
+                   err.code,
+                   err.str);
+    bud_client_close(client, &client->frontend);
+    return;
+  }
+
+  /* No servername was given */
+  if (client->hello.servername_len == 0) {
+    client->hello_parse = kBudProgressDone;
+    bud_client_cycle(client);
+    return;
+  }
+
+  /* Parse success, perform redis lookup */
+  client->sni_req = bud_redis_sni(client->config->redis.ctx,
+                                  client->hello.servername,
+                                  client->hello.servername_len,
+                                  bud_client_sni_cb,
+                                  client,
+                                  &err);
+  if (!bud_is_ok(err)) {
+    bud_client_log(client,
+                   &client->frontend,
+                   "client %p failed to request SNI with (%d) \"%s\" on %s",
+                   err.code,
+                   err.str);
+    bud_client_close(client, &client->frontend);
+  }
+}
+
+
+void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err) {
+  bud_client_t* client;
+
+  client = req->data;
+  client->sni_req = NULL;
+  if (!bud_is_ok(err)) {
+    bud_client_log(client,
+                   &client->frontend,
+                   "client %p SNI cb failed with (%d) \"%s\" on %s",
+                   err.code,
+                   err.str);
+    bud_client_close(client, &client->frontend);
+    return;
+  }
+
+  /* Success */
+  if (req->sni == NULL) {
+    /* Not found */
+    /* TODO(indunty): log servername*/
+    bud_client_log(client,
+                   &client->frontend,
+                   "client %p SNI name not found (%d) \"%s\" on %s",
+                   0,
+                   NULL);
+  } else {
+    bud_client_log(client,
+                   &client->frontend,
+                   "client %p SNI name found (%d) \"%s\" on %s",
+                   0,
+                   NULL);
+    SSL_set_app_data(client->ssl, req->sni);
+  }
+  client->hello_parse = kBudProgressDone;
+  bud_client_cycle(client);
 }
 
 
 void bud_client_backend_in(bud_client_t* client) {
   char* data;
-  ssize_t size;
+  size_t size;
   int written;
   int err;
 
@@ -363,7 +463,7 @@ void bud_client_backend_in(bud_client_t* client) {
     if (written < 0)
       break;
 
-    ASSERT(written == size, "SSL_write() did unexpected partial write");
+    ASSERT(written == (int) size, "SSL_write() did unexpected partial write");
     ringbuffer_read_skip(&client->backend.input, written);
   }
 
@@ -394,7 +494,7 @@ void bud_client_backend_in(bud_client_t* client) {
 void bud_client_backend_out(bud_client_t* client) {
   int read;
   int err;
-  ssize_t avail;
+  size_t avail;
   char* out;
 
   /* If buffer is full - stop reading */
@@ -476,7 +576,7 @@ int bud_client_throttle(bud_client_t* client,
 void bud_client_send(bud_client_t* client, bud_client_side_t* side) {
   char* out[RING_BUFFER_COUNT];
   uv_buf_t buf[RING_BUFFER_COUNT];
-  ssize_t size[ARRAY_SIZE(out)];
+  size_t size[ARRAY_SIZE(out)];
   size_t count;
   size_t i;
   int r;

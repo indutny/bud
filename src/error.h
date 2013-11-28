@@ -49,7 +49,15 @@ enum bud_error_code_e {
 
   /* Client hello parser errors */
   kBudErrParserNeedMore = 0x400,
-  kBudErrParserErr = 0x401
+  kBudErrParserErr = 0x401,
+
+  /* Redis errors */
+  kBudErrRedisConnect = 0x500,
+  kBudErrRedisAttach = 0x501,
+  kBudErrRedisSetCallback = 0x502,
+  kBudErrRedisTimerInit = 0x503,
+  kBudErrRedisCmd = 0x504,
+  kBudErrRedisCmdCb = 0x505
 };
 
 struct bud_error_s {

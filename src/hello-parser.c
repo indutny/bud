@@ -1,4 +1,5 @@
 #include <stdint.h>  /* uint8_t */
+#include <stdlib.h>  /* NULL */
 #include <string.h>  /* memset */
 
 #include "hello-parser.h"
@@ -212,11 +213,6 @@ bud_error_t bud_parse_extension(extension_type_t type,
   uint8_t name_type;
   uint16_t name_len;
 
-  /*
-   * NOTE: In case of anything we're just returning back, ignoring the problem.
-   * That's because we're heavily relying on OpenSSL to solve any problem with
-   * incoming data.
-   */
   switch (type) {
     case kServername:
       if (size < 2)
