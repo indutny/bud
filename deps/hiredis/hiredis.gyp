@@ -5,6 +5,7 @@
     "direct_dependent_settings": {
       "include_dirs": [ "." ],
     },
+    "CFLAGS": [ "-std=c99" ],
     "sources": [
       "hiredis/async.c",
       "hiredis/dict.c",
