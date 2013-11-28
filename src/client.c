@@ -382,6 +382,7 @@ void bud_client_parse_hello(bud_client_t* client) {
     return;
 
   if (!bud_is_ok(err)) {
+    client->hello_parse = kBudProgressDone;
     bud_client_log(client,
                    &client->frontend,
                    "client %p failed to parse hello with (%d) \"%s\" on %s",
@@ -412,6 +413,7 @@ void bud_client_parse_hello(bud_client_t* client) {
                    "client %p failed to request SNI with (%d) \"%s\" on %s",
                    err.code,
                    err.str);
+    client->hello_parse = kBudProgressDone;
     bud_client_close(client, &client->frontend);
   }
 }
@@ -422,6 +424,7 @@ void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err) {
 
   client = req->data;
   client->sni_req = NULL;
+  client->hello_parse = kBudProgressDone;
   if (!bud_is_ok(err)) {
     bud_client_log(client,
                    &client->frontend,
@@ -450,7 +453,6 @@ void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err) {
     SSL_set_app_data(client->ssl, req->sni);
     client->sni_ctx = req->sni;
   }
-  client->hello_parse = kBudProgressDone;
   bud_client_cycle(client);
 }
 
