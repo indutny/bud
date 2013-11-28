@@ -2,6 +2,7 @@
 #include <stdio.h>  /* fprintf */
 #include <stdlib.h>  /* NULL */
 #include <string.h>  /* memset, strlen, strncmp */
+#include <strings.h>  /* strcasecmp */
 
 #include "uv.h"
 #include "openssl/err.h"
@@ -593,7 +594,7 @@ int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
   for (i = 1; i < config->context_count; i++) {
     ctx = &config->contexts[i];
 
-    if (strncmp(servername, ctx->servername, ctx->servername_len) != 0)
+    if (strncasecmp(servername, ctx->servername, ctx->servername_len) != 0)
       break;
     SSL_set_SSL_CTX(s, ctx->ctx);
   }
