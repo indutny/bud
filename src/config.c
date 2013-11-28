@@ -169,6 +169,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   }
 
   config->loop = loop;
+  config->json = json;
 
   /* Workers configuration */
   config->worker_count = -1;
