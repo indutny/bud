@@ -65,6 +65,7 @@ to get default configuration options (with comments and description below):
     "server_preference": true,
 
     // Which protocol versions to support:
+    // **optional**, default: "ssl23"
     // "ssl23" (implies tls1.*) , "ssl3", "tls1", "tls1.1", "tls1.2"
     "security": "ssl23",
 
@@ -74,10 +75,10 @@ to get default configuration options (with comments and description below):
     // Path to default TLS private key
     "key": "keys/key.pem",
 
-    // Cipherlist to use
+    // **Optional** Cipher suites to use
     "ciphers": null,
 
-    // NPN protocols to advertise
+    // **Optional** NPN protocols to advertise
     "npn": ["http/1.1", "http/1.0"]
   },
 
@@ -127,6 +128,29 @@ To start bud - create configuration file using this template and:
 ```bash
 bud --conf conf.json
 ```
+
+### Redis SNI Storage
+
+If you have enabled redis lookup (`redis.enabled` set to `true`), on every TLS
+connection a request to the redis server will be made (using `reqis.query`
+template). The response (i.e. the data in the redis) should be a [JSON][0] of
+the following form:
+
+```javascript
+{
+  "cert": "certificate contents",
+  "key": "key contents",
+
+  // Optional
+  "npn": [],
+
+  // Optional
+  "ciphers": "..."
+}
+```
+
+If optional fields are not present - their value would be taken from `frontend`
+object in configuration file.
 
 #### LICENSE
 
