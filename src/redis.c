@@ -286,6 +286,8 @@ int SSL_CTX_use_certificate_chain(SSL_CTX *ctx, BIO *in) {
   int r;
   unsigned long err;
 
+  ERR_clear_error();
+
   ret = 0;
   x = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
 
