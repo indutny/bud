@@ -342,6 +342,10 @@ int SSL_CTX_use_certificate_chain(SSL_CTX *ctx, BIO *in) {
 void bud_redis_execute_sni_cb(redisAsyncContext* ctx, void* reply, void* arg) {
   int r;
   redisReply* rep;
+  JSON_Value* json;
+  JSON_Object* obj;
+  const char* cert_str;
+  const char* key_str;
   bud_redis_sni_t* sni;
   bud_redis_t* redis;
   bud_error_t err;
@@ -361,6 +365,9 @@ void bud_redis_execute_sni_cb(redisAsyncContext* ctx, void* reply, void* arg) {
   if (redis->ctx == NULL)
     return;
 
+  json = NULL;
+  sni->sni = NULL;
+
   /* Success or error */
   QUEUE_REMOVE(&sni->member);
   if (rep->type == REDIS_REPLY_NIL) {
@@ -373,18 +380,31 @@ void bud_redis_execute_sni_cb(redisAsyncContext* ctx, void* reply, void* arg) {
     goto fatal;
   }
 
-  sni->sni = malloc(sizeof(*sni->sni));
-  if (sni->sni == NULL)
+  json = json_parse_string(rep->str);
+  obj = json_value_get_object(json);
+  cert_str = json_object_get_string(obj, "cert");
+  key_str = json_object_get_string(obj, "key");
+  if (json == NULL || obj == NULL || cert_str == NULL || key_str == NULL) {
+    err = bud_error_str(kBudErrJSONParse, "<redis>");
     goto fatal;
+  }
 
-  /* NPN is unsupported for now */
-  sni->sni->npn = NULL;
+  sni->sni = malloc(sizeof(*sni->sni));
+  if (sni->sni == NULL) {
+    err = bud_error_str(kBudErrNoMem, "SNI bud_context_t");
+    goto fatal;
+  }
 
-  sni->sni->ctx = bud_config_new_ssl_ctx(redis->config, sni->sni, &err);
-  if (sni->sni->ctx == NULL)
+  /* Load NPN from response */
+  sni->sni->servername = NULL;
+  sni->sni->servername_len = 0;
+  sni->sni->npn = json_object_get_array(obj, "npn");
+
+  err = bud_config_new_ssl_ctx(redis->config, sni->sni);
+  if (!bud_is_ok(err))
     goto failed_alloc;
 
-  bio = BIO_new_mem_buf(rep->str, rep->len);
+  bio = BIO_new_mem_buf((void*) cert_str, strlen(cert_str));
   if (bio == NULL) {
     err = bud_error_str(kBudErrNoMem, "BIO_new_mem_buf");
     goto failed_alloc;
@@ -397,7 +417,7 @@ void bud_redis_execute_sni_cb(redisAsyncContext* ctx, void* reply, void* arg) {
     goto failed_alloc;
   }
 
-  bio = BIO_new_mem_buf(rep->str, rep->len);
+  bio = BIO_new_mem_buf((void*) key_str, strlen(key_str));
   if (bio == NULL) {
     err = bud_error_str(kBudErrNoMem, "BIO_new_mem_buf");
     goto failed_alloc;
@@ -428,5 +448,7 @@ failed_alloc:
 
 fatal:
   sni->cb(sni, err);
+  sni->sni->npn = NULL;
   free(sni);
+  json_value_free(json);
 }

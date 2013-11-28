@@ -123,8 +123,7 @@ void bud_config_free(bud_config_t* config);
 void bud_context_free(bud_context_t* context);
 
 /* Helper for redis.c */
-SSL_CTX* bud_config_new_ssl_ctx(bud_config_t* config,
-                                bud_context_t* context,
-                                bud_error_t* err);
+bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
+                                   bud_context_t* context);
 
 #endif  /* SRC_CONFIG_H_ */

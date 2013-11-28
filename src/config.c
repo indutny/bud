@@ -508,10 +508,10 @@ char* bud_config_encode_npn(const JSON_Array* npn,
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 
 
-SSL_CTX* bud_config_new_ssl_ctx(bud_config_t* config,
-                                bud_context_t* context,
-                                bud_error_t* err) {
+bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
+                                   bud_context_t* context) {
   SSL_CTX* ctx;
+  bud_error_t err;
 
   /* Choose method, tlsv1_2 by default */
   if (config->frontend.method == NULL) {
@@ -528,10 +528,8 @@ SSL_CTX* bud_config_new_ssl_ctx(bud_config_t* config,
   }
 
   ctx = SSL_CTX_new(config->frontend.method);
-  if (ctx == NULL) {
-    *err = bud_error_str(kBudErrNoMem, "SSL_CTX");
-    return NULL;
-  }
+  if (ctx == NULL)
+    return bud_error_str(kBudErrNoMem, "SSL_CTX");
   SSL_CTX_set_session_cache_mode(ctx,
                                  SSL_SESS_CACHE_SERVER |
                                  SSL_SESS_CACHE_NO_INTERNAL |
@@ -557,8 +555,8 @@ SSL_CTX* bud_config_new_ssl_ctx(bud_config_t* config,
 #ifdef OPENSSL_NPN_NEGOTIATED
     context->npn_line = bud_config_encode_npn(context->npn,
                                               &context->npn_line_len,
-                                              err);
-    if (!bud_is_ok(*err))
+                                              &err);
+    if (!bud_is_ok(err))
       goto fatal;
 
     SSL_CTX_set_next_protos_advertised_cb(ctx,
@@ -570,11 +568,12 @@ SSL_CTX* bud_config_new_ssl_ctx(bud_config_t* config,
 #endif  /* OPENSSL_NPN_NEGOTIATED */
   }
 
-  return ctx;
+  context->ctx = ctx;
+  return bud_ok();
 
 fatal:
   SSL_CTX_free(ctx);
-  return NULL;
+  return err;
 }
 
 
@@ -635,8 +634,8 @@ bud_error_t bud_config_init(bud_config_t* config) {
   for (i = 0; i < config->context_count; i++) {
     ctx = &config->contexts[i];
 
-    ctx->ctx = bud_config_new_ssl_ctx(config, ctx, &err);
-    if (ctx->ctx == NULL)
+    err = bud_config_new_ssl_ctx(config, ctx);
+    if (!bud_is_ok(err))
       goto fatal;
 
     if (!SSL_CTX_use_certificate_chain_file(ctx->ctx, ctx->cert_file)) {
