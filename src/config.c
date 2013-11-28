@@ -568,25 +568,23 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   }
 #endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
 
-  if (context->npn != NULL) {
 #ifdef OPENSSL_NPN_NEGOTIATED
-    context->npn_line = bud_config_encode_npn(config,
-                                              context->npn,
-                                              &context->npn_line_len,
-                                              &err);
-    if (!bud_is_ok(err))
-      goto fatal;
-
-    if (context->npn_line != NULL) {
-      SSL_CTX_set_next_protos_advertised_cb(ctx,
-                                            bud_config_advertise_next_proto,
-                                            context);
-    }
-#else  /* !OPENSSL_NPN_NEGOTIATED */
-    err = bud_error(kBudErrNPNNotSupported);
+  context->npn_line = bud_config_encode_npn(config,
+                                            context->npn,
+                                            &context->npn_line_len,
+                                            &err);
+  if (!bud_is_ok(err))
     goto fatal;
-#endif  /* OPENSSL_NPN_NEGOTIATED */
+
+  if (context->npn_line != NULL) {
+    SSL_CTX_set_next_protos_advertised_cb(ctx,
+                                          bud_config_advertise_next_proto,
+                                          context);
   }
+#else  /* !OPENSSL_NPN_NEGOTIATED */
+  err = bud_error(kBudErrNPNNotSupported);
+  goto fatal;
+#endif  /* OPENSSL_NPN_NEGOTIATED */
 
   context->ctx = ctx;
   return bud_ok();
