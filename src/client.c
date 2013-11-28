@@ -37,7 +37,7 @@ static int bud_client_throttle(bud_client_t* client,
 static void bud_client_send(bud_client_t* client, bud_client_side_t* side);
 static void bud_client_send_cb(uv_write_t* req, int status);
 static void bud_client_connect_cb(uv_connect_t* req, int status);
-static void bud_client_shutdown(bud_client_t* client, bud_client_side_t* side);
+static int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side);
 static void bud_client_shutdown_cb(uv_shutdown_t* req, int status);
 static int bud_client_prepend_proxyline(bud_client_t* client);
 static void bud_client_log(bud_client_t* client,
@@ -319,7 +319,8 @@ void bud_client_read_cb(uv_stream_t* stream,
 
     /* Shutdown opposite side */
     opposite = side == &client->frontend ? &client->backend : &client->frontend;
-    bud_client_shutdown(client, opposite);
+    if (bud_client_shutdown(client, opposite) != 0)
+      return;
   }
 
   /* Try writing out data anyway */
@@ -733,12 +734,12 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
 }
 
 
-void bud_client_shutdown(bud_client_t* client, bud_client_side_t* side) {
+int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side) {
   int r;
 
   /* Ignore if already shutdown or destroyed */
   if (side->shutdown || client->close == kBudProgressDone)
-    return;
+    return 0;
 
   side->shutdown = kBudProgressNone;
 
@@ -748,7 +749,7 @@ void bud_client_shutdown(bud_client_t* client, bud_client_side_t* side) {
   /* Not empty, send everything first */
   if (!ringbuffer_is_empty(&side->output)) {
     side->shutdown = kBudProgressRunning;
-    return;
+    return 0;
   }
 
   bud_client_debug(client,
@@ -772,6 +773,9 @@ void bud_client_shutdown(bud_client_t* client, bud_client_side_t* side) {
     bud_client_close(client, side);
   }
   side->shutdown = 1;
+
+  /* Just to let know callers that we have closed the client */
+  return -1;
 }
 
 
