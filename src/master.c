@@ -252,7 +252,7 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
     worker->active = 1;
     err = bud_ok();
     bud_log(worker->config,
-            kBudLogNotice,
+            kBudLogInfo,
             "spawned bud worker<%d>",
             worker->proc.pid);
 
@@ -380,7 +380,7 @@ void bud_master_balance(struct bud_server_s* server) {
   msg = malloc(sizeof(*msg));
   if (msg == NULL) {
     bud_error_log(config,
-                  kBudLogNotice,
+                  kBudLogWarning,
                   bud_error_str(kBudErrNoMem, "bud_master_msg_t"));
     return;
   }
@@ -390,7 +390,7 @@ void bud_master_balance(struct bud_server_s* server) {
   r = uv_tcp_init(config->loop, &msg->client);
   if (r != 0) {
     bud_log(config,
-            kBudLogNotice,
+            kBudLogWarning,
             "master uv_tcp_init() failed with (%d) \"%s\"",
             r,
             uv_strerror(r));
@@ -400,7 +400,7 @@ void bud_master_balance(struct bud_server_s* server) {
   r = uv_accept((uv_stream_t*) &server->tcp, (uv_stream_t*) &msg->client);
   if (r != 0) {
     bud_log(config,
-            kBudLogNotice,
+            kBudLogWarning,
             "master uv_accept() failed with (%d) \"%s\"",
             r,
             uv_strerror(r));
@@ -417,7 +417,7 @@ void bud_master_balance(struct bud_server_s* server) {
                 bud_master_msg_send_cb);
   if (r != 0) {
     bud_log(config,
-            kBudLogNotice,
+            kBudLogWarning,
             "master uv_write2() failed with (%d) \"%s\"",
             r,
             uv_strerror(r));
@@ -450,7 +450,7 @@ void bud_master_msg_send_cb(uv_write_t* req, int status) {
   msg = container_of(req, bud_master_msg_t, req);
   if (status != 0) {
     bud_log(msg->config,
-            kBudLogNotice,
+            kBudLogWarning,
             "master write_cb() failed with (%d) \"%s\"",
             status,
             uv_strerror(status));

@@ -24,6 +24,10 @@ struct bud_logger_s {
 bud_error_t bud_logger_new(bud_config_t* config);
 void bud_logger_free(bud_config_t* logger);
 
-void bud_log(bud_config_t* config, bud_log_level_t level, char* fmt, ...);
+void bud_log(bud_config_t* config, bud_log_level_t level, const char* fmt, ...);
+void bud_logva(bud_config_t* config,
+               bud_log_level_t level,
+               const char* fmt,
+               va_list ap);
 
 #endif  /* SRC_LOGGER_H_ */

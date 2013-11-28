@@ -91,11 +91,15 @@ void bud_logger_free(bud_config_t* config) {
 }
 
 
-void bud_log(bud_config_t* config, bud_log_level_t level, char* fmt, ...) {
+void bud_logva(bud_config_t* config,
+               bud_log_level_t level,
+               const char* fmt,
+               va_list ap) {
+  va_list stdio_ap;
+  va_list syslog_ap;
   bud_logger_t* logger;
   int r;
   static char buf[1024];
-  va_list ap;
 #ifndef _WIN32
   int priority;
 #endif  /* !_WIN32 */
@@ -108,8 +112,8 @@ void bud_log(bud_config_t* config, bud_log_level_t level, char* fmt, ...) {
     return;
 
   if (logger->stdio_enabled) {
-    va_start(ap, fmt);
-    r = vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_copy(stdio_ap, ap);
+    r = vsnprintf(buf, sizeof(buf), fmt, stdio_ap);
     ASSERT(r < (int) sizeof(buf), "Log line overflow");
 
     fprintf(stderr,
@@ -121,12 +125,12 @@ void bud_log(bud_config_t* config, bud_log_level_t level, char* fmt, ...) {
             0,
 #endif  /* !_WIN32 */
             buf);
-    va_end(ap);
+    va_end(stdio_ap);
   }
 
 #ifndef _WIN32
   if (logger->syslog_enabled) {
-    va_start(ap, fmt);
+    va_copy(syslog_ap, ap);
     switch (level) {
       case kBudLogDebug:
         priority = LOG_DEBUG;
@@ -145,10 +149,21 @@ void bud_log(bud_config_t* config, bud_log_level_t level, char* fmt, ...) {
         priority = LOG_WARNING;
         break;
     }
-    vsyslog(priority, fmt, ap);
-    va_end(ap);
+    vsyslog(priority, fmt, syslog_ap);
+    va_end(syslog_ap);
   }
 #endif  /* !_WIN32 */
+}
+
+void bud_log(bud_config_t* config,
+             bud_log_level_t level,
+             const char* fmt,
+             ...) {
+  va_list ap;
+
+  va_start(ap, fmt);
+  bud_logva(config, level, fmt, ap);
+  va_end(ap);
 }
 
 
