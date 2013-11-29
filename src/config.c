@@ -622,6 +622,12 @@ bud_error_t bud_config_init(bud_config_t* config) {
     goto fatal;
   }
 
+  /* Get indexes for SSL_set_ex_data()/SSL_get_ex_data() */
+  config->client_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
+  config->sni_context_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
+  if (config->client_index == -1 || config->sni_context_index == -1)
+    goto fatal;
+
 #ifndef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
   if (config->context_count != 0) {
     err = bud_error(kBudErrSNINotSupported);
@@ -714,7 +720,7 @@ int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
   servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
 
   /* SNI redis */
-  ctx = SSL_get_app_data(s);
+  ctx = SSL_get_ex_data(s, config->sni_context_index);
   if (ctx != NULL) {
     SSL_set_SSL_CTX(s, ctx->ctx);
     return SSL_TLSEXT_ERR_OK;

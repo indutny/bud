@@ -47,6 +47,9 @@ struct bud_config_s {
   struct bud_server_s* server;
   struct bud_logger_s* logger;
 
+  int client_index;
+  int sni_context_index;
+
   /* Master state */
   struct {
     uv_signal_t sigterm;

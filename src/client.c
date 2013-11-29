@@ -151,6 +151,9 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   if (client->ssl == NULL)
     goto failed_connect;
 
+  if (!SSL_set_ex_data(client->ssl, client->config->client_index, client))
+    goto failed_connect;
+
   enc_in = bud_bio_new(&client->frontend.input);
   if (enc_in == NULL)
     goto failed_connect;
@@ -441,7 +444,16 @@ void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err) {
            "SNI name found: \"%.*s\"",
            client->hello.servername_len,
            client->hello.servername);
-    SSL_set_app_data(client->ssl, req->sni);
+    if (!SSL_set_ex_data(client->ssl,
+                         client->config->sni_context_index,
+                         req->sni)) {
+      WARNING(&client->frontend,
+             "Failed to set app data for SNI: \"%.*s\"",
+             client->hello.servername_len,
+             client->hello.servername);
+      bud_client_close(client, &client->frontend);
+      return;
+    }
     client->sni_ctx = req->sni;
   }
   bud_client_cycle(client);
