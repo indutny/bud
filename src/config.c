@@ -323,8 +323,8 @@ end:
 void bud_config_free(bud_config_t* config) {
   int i;
 
-  for (i = 0; i < config->context_count; i++)
-    bud_context_free(&config->contexts[i + 1]);
+  for (i = 0; i < config->context_count + 1; i++)
+    bud_context_free(&config->contexts[i]);
   free(config->workers);
   config->workers = NULL;
   if (config->redis.ctx != NULL)
