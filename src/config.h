@@ -90,6 +90,7 @@ struct bud_config_s {
     const char* key_file;
     int reneg_window;
     int reneg_limit;
+    int ssl3;
 
     /* internal */
     struct sockaddr_storage addr;

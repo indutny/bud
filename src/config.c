@@ -234,6 +234,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   config->frontend.proxyline = -1;
   config->frontend.keepalive = -1;
   config->frontend.server_preference = -1;
+  config->frontend.ssl3 = -1;
   if (frontend != NULL) {
     config->frontend.port = (uint16_t) json_object_get_number(frontend, "port");
     config->frontend.host = json_object_get_string(frontend, "host");
@@ -260,6 +261,9 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     val = json_object_get_value(frontend, "server_preference");
     if (val != NULL)
       config->frontend.server_preference = json_value_get_boolean(val);
+    val = json_object_get_value(frontend, "ssl3");
+    if (val != NULL)
+      config->frontend.ssl3 = json_value_get_boolean(val);
   }
 
   /* Backend configuration */
@@ -384,6 +388,7 @@ void bud_config_print_default() {
   config.log.stdio = -1;
   config.log.syslog = -1;
   config.frontend.keepalive = -1;
+  config.frontend.ssl3 = -1;
   config.backend.keepalive = -1;
   config.redis.reconnect_timeout = -1;
   config.restart_timeout = -1;
@@ -411,6 +416,10 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"proxyline\": false,\n");
   fprintf(stdout, "    \"security\": \"%s\",\n", config.frontend.security);
   fprintf(stdout, "    \"server_preference\": true,\n");
+  if (config.frontend.ssl3)
+    fprintf(stdout, "    \"ssl3\": true,\n");
+  else
+    fprintf(stdout, "    \"ssl3\": false,\n");
 #ifdef OPENSSL_NPN_NEGOTIATED
   /* Sorry, hard-coded */
   fprintf(stdout, "    \"npn\": [\"http/1.1\", \"http/1.0\"],\n");
@@ -462,6 +471,7 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.security, NULL, "ssl23");
   DEFAULT(config->frontend.keepalive, -1, 3600);
   DEFAULT(config->frontend.server_preference, -1, 1);
+  DEFAULT(config->frontend.ssl3, -1, 0);
   DEFAULT(config->frontend.cert_file, NULL, "keys/cert.pem");
   DEFAULT(config->frontend.key_file, NULL, "keys/key.pem");
   DEFAULT(config->frontend.reneg_window, 0, 600);
@@ -567,6 +577,8 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
 
   /* Disable SSL2 */
   options = SSL_OP_NO_SSLv2 | SSL_OP_ALL;
+  if (!config->frontend.ssl3)
+    options |= SSL_OP_NO_SSLv3;
 
   if (config->frontend.server_preference)
     options |= SSL_OP_CIPHER_SERVER_PREFERENCE;
