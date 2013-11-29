@@ -87,7 +87,10 @@ to get default configuration options (with comments and description below):
     "reneg_window": 300,
 
     // **Optional** Maximum number of renegotiations in a window
-    "reneg_limit": 3
+    "reneg_limit": 3,
+
+    // **Optional** If true - enable SSL3 support
+    "ssl3": false
   },
 
   // Backend configuration (i.e. address of Cleartext server)
