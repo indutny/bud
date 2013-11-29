@@ -256,7 +256,6 @@ void bud_redis_execute_sni(bud_redis_sni_t* sni) {
 
   config = sni->redis->config;
 
-  /* TODO(indutny): be more user-friendly */
   r = redisAsyncCommand(sni->redis->ctx,
                         bud_redis_execute_sni_cb,
                         sni,
@@ -268,6 +267,8 @@ void bud_redis_execute_sni(bud_redis_sni_t* sni) {
     sni->cb(sni, bud_error_str(kBudErrRedisCmd, sni->redis->ctx->errstr));
     return;
   }
+
+  sni->flags |= kSniRunning;
 }
 
 /**
