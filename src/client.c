@@ -672,8 +672,9 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   side->write = kBudProgressNone;
   side->write_size = 0;
 
-  /* Start reading, if stopped */
-  if (opposite->reading == kBudProgressNone &&
+  /* Start reading, if stopped and not closing */
+  if (opposite->close != kBudProgressDone &&
+      opposite->reading == kBudProgressNone &&
       side->close != kBudProgressDone &&
       side->shutdown != kBudProgressDone &&
       !ringbuffer_is_full(&side->output)) {
