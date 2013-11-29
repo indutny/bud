@@ -32,11 +32,15 @@ enum handshake_type_e {
 
 enum extension_type_e {
   kServername = 0,
-  kTLSSessionTicket = 35
+  kStatusRequest = 5,
+  kTLSSessionTicket = 35,
+
+  kMaxExtension = 0xffff
 };
 
 static const size_t kMaxTLSFrameLen = 16 * 1024 + 5;
 static const uint8_t kServernameHostname = 0;
+static const uint8_t kStatusRequestOCSP = 1;
 
 static bud_error_t bud_parse_record_header(const uint8_t* data,
                                            size_t size,
@@ -239,6 +243,17 @@ bud_error_t bud_parse_extension(extension_type_t type,
         state->hello->servername_len = name_len;
         offset += name_len;
       }
+      break;
+    case kStatusRequest:
+      /* We are ignoring any data, just indicating the presence of extension */
+      if (size < 5)
+        return bud_error_str(kBudErrParserErr, "StatusRequest is too small");
+
+      /* Unknown type, ignore it */
+      if (data[0] != kStatusRequestOCSP)
+        break;
+
+      state->hello->ocsp_request = 1;
       break;
     case kTLSSessionTicket:
       state->hello->ticket_len = size;

@@ -12,6 +12,7 @@ struct bud_client_hello_s {
   size_t servername_len;
   const char* ticket;
   size_t ticket_len;
+  int ocsp_request;
 };
 
 bud_error_t bud_parse_client_hello(const char* data,
