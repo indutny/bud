@@ -238,6 +238,10 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     config->frontend.ciphers = json_object_get_string(frontend, "ciphers");
     config->frontend.cert_file = json_object_get_string(frontend, "cert");
     config->frontend.key_file = json_object_get_string(frontend, "key");
+    config->frontend.reneg_window = json_object_get_number(frontend,
+                                                           "reneg_window");
+    config->frontend.reneg_limit = json_object_get_number(frontend,
+                                                          "reneg_limit");
 
     *err = bud_config_verify_npn(config->frontend.npn);
     if (!bud_is_ok(*err))
@@ -412,7 +416,9 @@ void bud_config_print_default() {
   else
     fprintf(stdout, "    \"ciphers\": null,\n");
   fprintf(stdout, "    \"cert\": \"%s\",\n", config.frontend.cert_file);
-  fprintf(stdout, "    \"key\": \"%s\"\n", config.frontend.key_file);
+  fprintf(stdout, "    \"key\": \"%s\",\n", config.frontend.key_file);
+  fprintf(stdout, "    \"reneg_window\": %d,\n", config.frontend.reneg_window);
+  fprintf(stdout, "    \"reneg_limit\": %d\n", config.frontend.reneg_limit);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"backend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.backend.port);
@@ -454,6 +460,8 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.server_preference, -1, 1);
   DEFAULT(config->frontend.cert_file, NULL, "keys/cert.pem");
   DEFAULT(config->frontend.key_file, NULL, "keys/key.pem");
+  DEFAULT(config->frontend.reneg_window, 0, 600);
+  DEFAULT(config->frontend.reneg_limit, 0, 3);
   DEFAULT(config->backend.port, 0, 8000);
   DEFAULT(config->backend.host, NULL, "127.0.0.1");
   DEFAULT(config->backend.keepalive, -1, 3600);
@@ -623,9 +631,8 @@ bud_error_t bud_config_init(bud_config_t* config) {
   }
 
   /* Get indexes for SSL_set_ex_data()/SSL_get_ex_data() */
-  config->client_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
   config->sni_context_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
-  if (config->client_index == -1 || config->sni_context_index == -1)
+  if (config->sni_context_index == -1)
     goto fatal;
 
 #ifndef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB

@@ -50,6 +50,10 @@ struct bud_client_s {
 
   SSL* ssl;
 
+  /* Renegotiation attack prevention */
+  uint64_t last_handshake;
+  int handshakes;
+
   /* Compact representation of both sides */
   bud_client_side_t frontend;
   bud_client_side_t backend;

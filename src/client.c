@@ -46,6 +46,7 @@ static void bud_client_log(bud_client_t* client,
                            ...);
 static const char* bud_sslerror_str(int err);
 static const char* bud_side_str(bud_client_side_type_t side);
+static void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret);
 
 #define LOG(level, side, fmt, ...)                                            \
     bud_client_log(client,                                                    \
@@ -54,6 +55,13 @@ static const char* bud_side_str(bud_client_side_type_t side);
                    client,                                                    \
                    bud_side_str((side)->type),                                \
                    __VA_ARGS__)
+
+#define LOG_LN(level, side, fmt)                                              \
+    bud_client_log(client,                                                    \
+                   (level),                                                   \
+                   "client %p on %s " fmt,                                    \
+                   client,                                                    \
+                   bud_side_str((side)->type))
 
 #define INFO(side, fmt, ...)                                                  \
     LOG(kBudLogInfo, side, fmt, __VA_ARGS__)
@@ -67,12 +75,8 @@ static const char* bud_side_str(bud_client_side_type_t side);
 #define DBG(side, fmt, ...)                                                   \
     LOG(kBudLogDebug, side, fmt, __VA_ARGS__)
 
-#define DBG_LN(side, fmt)                                                     \
-    bud_client_log(client,                                                    \
-                   kBudLogDebug,                                              \
-                   "client %p on %s " fmt,                                    \
-                   client,                                                    \
-                   bud_side_str((side)->type))
+#define WARNING_LN(side, fmt) LOG_LN(kBudLogWarning, side, fmt)
+#define DBG_LN(side, fmt) LOG_LN(kBudLogDebug, side, fmt)
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   int r;
@@ -89,6 +93,8 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
 
   client->config = config;
   client->ssl = NULL;
+  client->last_handshake = 0;
+  client->handshakes = 0;
   client->sni_ctx = NULL;
   client->close = kBudProgressNone;
   client->hello_parse = config->redis.enabled ? kBudProgressNone :
@@ -151,8 +157,10 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   if (client->ssl == NULL)
     goto failed_connect;
 
-  if (!SSL_set_ex_data(client->ssl, client->config->client_index, client))
+  if (!SSL_set_app_data(client->ssl, client))
     goto failed_connect;
+
+  SSL_set_info_callback(client->ssl, bud_client_ssl_info_cb);
 
   enc_in = bud_bio_new(&client->frontend.input);
   if (enc_in == NULL)
@@ -487,6 +495,10 @@ int bud_client_backend_in(bud_client_t* client) {
 
     ASSERT(written == (int) size, "SSL_write() did unexpected partial write");
     ringbuffer_read_skip(&client->backend.input, written);
+
+    /* info_cb() has closed front-end */
+    if (client->frontend.close != kBudProgressNone)
+      return -1;
   }
 
   if (bud_client_throttle(client,
@@ -538,6 +550,10 @@ int bud_client_backend_out(bud_client_t* client) {
       if (bud_client_send(client, &client->backend) != 0)
         return -1;
     }
+
+    /* info_cb() has closed front-end */
+    if (client->frontend.close != kBudProgressNone)
+      return -1;
   } while (read > 0);
 
   if (read > 0)
@@ -838,6 +854,38 @@ int bud_client_prepend_proxyline(bud_client_t* client) {
   ASSERT(r < (int) sizeof(proxyline), "Client proxyline overflow");
 
   return (int) ringbuffer_write_into(&client->backend.input, proxyline, r);
+}
+
+
+void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret) {
+  bud_client_t* client;
+  uint64_t now;
+  uint64_t limit;
+
+  if ((where & SSL_CB_HANDSHAKE_START) == 0)
+    return;
+
+  client = SSL_get_app_data(ssl);
+  now = uv_now(client->config->loop);
+
+  /* NOTE: config's limit is in ms */
+  limit = (uint64_t) client->config->frontend.reneg_window * 1000000000;
+  if (now - client->last_handshake > limit)
+    client->handshakes = 0;
+
+  /* First handshake */
+  if (client->last_handshake == 0)
+    goto end;
+  DBG(&client->frontend, "renegotation %d", client->handshakes);
+
+  /* Too many renegotiations in a small time window */
+  if (++client->handshakes > client->config->frontend.reneg_limit) {
+    WARNING_LN(&client->frontend, "TLS renegotiation attack mitigated");
+    bud_client_close(client, &client->frontend);
+  }
+
+end:
+  client->last_handshake = now;
 }
 
 

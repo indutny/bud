@@ -79,7 +79,15 @@ to get default configuration options (with comments and description below):
     "ciphers": null,
 
     // **Optional** NPN protocols to advertise
-    "npn": ["http/1.1", "http/1.0"]
+    "npn": ["http/1.1", "http/1.0"],
+
+    // NOTE: Better leave this default:
+
+    // **Optional** Renegotiation window in seconds
+    "reneg_window": 300,
+
+    // **Optional** Maximum number of renegotiations in a window
+    "reneg_limit": 3
   },
 
   // Backend configuration (i.e. address of Cleartext server)

@@ -47,7 +47,6 @@ struct bud_config_s {
   struct bud_server_s* server;
   struct bud_logger_s* logger;
 
-  int client_index;
   int sni_context_index;
 
   /* Master state */
@@ -88,6 +87,8 @@ struct bud_config_s {
     const char* ciphers;
     const char* cert_file;
     const char* key_file;
+    int reneg_window;
+    int reneg_limit;
 
     /* internal */
     struct sockaddr_storage addr;
