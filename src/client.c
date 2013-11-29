@@ -642,6 +642,10 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   bud_client_side_t* side;
   bud_client_side_t* opposite;
 
+  /* Closing, ignore */
+  if (status == UV_ECANCELED)
+    return;
+
   client = req->data;
 
   if (req == &client->frontend.write_req) {
