@@ -258,6 +258,12 @@ void bud_client_close(bud_client_t* client, bud_client_side_t* side) {
     uv_close((uv_handle_t*) &client->backend.tcp, bud_client_close_cb);
     client->backend.close = kBudProgressDone;
   }
+
+  /* Cycle data if one of backends is not closed */
+  if (client->backend.close != kBudProgressDone ||
+      client->frontend.close != kBudProgressDone) {
+    bud_client_cycle(client);
+  }
 }
 
 
@@ -268,6 +274,8 @@ void bud_client_close_cb(uv_handle_t* handle) {
 
   if (--client->destroy_waiting != 0)
     return;
+
+  DBG_LN(&client->frontend, "close_cb");
 
   bud_client_side_destroy(&client->frontend);
   bud_client_side_destroy(&client->backend);
