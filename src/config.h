@@ -19,6 +19,9 @@ struct bud_redis_s;
 typedef struct bud_context_s bud_context_t;
 typedef struct bud_config_s bud_config_t;
 
+int kBudSSLClientIndex;
+int kBudSSLSNIIndex;
+
 struct bud_context_s {
   /* From config file */
   const char* servername;
@@ -46,8 +49,6 @@ struct bud_config_s {
   char exepath[1024];
   struct bud_server_s* server;
   struct bud_logger_s* logger;
-
-  int sni_context_index;
 
   /* Master state */
   struct {

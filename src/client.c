@@ -157,7 +157,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   if (client->ssl == NULL)
     goto failed_connect;
 
-  if (!SSL_set_app_data(client->ssl, client))
+  if (!SSL_set_ex_data(client->ssl, kBudSSLClientIndex, client))
     goto failed_connect;
 
   SSL_set_info_callback(client->ssl, bud_client_ssl_info_cb);
@@ -460,9 +460,7 @@ void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err) {
            "SNI name found: \"%.*s\"",
            client->hello.servername_len,
            client->hello.servername);
-    if (!SSL_set_ex_data(client->ssl,
-                         client->config->sni_context_index,
-                         req->sni)) {
+    if (!SSL_set_ex_data(client->ssl, kBudSSLSNIIndex, req->sni)) {
       WARNING(&client->frontend,
              "Failed to set app data for SNI: \"%.*s\"",
              client->hello.servername_len,
@@ -865,7 +863,7 @@ void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret) {
   if ((where & SSL_CB_HANDSHAKE_START) == 0)
     return;
 
-  client = SSL_get_app_data(ssl);
+  client = SSL_get_ex_data(ssl, kBudSSLClientIndex);
   now = uv_now(client->config->loop);
 
   /* NOTE: config's limit is in ms */
