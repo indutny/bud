@@ -413,6 +413,8 @@ void bud_http_request_close_cb(uv_handle_t* handle) {
 
   req = container_of(handle, bud_http_request_t, tcp);
   ringbuffer_destroy(&req->response_buf);
+  free(req->url);
+  req->url = NULL;
   free(req);
 }
 
