@@ -5,6 +5,7 @@
 #include "bio.h"
 #include "ringbuffer.h"
 #include "openssl/bio.h"
+#include "parson.h"
 
 #include "common.h"
 #include "client.h"
@@ -483,6 +484,7 @@ void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
   }
 
 done:
+  json_value_free(req->response);
   bud_client_cycle(client);
 }
 
