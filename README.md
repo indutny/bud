@@ -100,17 +100,14 @@ to get default configuration options (with comments and description below):
     "keepalive": 3600
   },
 
-  // Redis SNI context loading
-  "redis": {
+  // SNI context loading
+  "sni": {
     "enabled": false,
-    "port": 6379,
+    "port": 9000,
     "host": "127.0.0.1",
 
-    // %b will be replaced with actual servername
-    "query": "HGET bud/sni %b",
-
-    // timeout to wait after abnormal disconnection from redis
-    "reconnect_timeout": 250
+    // %s will be replaced with actual servername
+    "query": "/bud/sni/%s"
   },
 
   // Secure contexts (i.e. Server Name Indication support)
@@ -140,12 +137,12 @@ To start bud - create configuration file using this template and:
 bud --conf conf.json
 ```
 
-### Redis SNI Storage
+### SNI Storage
 
-If you have enabled redis lookup (`redis.enabled` set to `true`), on every TLS
-connection a request to the redis server will be made (using `reqis.query`
-template). The response (i.e. the data in the redis) should be a [JSON][0] of
-the following form:
+If you have enabled SNI lookup (`sni.enabled` set to `true`), on every TLS
+connection a request to the HTTP server will be made (using `sni.host`,
+`sni.port` and `sni.query` as url template). The response should be a [JSON][0]
+of the following form:
 
 ```javascript
 {
@@ -159,6 +156,8 @@ the following form:
   "ciphers": "..."
 }
 ```
+
+Or any other [JSON][0] and a 404 status code, if SNI certificateis not found.
 
 If optional fields are not present - their value would be taken from `frontend`
 object in configuration file.

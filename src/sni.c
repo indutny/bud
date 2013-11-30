@@ -126,7 +126,7 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   r = SSL_CTX_use_certificate_chain(ctx->ctx, bio);
   BIO_free_all(bio);
   if (!r) {
-    err = bud_error_str(kBudErrParseCert, "<redis>");
+    err = bud_error_str(kBudErrParseCert, "<SNI>");
     goto fatal;
   }
 
@@ -146,7 +146,7 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   r = SSL_CTX_use_PrivateKey(ctx->ctx, key);
   EVP_PKEY_free(key);
   if (!r) {
-    err = bud_error_str(kBudErrParseKey, "<redis>");
+    err = bud_error_str(kBudErrParseKey, "<SNI>");
     goto fatal;
   }
 
