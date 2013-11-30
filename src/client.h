@@ -73,6 +73,8 @@ struct bud_client_s {
 
   /* Stapling */
   bud_http_request_t* stapling_req;
+  char* stapling_ocsp_resp;
+  size_t stapling_ocsp_resp_len;
 };
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream);

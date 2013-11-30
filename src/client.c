@@ -75,6 +75,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
 
   /* Stapling */
   client->stapling_req = NULL;
+  client->stapling_ocsp_resp = NULL;
 
   /* Initialize buffers */
   bud_client_side_init(&client->frontend, kBudFrontend, client);
@@ -272,6 +273,8 @@ void bud_client_close_cb(uv_handle_t* handle) {
     bud_http_request_cancel(client->sni_req);
   if (client->stapling_req != NULL)
     bud_http_request_cancel(client->stapling_req);
+  if (client->stapling_ocsp_resp != NULL)
+    free(client->stapling_ocsp_resp);
   client->sni_req = NULL;
   free(client);
 }

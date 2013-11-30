@@ -15,6 +15,7 @@
 
 #include "config.h"
 #include "common.h"
+#include "ocsp.h"
 #include "http-pool.h"
 #include "logger.h"
 #include "master.h"  /* bud_worker_t */
@@ -644,6 +645,8 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   err = bud_error(kBudErrNPNNotSupported);
   goto fatal;
 #endif  /* OPENSSL_NPN_NEGOTIATED */
+
+  SSL_CTX_set_tlsext_status_cb(ctx, bud_client_stapling_cb);
 
   context->ctx = ctx;
   return bud_ok();

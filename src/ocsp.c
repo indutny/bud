@@ -13,7 +13,8 @@
 #include "error.h"
 #include "http-pool.h"
 
-static void bud_client_stapling_cb(bud_http_request_t* req, bud_error_t err);
+static void bud_client_stapling_req_cb(bud_http_request_t* req,
+                                       bud_error_t err);
 
 bud_error_t bud_client_ocsp_stapling(bud_client_t* client) {
   bud_config_t* config;
@@ -59,7 +60,7 @@ bud_error_t bud_client_ocsp_stapling(bud_client_t* client) {
                                        url_size,
                                        ocsp,
                                        ocsp_size,
-                                       bud_client_stapling_cb,
+                                       bud_client_stapling_req_cb,
                                        &err);
   free(ocsp);
   client->stapling_req->data = client;
@@ -75,7 +76,7 @@ fatal:
 }
 
 
-void bud_client_stapling_cb(bud_http_request_t* req, bud_error_t err) {
+void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
   bud_client_t* client;
   bud_config_t* config;
   JSON_Object* obj;
@@ -89,6 +90,7 @@ void bud_client_stapling_cb(bud_http_request_t* req, bud_error_t err) {
 
   client = req->data;
   config = client->config;
+  body = NULL;
   client->stapling_req = NULL;
   client->hello_parse = kBudProgressDone;
 
@@ -115,7 +117,6 @@ void bud_client_stapling_cb(bud_http_request_t* req, bud_error_t err) {
   body_len = base64_decode(body, body_len, b64_body, b64_body_len);
   pbody = (const unsigned char*) body;
   resp = d2i_OCSP_RESPONSE(NULL, &pbody, body_len);
-  free(body);
   if (resp == NULL)
     goto done;
 
@@ -126,11 +127,29 @@ void bud_client_stapling_cb(bud_http_request_t* req, bud_error_t err) {
     goto done;
 
   /* Set stapling! */
-  SSL_set_tlsext_status_ocsp_resp(client->ssl, body, body_len);
+  client->stapling_ocsp_resp = body;
+  client->stapling_ocsp_resp_len = body_len;
+  body = NULL;
 
   /* NOTE: Stapling failure should not prevent us from responding */
 done:
+  free(body);
   json_value_free(req->response);
   bud_client_cycle(client);
   return;
+}
+
+
+int bud_client_stapling_cb(SSL* ssl, void* arg) {
+  bud_client_t* client;
+
+  client = SSL_get_ex_data(ssl, kBudSSLClientIndex);
+  if (client->stapling_ocsp_resp == NULL)
+    return SSL_TLSEXT_ERR_NOACK;
+
+  SSL_set_tlsext_status_ocsp_resp(ssl,
+                                  client->stapling_ocsp_resp,
+                                  client->stapling_ocsp_resp_len);
+  client->stapling_ocsp_resp = NULL;
+  return SSL_TLSEXT_ERR_OK;
 }
