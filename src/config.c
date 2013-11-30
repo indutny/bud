@@ -21,6 +21,7 @@ static void bud_config_set_defaults(bud_config_t* config);
 static void bud_print_help(int argc, char** argv);
 static void bud_print_version();
 static void bud_config_print_default();
+static void bud_config_finalize(bud_config_t* config);
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
 static int bud_config_select_sni_context(SSL* s, int* ad, void* arg);
 #endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
@@ -324,16 +325,24 @@ end:
 }
 
 
+void bud_config_finalize(bud_config_t* config) {
+  if (config->sni.pool != NULL)
+    bud_http_pool_free(config->sni.pool);
+  config->sni.pool = NULL;
+}
+
+
 void bud_config_free(bud_config_t* config) {
   int i;
+
+  bud_config_finalize(config);
+  uv_run(config->loop, UV_RUN_ONCE);
 
   for (i = 0; i < config->context_count + 1; i++)
     bud_context_free(&config->contexts[i]);
   free(config->workers);
   config->workers = NULL;
-  if (config->sni.pool != NULL)
-    bud_http_pool_free(config->sni.pool);
-  config->sni.pool = NULL;
+
   if (config->logger != NULL)
     bud_logger_free(config);
   config->logger = NULL;
@@ -707,11 +716,9 @@ bud_error_t bud_config_init(bud_config_t* config) {
 
 fatal:
   /* Free all allocated contexts */
-  do {
-    bud_context_free(&config->contexts[i]);
-
-    i--;
-  } while (i >= 0);
+  do
+    bud_context_free(&config->contexts[i--]);
+  while (i >= 0);
   free(config->workers);
   config->workers = NULL;
   if (config->sni.pool != NULL)
