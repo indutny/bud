@@ -22,6 +22,7 @@
       "src/http-pool.c",
       "src/logger.c",
       "src/master.c",
+      "src/ocsp.c",
       "src/server.c",
       "src/sni.c",
       "src/worker.c",

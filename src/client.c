@@ -13,6 +13,7 @@
 #include "http-pool.h"
 #include "logger.h"
 #include "sni.h"
+#include "ocsp.h"
 
 static void bud_client_side_init(bud_client_side_t* side,
                                  bud_client_side_type_t type,
@@ -98,11 +99,16 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->last_handshake = 0;
   client->handshakes = 0;
   client->close = kBudProgressNone;
+  client->destroy_waiting = 0;
   client->hello_parse = config->sni.enabled ? kBudProgressNone :
                                                kBudProgressDone;
+
+  /* SNI */
   client->sni_req = NULL;
   client->sni_ctx.ctx = NULL;
-  client->destroy_waiting = 0;
+
+  /* Stapling */
+  client->stapling_req = NULL;
 
   /* Initialize buffers */
   bud_client_side_init(&client->frontend, kBudFrontend, client);
@@ -384,6 +390,7 @@ void bud_client_cycle(bud_client_t* client) {
 
 
 void bud_client_parse_hello(bud_client_t* client) {
+  bud_config_t* config;
   bud_error_t err;
   char* data;
   size_t size;
@@ -395,59 +402,74 @@ void bud_client_parse_hello(bud_client_t* client) {
   if (ringbuffer_is_empty(&client->frontend.input))
     return;
 
+  config = client->config;
   data = ringbuffer_read_next(&client->frontend.input, &size);
   err = bud_parse_client_hello(data, (size_t) size, &client->hello);
+
+  /* Parser need more data, wait for it */
   if (err.code == kBudErrParserNeedMore)
     return;
 
   if (!bud_is_ok(err)) {
-    client->hello_parse = kBudProgressDone;
     NOTICE(&client->frontend,
            "failed to parse hello: %d - \"%s\"",
            err.code,
            err.str);
-    bud_client_close(client, &client->frontend);
-    return;
-  }
-
-  /* No servername was given */
-  if (client->hello.servername_len == 0) {
-    client->hello_parse = kBudProgressDone;
-    bud_client_cycle(client);
-    return;
+    goto fatal;
   }
 
   /* Parse success, perform SNI lookup */
-  client->hello_parse = kBudProgressRunning;
-  client->sni_req = bud_http_request(client->config->sni.pool,
-                                     client->config->sni.query_fmt,
-                                     client->hello.servername,
-                                     client->hello.servername_len,
-                                     bud_client_sni_cb,
-                                     &err);
-  client->sni_req->data = client;
-  if (!bud_is_ok(err)) {
-    NOTICE(&client->frontend,
-           "failed to request SNI: %d - \"%s\"",
-           err.code,
-           err.str);
-    client->hello_parse = kBudProgressDone;
-    bud_client_close(client, &client->frontend);
+  if (config->sni.enabled && client->hello.servername_len != 0) {
+    client->sni_req = bud_http_request(client->config->sni.pool,
+                                       client->config->sni.query_fmt,
+                                       client->hello.servername,
+                                       client->hello.servername_len,
+                                       bud_client_sni_cb,
+                                       &err);
+    client->sni_req->data = client;
+    if (!bud_is_ok(err)) {
+      NOTICE(&client->frontend,
+             "failed to request SNI: %d - \"%s\"",
+             err.code,
+             err.str);
+      goto fatal;
+    }
+
+    client->hello_parse = kBudProgressRunning;
+  /* Perform OCSP stapling request */
+  } else if (config->stapling.enabled && client->hello.ocsp_request != 0) {
+    err = bud_client_ocsp_stapling(client);
+    if (!bud_is_ok(err))
+      goto fatal;
   }
+
+  if (client->hello_parse == kBudProgressDone)
+    return;
+
+  client->hello_parse = kBudProgressDone;
+  bud_client_cycle(client);
+  return;
+
+fatal:
+  client->hello_parse = kBudProgressDone;
+  bud_client_close(client, &client->frontend);
 }
 
 
 void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
   bud_client_t* client;
+  bud_config_t* config;
   bud_error_t sni_err;
+  bud_error_t stapling_err;
 
   client = req->data;
+  config = client->config;
+
   client->sni_req = NULL;
   client->hello_parse = kBudProgressDone;
   if (!bud_is_ok(err)) {
     NOTICE(&client->frontend, "SNI cb failed: %d - \"%s\"", err.code, err.str);
-    bud_client_close(client, &client->frontend);
-    return;
+    goto fatal;
   }
 
   if (req->code == 404) {
@@ -460,14 +482,13 @@ void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
   }
 
   /* Parse incoming JSON */
-  sni_err = bud_sni_from_json(client->config, req->response, &client->sni_ctx);
+  sni_err = bud_sni_from_json(config, req->response, &client->sni_ctx);
   if (!bud_is_ok(sni_err)) {
     WARNING(&client->frontend,
            "SNI from json failed: %d - \"%s\"",
            err.code,
            err.str);
-    bud_client_close(client, &client->frontend);
-    return;
+    goto fatal;
   }
 
   /* Success */
@@ -480,13 +501,24 @@ void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
            "Failed to set app data for SNI: \"%.*s\"",
            client->hello.servername_len,
            client->hello.servername);
-    bud_client_close(client, &client->frontend);
-    return;
+    goto fatal;
   }
 
 done:
+  /* Request stapling info if needed */
+  if (config->stapling.enabled && client->hello.ocsp_request != 0) {
+    stapling_err = bud_client_ocsp_stapling(client);
+    if (!bud_is_ok(stapling_err))
+      goto fatal;
+  }
   json_value_free(req->response);
-  bud_client_cycle(client);
+
+  if (client->hello_parse == kBudProgressDone)
+    bud_client_cycle(client);
+  return;
+
+fatal:
+  bud_client_close(client, &client->frontend);
 }
 
 

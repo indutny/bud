@@ -66,8 +66,13 @@ struct bud_client_s {
   /* Client hello parser */
   bud_client_progress_t hello_parse;
   bud_client_hello_t hello;
+
+  /* SNI */
   bud_http_request_t* sni_req;
   bud_context_t sni_ctx;
+
+  /* Stapling */
+  bud_http_request_t* stapling_req;
 };
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream);
