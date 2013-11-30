@@ -11,10 +11,10 @@
 
 #include "config.h"
 #include "common.h"
-#include "version.h"
 #include "logger.h"
 #include "master.h"  /* bud_worker_t */
 #include "redis.h"
+#include "version.h"
 
 static bud_error_t bud_config_init(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
@@ -34,9 +34,6 @@ static int bud_config_advertise_next_proto(SSL* s,
                                            unsigned int* len,
                                            void* arg);
 #endif  /* OPENSSL_NPN_NEGOTIATED */
-static int bud_config_str_to_addr(const char* host,
-                                  uint16_t port,
-                                  struct sockaddr_storage* addr);
 static bud_error_t bud_config_verify_npn(const JSON_Array* npn);
 
 

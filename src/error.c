@@ -121,6 +121,22 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("redis cmd failed with: %s", err.str);                        \
     case kBudErrRedisCmdCb:                                                   \
       BUD_ERROR("redis cmd cb failed with: %s", err.str)                      \
+    case kBudErrHttpTcpInit:                                                  \
+      BUD_UV_ERROR("uv_tcp_init(http_req)", err)                              \
+    case kBudErrHttpTcpConnect:                                               \
+      BUD_UV_ERROR("uv_tcp_connect(http_req)", err)                           \
+    case kBudErrHttpWrite:                                                    \
+      BUD_UV_ERROR("uv_write(http_req)", err)                                 \
+    case kBudErrHttpWriteCb:                                                  \
+      BUD_UV_ERROR("http_req's write_cb", err)                                \
+    case kBudErrHttpConnectCb:                                                \
+      BUD_UV_ERROR("http_req's connect_cb", err)                              \
+    case kBudErrHttpReadStart:                                                \
+      BUD_UV_ERROR("uv_read_start(http_req)", err)                            \
+    case kBudErrHttpReadCb:                                                   \
+      BUD_UV_ERROR("http_req's read_cb", err)                                 \
+    case kBudErrHttpParse:                                                    \
+      BUD_ERROR("http_req's body parse failed %s", err.str)                   \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }

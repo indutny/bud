@@ -136,4 +136,9 @@ void bud_context_free(bud_context_t* context);
 bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
                                    bud_context_t* context);
 
+/* Helper for http-pool.c */
+int bud_config_str_to_addr(const char* host,
+                           uint16_t port,
+                           struct sockaddr_storage* addr);
+
 #endif  /* SRC_CONFIG_H_ */

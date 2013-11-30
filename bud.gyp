@@ -8,6 +8,7 @@
       "deps/ringbuffer/ringbuffer.gyp:ringbuffer",
       "deps/parson/parson.gyp:parson",
       "deps/hiredis/hiredis.gyp:hiredis",
+      "deps/http_parser/http_parser.gyp:http_parser",
     ],
     "include_dirs": [
       "src",
@@ -19,6 +20,7 @@
       "src/config.c",
       "src/error.c",
       "src/hello-parser.c",
+      "src/http-pool.c",
       "src/logger.c",
       "src/master.c",
       "src/redis.c",
