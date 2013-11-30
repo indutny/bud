@@ -22,6 +22,9 @@ static void bud_print_help(int argc, char** argv);
 static void bud_print_version();
 static void bud_config_print_default();
 static void bud_config_finalize(bud_config_t* config);
+static void bud_config_read_pool_conf(JSON_Object* obj,
+                                      const char* key,
+                                      bud_config_http_pool_t* pool);
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
 static int bud_config_select_sni_context(SSL* s, int* ad, void* arg);
 #endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
@@ -170,7 +173,6 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   JSON_Object* log;
   JSON_Object* frontend;
   JSON_Object* backend;
-  JSON_Object* sni;
   JSON_Array* contexts;
   bud_config_t* config;
   bud_context_t* ctx;
@@ -276,13 +278,10 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   }
 
   /* SNI configuration */
-  sni = json_object_get_object(obj, "sni");
-  if (sni != NULL) {
-    config->sni.enabled = json_object_get_boolean(sni, "enabled");
-    config->sni.port = (uint16_t) json_object_get_number(sni, "port");
-    config->sni.host = json_object_get_string(sni, "host");
-    config->sni.query_fmt = json_object_get_string(sni, "query");
-  }
+  bud_config_read_pool_conf(obj, "sni", &config->sni);
+
+  /* OCSP Stapling configuration */
+  bud_config_read_pool_conf(obj, "stapling", &config->stapling);
 
   /* SSL Contexts */
 
@@ -325,10 +324,28 @@ end:
 }
 
 
+void bud_config_read_pool_conf(JSON_Object* obj,
+                               const char* key,
+                               bud_config_http_pool_t* pool) {
+  JSON_Object* p;
+
+  p = json_object_get_object(obj, "sni");
+  if (p != NULL) {
+    pool->enabled = json_object_get_boolean(p, "enabled");
+    pool->port = (uint16_t) json_object_get_number(p, "port");
+    pool->host = json_object_get_string(p, "host");
+    pool->query_fmt = json_object_get_string(p, "query");
+  }
+}
+
+
 void bud_config_finalize(bud_config_t* config) {
   if (config->sni.pool != NULL)
     bud_http_pool_free(config->sni.pool);
   config->sni.pool = NULL;
+  if (config->stapling.pool != NULL)
+    bud_http_pool_free(config->stapling.pool);
+  config->stapling.pool = NULL;
 }
 
 
@@ -444,6 +461,12 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"host\": \"%s\",\n", config.sni.host);
   fprintf(stdout, "    \"query\": \"%s\"\n", config.sni.query_fmt);
   fprintf(stdout, "  },\n");
+  fprintf(stdout, "  \"stapling\": {\n");
+  fprintf(stdout, "    \"enabled\": false,\n");
+  fprintf(stdout, "    \"port\": %d,\n", config.stapling.port);
+  fprintf(stdout, "    \"host\": \"%s\",\n", config.stapling.host);
+  fprintf(stdout, "    \"query\": \"%s\"\n", config.stapling.query_fmt);
+  fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"contexts\": []\n");
   fprintf(stdout, "}\n");
 }
@@ -480,6 +503,9 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->sni.port, 0, 9000);
   DEFAULT(config->sni.host, NULL, "127.0.0.1");
   DEFAULT(config->sni.query_fmt, NULL, "/bud/sni/%s");
+  DEFAULT(config->stapling.port, 0, 9001);
+  DEFAULT(config->stapling.host, NULL, "127.0.0.1");
+  DEFAULT(config->stapling.query_fmt, NULL, "/bud/stapling/%s");
 }
 
 #undef DEFAULT
@@ -671,15 +697,26 @@ bud_error_t bud_config_init(bud_config_t* config) {
   if (!bud_is_ok(err))
     goto fatal;
 
-  /* Connect to SNI server */
-  if (config->sni.enabled &&
-      (config->is_worker || config->worker_count == 0)) {
-    config->sni.pool = bud_http_pool_new(config,
-                                         config->sni.host,
-                                         config->sni.port,
-                                         &err);
-    if (config->sni.pool == NULL)
-      goto fatal;
+  if (config->is_worker || config->worker_count == 0) {
+    /* Connect to SNI server */
+    if (config->sni.enabled) {
+      config->sni.pool = bud_http_pool_new(config,
+                                           config->sni.host,
+                                           config->sni.port,
+                                           &err);
+      if (config->sni.pool == NULL)
+        goto fatal;
+    }
+
+    /* Connect to OCSP Stapling server */
+    if (config->stapling.enabled) {
+      config->stapling.pool = bud_http_pool_new(config,
+                                                config->stapling.host,
+                                                config->stapling.port,
+                                                &err);
+      if (config->stapling.pool == NULL)
+        goto fatal;
+    }
   }
 
   /* Load all contexts */
@@ -719,14 +756,6 @@ fatal:
   do
     bud_context_free(&config->contexts[i--]);
   while (i >= 0);
-  free(config->workers);
-  config->workers = NULL;
-  if (config->sni.pool != NULL)
-    bud_http_pool_free(config->sni.pool);
-  config->sni.pool = NULL;
-  if (config->logger != NULL)
-    bud_logger_free(config);
-  config->logger = NULL;
 
   return err;
 }

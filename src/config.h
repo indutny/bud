@@ -17,6 +17,7 @@ struct bud_logger_s;
 struct bud_http_pool_s;
 
 typedef struct bud_context_s bud_context_t;
+typedef struct bud_config_http_pool_s bud_config_http_pool_t;
 typedef struct bud_config_s bud_config_t;
 
 int kBudSSLClientIndex;
@@ -36,6 +37,17 @@ struct bud_context_s {
   SSL_CTX* ctx;
   char* npn_line;
   size_t npn_line_len;
+};
+
+struct bud_config_http_pool_s {
+  int enabled;
+
+  uint16_t port;
+  const char* host;
+  const char* query_fmt;
+
+  /* internal */
+  struct bud_http_pool_s* pool;
 };
 
 struct bud_config_s {
@@ -106,16 +118,8 @@ struct bud_config_s {
     struct sockaddr_storage addr;
   } backend;
 
-  struct {
-    int enabled;
-
-    uint16_t port;
-    const char* host;
-    const char* query_fmt;
-
-    /* internal */
-    struct bud_http_pool_s* pool;
-  } sni;
+  bud_config_http_pool_t sni;
+  bud_config_http_pool_t stapling;
 
   int context_count;
   bud_context_t contexts[1];
