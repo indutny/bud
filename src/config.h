@@ -14,7 +14,7 @@
 struct bud_server_s;
 struct bud_worker_s;
 struct bud_logger_s;
-struct bud_redis_s;
+struct bud_http_pool_s;
 
 typedef struct bud_context_s bud_context_t;
 typedef struct bud_config_s bud_config_t;
@@ -108,15 +108,14 @@ struct bud_config_s {
 
   struct {
     int enabled;
-    int reconnect_timeout;
 
     uint16_t port;
     const char* host;
     const char* query_fmt;
 
     /* internal */
-    struct bud_redis_s* ctx;
-  } redis;
+    struct bud_http_pool_s* pool;
+  } sni;
 
   int context_count;
   bud_context_t contexts[1];
@@ -132,7 +131,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
 void bud_config_free(bud_config_t* config);
 void bud_context_free(bud_context_t* context);
 
-/* Helper for redis.c */
+/* Helper for loading SNI */
 bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
                                    bud_context_t* context);
 

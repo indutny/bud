@@ -11,9 +11,9 @@
 
 #include "config.h"
 #include "common.h"
+#include "http-pool.h"
 #include "logger.h"
 #include "master.h"  /* bud_worker_t */
-#include "redis.h"
 #include "version.h"
 
 static bud_error_t bud_config_init(bud_config_t* config);
@@ -169,7 +169,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   JSON_Object* log;
   JSON_Object* frontend;
   JSON_Object* backend;
-  JSON_Object* redis;
+  JSON_Object* sni;
   JSON_Array* contexts;
   bud_config_t* config;
   bud_context_t* ctx;
@@ -274,18 +274,13 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
       config->backend.keepalive = json_value_get_number(val);
   }
 
-  /* Redis configuration */
-  redis = json_object_get_object(obj, "redis");
-  if (redis != NULL) {
-    config->redis.enabled = json_object_get_boolean(redis, "enabled");
-    config->redis.port = (uint16_t) json_object_get_number(redis, "port");
-    config->redis.host = json_object_get_string(redis, "host");
-    config->redis.query_fmt = json_object_get_string(redis, "query");
-
-    config->redis.reconnect_timeout = -1;
-    val = json_object_get_value(redis, "reconnect_timeout");
-    if (val != NULL)
-      config->redis.reconnect_timeout = json_value_get_number(val);
+  /* SNI configuration */
+  sni = json_object_get_object(obj, "sni");
+  if (sni != NULL) {
+    config->sni.enabled = json_object_get_boolean(sni, "enabled");
+    config->sni.port = (uint16_t) json_object_get_number(sni, "port");
+    config->sni.host = json_object_get_string(sni, "host");
+    config->sni.query_fmt = json_object_get_string(sni, "query");
   }
 
   /* SSL Contexts */
@@ -336,9 +331,9 @@ void bud_config_free(bud_config_t* config) {
     bud_context_free(&config->contexts[i]);
   free(config->workers);
   config->workers = NULL;
-  if (config->redis.ctx != NULL)
-    bud_redis_free(config->redis.ctx);
-  config->redis.ctx = NULL;
+  if (config->sni.pool != NULL)
+    bud_http_pool_free(config->sni.pool);
+  config->sni.pool = NULL;
   if (config->logger != NULL)
     bud_logger_free(config);
   config->logger = NULL;
@@ -387,7 +382,6 @@ void bud_config_print_default() {
   config.frontend.keepalive = -1;
   config.frontend.ssl3 = -1;
   config.backend.keepalive = -1;
-  config.redis.reconnect_timeout = -1;
   config.restart_timeout = -1;
 
   bud_config_set_defaults(&config);
@@ -435,14 +429,11 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"host\": \"%s\",\n", config.backend.host);
   fprintf(stdout, "    \"keepalive\": %d\n", config.backend.keepalive);
   fprintf(stdout, "  },\n");
-  fprintf(stdout, "  \"redis\": {\n");
+  fprintf(stdout, "  \"sni\": {\n");
   fprintf(stdout, "    \"enabled\": false,\n");
-  fprintf(stdout, "    \"port\": %d,\n", config.redis.port);
-  fprintf(stdout, "    \"host\": \"%s\",\n", config.redis.host);
-  fprintf(stdout, "    \"query\": \"%s\",\n", config.redis.query_fmt);
-  fprintf(stdout,
-          "    \"reconnect_timeout\": %d\n",
-          config.redis.reconnect_timeout);
+  fprintf(stdout, "    \"port\": %d,\n", config.sni.port);
+  fprintf(stdout, "    \"host\": \"%s\",\n", config.sni.host);
+  fprintf(stdout, "    \"query\": \"%s\"\n", config.sni.query_fmt);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"contexts\": []\n");
   fprintf(stdout, "}\n");
@@ -477,10 +468,9 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->backend.host, NULL, "127.0.0.1");
   DEFAULT(config->backend.keepalive, -1, 3600);
 
-  DEFAULT(config->redis.reconnect_timeout, -1, 250);
-  DEFAULT(config->redis.port, 0, 6379);
-  DEFAULT(config->redis.host, NULL, "127.0.0.1");
-  DEFAULT(config->redis.query_fmt, NULL, "HGET bud/sni %b");
+  DEFAULT(config->sni.port, 0, 9000);
+  DEFAULT(config->sni.host, NULL, "127.0.0.1");
+  DEFAULT(config->sni.query_fmt, NULL, "/bud/sni/%s");
 }
 
 #undef DEFAULT
@@ -672,11 +662,14 @@ bud_error_t bud_config_init(bud_config_t* config) {
   if (!bud_is_ok(err))
     goto fatal;
 
-  /* Connect to redis */
-  if (config->redis.enabled &&
+  /* Connect to SNI server */
+  if (config->sni.enabled &&
       (config->is_worker || config->worker_count == 0)) {
-    config->redis.ctx = bud_redis_new(config, &err);
-    if (config->redis.ctx == NULL)
+    config->sni.pool = bud_http_pool_new(config,
+                                         config->sni.host,
+                                         config->sni.port,
+                                         &err);
+    if (config->sni.pool == NULL)
       goto fatal;
   }
 
@@ -721,9 +714,9 @@ fatal:
   } while (i >= 0);
   free(config->workers);
   config->workers = NULL;
-  if (config->redis.ctx != NULL)
-    bud_redis_free(config->redis.ctx);
-  config->redis.ctx = NULL;
+  if (config->sni.pool != NULL)
+    bud_http_pool_free(config->sni.pool);
+  config->sni.pool = NULL;
   if (config->logger != NULL)
     bud_logger_free(config);
   config->logger = NULL;
@@ -742,7 +735,7 @@ int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
   config = arg;
   servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
 
-  /* SNI redis */
+  /* Async SNI */
   ctx = SSL_get_ex_data(s, kBudSSLSNIIndex);
   if (ctx != NULL) {
     SSL_set_SSL_CTX(s, ctx->ctx);

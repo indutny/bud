@@ -51,23 +51,15 @@ enum bud_error_code_e {
   kBudErrParserNeedMore = 0x400,
   kBudErrParserErr = 0x401,
 
-  /* Redis errors */
-  kBudErrRedisConnect = 0x500,
-  kBudErrRedisAttach = 0x501,
-  kBudErrRedisSetCallback = 0x502,
-  kBudErrRedisTimerInit = 0x503,
-  kBudErrRedisCmd = 0x504,
-  kBudErrRedisCmdCb = 0x505,
-
   /* HTTP pool */
-  kBudErrHttpTcpInit = 0x600,
-  kBudErrHttpTcpConnect = 0x601,
-  kBudErrHttpWrite = 0x602,
-  kBudErrHttpWriteCb = 0x603,
-  kBudErrHttpConnectCb = 0x604,
-  kBudErrHttpReadStart = 0x605,
-  kBudErrHttpReadCb = 0x606,
-  kBudErrHttpParse = 0x607
+  kBudErrHttpTcpInit = 0x500,
+  kBudErrHttpTcpConnect = 0x501,
+  kBudErrHttpWrite = 0x502,
+  kBudErrHttpWriteCb = 0x503,
+  kBudErrHttpConnectCb = 0x504,
+  kBudErrHttpReadStart = 0x505,
+  kBudErrHttpReadCb = 0x506,
+  kBudErrHttpParse = 0x507
 };
 
 struct bud_error_s {

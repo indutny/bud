@@ -56,6 +56,7 @@ struct bud_http_request_s {
   size_t url_len;
   bud_http_cb cb;
   void* data;
+  int code;
   JSON_Value* response;
 };
 
@@ -68,6 +69,7 @@ void bud_http_pool_free(bud_http_pool_t* pool);
 bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
                                      const char* fmt,
                                      const char* arg,
+                                     size_t arg_len,
                                      bud_http_cb cb,
                                      bud_error_t* err);
 void bud_http_request_cancel(bud_http_request_t* request);

@@ -9,8 +9,9 @@
 #include "common.h"
 #include "client.h"
 #include "hello-parser.h"
+#include "http-pool.h"
 #include "logger.h"
-#include "redis.h"
+#include "sni.h"
 
 static void bud_client_side_init(bud_client_side_t* side,
                                  bud_client_side_type_t type,
@@ -28,7 +29,7 @@ static void bud_client_read_cb(uv_stream_t* stream,
                                const uv_buf_t* buf);
 static void bud_client_cycle(bud_client_t* client);
 static void bud_client_parse_hello(bud_client_t* client);
-static void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err);
+static void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err);
 static int bud_client_backend_in(bud_client_t* client);
 static int bud_client_backend_out(bud_client_t* client);
 static int bud_client_throttle(bud_client_t* client,
@@ -95,10 +96,9 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->ssl = NULL;
   client->last_handshake = 0;
   client->handshakes = 0;
-  client->sni_ctx = NULL;
   client->close = kBudProgressNone;
-  client->hello_parse = config->redis.enabled ? kBudProgressNone :
-                                                kBudProgressDone;
+  client->hello_parse = config->sni.enabled ? kBudProgressNone :
+                                               kBudProgressDone;
   client->sni_req = NULL;
   client->destroy_waiting = 0;
 
@@ -291,13 +291,11 @@ void bud_client_close_cb(uv_handle_t* handle) {
   if (client->ssl != NULL)
     SSL_free(client->ssl);
   client->ssl = NULL;
-  if (client->sni_ctx != NULL) {
-    bud_context_free(client->sni_ctx);
-    free(client->sni_ctx);
-  }
+  if (client->sni_ctx.ctx != NULL)
+    bud_context_free(&client->sni_ctx);
   client->ssl = NULL;
   if (client->sni_req != NULL)
-    bud_redis_sni_close(client->config->redis.ctx, client->sni_req);
+    bud_http_request_cancel(client->sni_req);
   client->sni_req = NULL;
   free(client);
 }
@@ -417,14 +415,15 @@ void bud_client_parse_hello(bud_client_t* client) {
     return;
   }
 
-  /* Parse success, perform redis lookup */
+  /* Parse success, perform SNI lookup */
   client->hello_parse = kBudProgressRunning;
-  client->sni_req = bud_redis_sni(client->config->redis.ctx,
-                                  client->hello.servername,
-                                  client->hello.servername_len,
-                                  bud_client_sni_cb,
-                                  client,
-                                  &err);
+  client->sni_req = bud_http_request(client->config->sni.pool,
+                                     client->config->sni.query_fmt,
+                                     client->hello.servername,
+                                     client->hello.servername_len,
+                                     bud_client_sni_cb,
+                                     &err);
+  client->sni_req->data = client;
   if (!bud_is_ok(err)) {
     NOTICE(&client->frontend,
            "failed to request SNI: %d - \"%s\"",
@@ -436,8 +435,9 @@ void bud_client_parse_hello(bud_client_t* client) {
 }
 
 
-void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err) {
+void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
   bud_client_t* client;
+  bud_error_t sni_err;
 
   client = req->data;
   client->sni_req = NULL;
@@ -448,28 +448,41 @@ void bud_client_sni_cb(bud_redis_sni_t* req, bud_error_t err) {
     return;
   }
 
-  /* Success */
-  if (req->sni == NULL) {
+  if (req->code == 404) {
     /* Not found */
     NOTICE(&client->frontend,
            "SNI name not found: \"%.*s\"",
            client->hello.servername_len,
            client->hello.servername);
-  } else {
-    NOTICE(&client->frontend,
-           "SNI name found: \"%.*s\"",
+    goto done;
+  }
+
+  /* Parse incoming JSON */
+  sni_err = bud_sni_from_json(client->config, req->response, &client->sni_ctx);
+  if (!bud_is_ok(sni_err)) {
+    WARNING(&client->frontend,
+           "SNI from json failed: %d - \"%s\"",
+           err.code,
+           err.str);
+    bud_client_close(client, &client->frontend);
+    return;
+  }
+
+  /* Success */
+  NOTICE(&client->frontend,
+         "SNI name found: \"%.*s\"",
+         client->hello.servername_len,
+         client->hello.servername);
+  if (!SSL_set_ex_data(client->ssl, kBudSSLSNIIndex, &client->sni_ctx)) {
+    WARNING(&client->frontend,
+           "Failed to set app data for SNI: \"%.*s\"",
            client->hello.servername_len,
            client->hello.servername);
-    if (!SSL_set_ex_data(client->ssl, kBudSSLSNIIndex, req->sni)) {
-      WARNING(&client->frontend,
-             "Failed to set app data for SNI: \"%.*s\"",
-             client->hello.servername_len,
-             client->hello.servername);
-      bud_client_close(client, &client->frontend);
-      return;
-    }
-    client->sni_ctx = req->sni;
+    bud_client_close(client, &client->frontend);
+    return;
   }
+
+done:
   bud_client_cycle(client);
 }
 

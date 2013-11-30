@@ -109,18 +109,6 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("client hello parser needs more data")                        \
     case kBudErrParserErr:                                                    \
       BUD_ERROR("client hello parser failure: %s", err.str)                   \
-    case kBudErrRedisConnect:                                                 \
-      BUD_ERROR("redis failed to connect");                                   \
-    case kBudErrRedisAttach:                                                  \
-      BUD_ERROR("redis failed to attach to libuv: %d", err.code);             \
-    case kBudErrRedisSetCallback:                                             \
-      BUD_ERROR("redis failed to set callbacks: %d", err.code);               \
-    case kBudErrRedisTimerInit:                                               \
-      BUD_UV_ERROR("redis uv_timer_init(reconnect_timer)", err)               \
-    case kBudErrRedisCmd:                                                     \
-      BUD_ERROR("redis cmd failed with: %s", err.str);                        \
-    case kBudErrRedisCmdCb:                                                   \
-      BUD_ERROR("redis cmd cb failed with: %s", err.str)                      \
     case kBudErrHttpTcpInit:                                                  \
       BUD_UV_ERROR("uv_tcp_init(http_req)", err)                              \
     case kBudErrHttpTcpConnect:                                               \

@@ -7,7 +7,7 @@
 
 #include "hello-parser.h"
 #include "server.h"
-#include "redis.h"
+#include "http-pool.h"
 
 /* Forward declaration */
 struct bud_config_s;
@@ -66,8 +66,8 @@ struct bud_client_s {
   /* Client hello parser */
   bud_client_progress_t hello_parse;
   bud_client_hello_t hello;
-  bud_redis_sni_t* sni_req;
-  bud_context_t* sni_ctx;
+  bud_http_request_t* sni_req;
+  bud_context_t sni_ctx;
 };
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream);

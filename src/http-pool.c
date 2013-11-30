@@ -32,6 +32,7 @@ static void bud_http_request_error(bud_http_request_t* request,
 static void bud_http_request_done(bud_http_request_t* request);
 static char* bud_http_request_escape_url(const char* fmt,
                                          const char* arg,
+                                         size_t arg_len,
                                          size_t* size);
 
 static http_parser_settings bud_parser_settings = {
@@ -120,6 +121,7 @@ void bud_http_pool_free(bud_http_pool_t* pool) {
 bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
                                      const char* fmt,
                                      const char* arg,
+                                     size_t arg_len,
                                      bud_http_cb cb,
                                      bud_error_t* err) {
   bud_http_request_t* req;
@@ -137,7 +139,7 @@ bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
     req = QUEUE_DATA(q, bud_http_request_t, member);
   }
 
-  req->url = bud_http_request_escape_url(fmt, arg, &req->url_len);
+  req->url = bud_http_request_escape_url(fmt, arg, arg_len, &req->url_len);
   req->cb = cb;
   if (req->url == NULL) {
     *err = bud_error_str(kBudErrNoMem, "bud_http_request_t url");
@@ -364,6 +366,7 @@ void bud_http_request_read_cb(uv_stream_t* stream,
 
     ringbuffer_read_into(&req->response_buf, out, len);
     out[len] = 0;
+    req->code = req->parser.status_code;
     req->response = json_parse_string(out);
     free(out);
     if (req->response == NULL) {
@@ -416,10 +419,10 @@ void bud_http_request_close_cb(uv_handle_t* handle) {
 
 char* bud_http_request_escape_url(const char* fmt,
                                   const char* arg,
+                                  size_t arg_len,
                                   size_t* size) {
   char* url;
   size_t fmt_len;
-  size_t arg_len;
   size_t i;
   size_t j;
   size_t k;
@@ -428,7 +431,6 @@ char* bud_http_request_escape_url(const char* fmt,
 
   /* Escape arg */
   fmt_len = strlen(fmt);
-  arg_len = strlen(arg);
 
   /* Count characters in escaped arg */
   escaped_arg_len = 0;
