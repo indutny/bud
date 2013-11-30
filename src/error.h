@@ -19,12 +19,13 @@ enum bud_error_code_e {
   kBudErrJSONParse = 0x100,
   kBudErrJSONNonObjectRoot = 0x101,
   kBudErrJSONNonObjectCtx = 0x102,
-  kBudErrParseCert = 0x103,
-  kBudErrParseKey = 0x104,
-  kBudErrSNINotSupported = 0x105,
-  kBudErrNPNNonString = 0x106,
-  kBudErrNPNNotSupported = 0x107,
-  kBudErrExePath = 0x108,
+  kBudErrLoadCert = 0x103,
+  kBudErrParseCert = 0x104,
+  kBudErrParseKey = 0x105,
+  kBudErrSNINotSupported = 0x106,
+  kBudErrNPNNonString = 0x107,
+  kBudErrNPNNotSupported = 0x108,
+  kBudErrExePath = 0x109,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,
@@ -59,7 +60,11 @@ enum bud_error_code_e {
   kBudErrHttpConnectCb = 0x504,
   kBudErrHttpReadStart = 0x505,
   kBudErrHttpReadCb = 0x506,
-  kBudErrHttpParse = 0x507
+  kBudErrHttpParse = 0x507,
+  kBudErrHttpEof = 0x508,
+
+  /* Stapling */
+  kBudErrStaplingSetData = 0x600
 };
 
 struct bud_error_s {

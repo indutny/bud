@@ -9,6 +9,7 @@
 
 #include "common.h"
 #include "client.h"
+#include "client-private.h"
 #include "hello-parser.h"
 #include "http-pool.h"
 #include "logger.h"
@@ -21,7 +22,6 @@ static void bud_client_side_init(bud_client_side_t* side,
 static void bud_client_side_destroy(bud_client_side_t* side);
 static bud_client_side_t* bud_client_side_by_tcp(bud_client_t* client,
                                                  uv_tcp_t* tcp);
-static void bud_client_close(bud_client_t* client, bud_client_side_t* side);
 static void bud_client_close_cb(uv_handle_t* handle);
 static void bud_client_alloc_cb(uv_handle_t* handle,
                                 size_t suggested_size,
@@ -29,7 +29,6 @@ static void bud_client_alloc_cb(uv_handle_t* handle,
 static void bud_client_read_cb(uv_stream_t* stream,
                                ssize_t nread,
                                const uv_buf_t* buf);
-static void bud_client_cycle(bud_client_t* client);
 static void bud_client_parse_hello(bud_client_t* client);
 static void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err);
 static int bud_client_backend_in(bud_client_t* client);
@@ -43,43 +42,8 @@ static void bud_client_connect_cb(uv_connect_t* req, int status);
 static int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side);
 static void bud_client_shutdown_cb(uv_shutdown_t* req, int status);
 static int bud_client_prepend_proxyline(bud_client_t* client);
-static void bud_client_log(bud_client_t* client,
-                           bud_log_level_t level,
-                           const char* fmt,
-                           ...);
 static const char* bud_sslerror_str(int err);
-static const char* bud_side_str(bud_client_side_type_t side);
 static void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret);
-
-#define LOG(level, side, fmt, ...)                                            \
-    bud_client_log(client,                                                    \
-                   (level),                                                   \
-                   "client %p on %s " fmt,                                    \
-                   client,                                                    \
-                   bud_side_str((side)->type),                                \
-                   __VA_ARGS__)
-
-#define LOG_LN(level, side, fmt)                                              \
-    bud_client_log(client,                                                    \
-                   (level),                                                   \
-                   "client %p on %s " fmt,                                    \
-                   client,                                                    \
-                   bud_side_str((side)->type))
-
-#define INFO(side, fmt, ...)                                                  \
-    LOG(kBudLogInfo, side, fmt, __VA_ARGS__)
-
-#define NOTICE(side, fmt, ...)                                                \
-    LOG(kBudLogNotice, side, fmt, __VA_ARGS__)
-
-#define WARNING(side, fmt, ...)                                               \
-    LOG(kBudLogWarning, side, fmt, __VA_ARGS__)
-
-#define DBG(side, fmt, ...)                                                   \
-    LOG(kBudLogDebug, side, fmt, __VA_ARGS__)
-
-#define WARNING_LN(side, fmt) LOG_LN(kBudLogWarning, side, fmt)
-#define DBG_LN(side, fmt) LOG_LN(kBudLogDebug, side, fmt)
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   int r;
@@ -100,8 +64,10 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->handshakes = 0;
   client->close = kBudProgressNone;
   client->destroy_waiting = 0;
-  client->hello_parse = config->sni.enabled ? kBudProgressNone :
-                                               kBudProgressDone;
+
+  client->hello_parse = kBudProgressDone;
+  if (config->sni.enabled || config->stapling.enabled)
+    client->hello_parse = kBudProgressNone;
 
   /* SNI */
   client->sni_req = NULL;
@@ -304,6 +270,8 @@ void bud_client_close_cb(uv_handle_t* handle) {
   client->ssl = NULL;
   if (client->sni_req != NULL)
     bud_http_request_cancel(client->sni_req);
+  if (client->stapling_req != NULL)
+    bud_http_request_cancel(client->stapling_req);
   client->sni_req = NULL;
   free(client);
 }
@@ -420,12 +388,12 @@ void bud_client_parse_hello(bud_client_t* client) {
 
   /* Parse success, perform SNI lookup */
   if (config->sni.enabled && client->hello.servername_len != 0) {
-    client->sni_req = bud_http_request(client->config->sni.pool,
-                                       client->config->sni.query_fmt,
-                                       client->hello.servername,
-                                       client->hello.servername_len,
-                                       bud_client_sni_cb,
-                                       &err);
+    client->sni_req = bud_http_get(config->sni.pool,
+                                   config->sni.query_fmt,
+                                   client->hello.servername,
+                                   client->hello.servername_len,
+                                   bud_client_sni_cb,
+                                   &err);
     client->sni_req->data = client;
     if (!bud_is_ok(err)) {
       NOTICE(&client->frontend,
@@ -443,7 +411,7 @@ void bud_client_parse_hello(bud_client_t* client) {
       goto fatal;
   }
 
-  if (client->hello_parse == kBudProgressDone)
+  if (client->hello_parse != kBudProgressNone)
     return;
 
   client->hello_parse = kBudProgressDone;
@@ -988,10 +956,3 @@ void bud_client_log(bud_client_t* client,
   bud_logva(client->config, level, fmt, pa);
   va_end(pa);
 }
-
-#undef LOG
-#undef INFO
-#undef NOTICE
-#undef WARNING
-#undef DBG
-#undef DBG_LN

@@ -55,6 +55,10 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("Invalid json, root should be an object")                     \
     case kBudErrJSONNonObjectCtx:                                             \
       BUD_ERROR("Invalid json, each context should be an object")             \
+    case kBudErrLoadCert:                                                     \
+      BUD_ERROR("Failed to parse cert %s reason: %s",                         \
+                err.str,                                                      \
+                ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrParseCert:                                                    \
       BUD_ERROR("Failed to load/parse cert %s reason: %s",                    \
                 err.str,                                                      \
@@ -125,6 +129,10 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_UV_ERROR("http_req's read_cb", err)                                 \
     case kBudErrHttpParse:                                                    \
       BUD_ERROR("http_req's body parse failed %s", err.str)                   \
+    case kBudErrHttpEof:                                                      \
+      BUD_ERROR("http_req's unexpected eof", NULL)                            \
+    case kBudErrStaplingSetData:                                              \
+      BUD_ERROR("SSL_set_ex_data(stapling ctx) failed", NULL)                 \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }

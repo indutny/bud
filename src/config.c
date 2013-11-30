@@ -5,8 +5,12 @@
 #include <strings.h>  /* strcasecmp */
 
 #include "uv.h"
+#include "openssl/bio.h"
 #include "openssl/err.h"
+#include "openssl/ocsp.h"
 #include "openssl/ssl.h"
+#include "openssl/x509.h"
+#include "openssl/x509v3.h"
 #include "parson.h"
 
 #include "config.h"
@@ -329,7 +333,7 @@ void bud_config_read_pool_conf(JSON_Object* obj,
                                bud_config_http_pool_t* pool) {
   JSON_Object* p;
 
-  p = json_object_get_object(obj, "sni");
+  p = json_object_get_object(obj, key);
   if (p != NULL) {
     pool->enabled = json_object_get_boolean(p, "enabled");
     pool->port = (uint16_t) json_object_get_number(p, "port");
@@ -372,8 +376,17 @@ void bud_config_free(bud_config_t* config) {
 
 void bud_context_free(bud_context_t* context) {
   SSL_CTX_free(context->ctx);
+  if (context->cert != NULL)
+    X509_free(context->cert);
+  if (context->issuer != NULL)
+    X509_free(context->issuer);
+  if (context->ocsp_id != NULL)
+    OCSP_CERTID_free(context->ocsp_id);
   free(context->npn_line);
+  context->ctx = NULL;
+  context->cert = NULL;
   context->npn_line = NULL;
+  context->ocsp_id = NULL;
 }
 
 
@@ -505,7 +518,7 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->sni.query_fmt, NULL, "/bud/sni/%s");
   DEFAULT(config->stapling.port, 0, 9001);
   DEFAULT(config->stapling.host, NULL, "127.0.0.1");
-  DEFAULT(config->stapling.query_fmt, NULL, "/bud/stapling/%s");
+  DEFAULT(config->stapling.query_fmt, NULL, "/bud/stapling?ocsp_url=%s");
 }
 
 #undef DEFAULT
@@ -641,6 +654,78 @@ fatal:
 }
 
 
+const char* bud_context_get_ocsp(bud_context_t* context,
+                                 size_t* size,
+                                 char** ocsp_request,
+                                 size_t* ocsp_request_len) {
+  STACK_OF(OPENSSL_STRING)* urls;
+  OCSP_REQUEST* req;
+  OCSP_CERTID* id;
+  char* encoded;
+  unsigned char* pencoded;
+  size_t encoded_len;
+
+  urls = NULL;
+  id = NULL;
+  encoded = NULL;
+
+  /* Cached url */
+  if (context->ocsp_url != NULL)
+    goto has_url;
+
+  urls = X509_get1_ocsp(context->cert);
+  if (urls == NULL)
+    goto done;
+
+  context->ocsp_id = OCSP_cert_to_id(NULL, context->cert, context->issuer);
+  if (context->ocsp_id == NULL)
+    goto done;
+
+  context->ocsp_url = sk_OPENSSL_STRING_pop(urls);
+  context->ocsp_url_len = strlen(context->ocsp_url);
+
+has_url:
+  if (context->ocsp_url == NULL)
+    goto done;
+
+  id = OCSP_CERTID_dup(context->ocsp_id);
+  if (id == NULL)
+    goto done;
+
+  /* Create request */
+  req = OCSP_REQUEST_new();
+  if (req == NULL)
+    goto done;
+  if (!OCSP_request_add0_id(req, id))
+    goto done;
+  id = NULL;
+
+  encoded_len = i2d_OCSP_REQUEST(req, NULL);
+  encoded = malloc(encoded_len);
+  if (encoded == NULL)
+    goto done;
+
+  pencoded = (unsigned char*) encoded;
+  i2d_OCSP_REQUEST(req, &pencoded);
+  OCSP_REQUEST_free(req);
+
+  *ocsp_request = encoded;
+  *ocsp_request_len = encoded_len;
+  encoded = NULL;
+
+done:
+  if (id != NULL)
+    OCSP_CERTID_free(id);
+  if (urls != NULL)
+    X509_email_free(urls);
+  if (encoded != NULL)
+    free(encoded);
+
+  *size = context->ocsp_url_len;
+  return context->ocsp_url;
+}
+
+
 bud_error_t bud_config_init(bud_config_t* config) {
   int i;
   int r;
@@ -648,6 +733,7 @@ bud_error_t bud_config_init(bud_config_t* config) {
   bud_error_t err;
   const char* cert_file;
   const char* key_file;
+  BIO* cert_bio;
 
   i = 0;
 
@@ -736,7 +822,15 @@ bud_error_t bud_config_init(bud_config_t* config) {
       key_file = ctx->key_file;
     }
 
-    if (!SSL_CTX_use_certificate_chain_file(ctx->ctx, cert_file)) {
+    cert_bio = BIO_new_file(cert_file, "r");
+    if (cert_bio == NULL) {
+      err = bud_error_str(kBudErrLoadCert, cert_file);
+      goto fatal;
+    }
+
+    r = bud_context_use_certificate_chain(ctx, cert_bio);
+    BIO_free_all(cert_bio);
+    if (!r) {
       err = bud_error_str(kBudErrParseCert, cert_file);
       goto fatal;
     }
@@ -761,9 +855,31 @@ fatal:
 }
 
 
+bud_context_t* bud_config_select_context(bud_config_t* config,
+                                         const char* servername,
+                                         size_t servername_len) {
+  int i;
+  bud_context_t* ctx;
+
+  /* TODO(indutny): Binary search */
+  for (i = 0; i < config->context_count; i++) {
+    ctx = &config->contexts[i + 1];
+
+    if (servername_len != ctx->servername_len)
+      continue;
+
+    if (strncasecmp(servername, ctx->servername, ctx->servername_len) != 0)
+      break;
+
+    return ctx;
+  }
+
+  return &config->contexts[0];
+}
+
+
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
 int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
-  int i;
   bud_config_t* config;
   bud_context_t* ctx;
   const char* servername;
@@ -771,25 +887,19 @@ int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
   config = arg;
   servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
 
-  /* Async SNI */
-  ctx = SSL_get_ex_data(s, kBudSSLSNIIndex);
-  if (ctx != NULL) {
-    SSL_set_SSL_CTX(s, ctx->ctx);
-    return SSL_TLSEXT_ERR_OK;
-  }
-
   /* No servername - no context selection */
   if (servername == NULL)
     return SSL_TLSEXT_ERR_OK;
 
-  /* TODO(indutny): Binary search */
-  for (i = 0; i < config->context_count; i++) {
-    ctx = &config->contexts[i + 1];
+  /* Async SNI */
+  ctx = SSL_get_ex_data(s, kBudSSLSNIIndex);
 
-    if (strncasecmp(servername, ctx->servername, ctx->servername_len) != 0)
-      break;
+  /* Normal SNI */
+  if (ctx == NULL)
+    ctx = bud_config_select_context(config, servername, strlen(servername));
+
+  if (ctx != NULL)
     SSL_set_SSL_CTX(s, ctx->ctx);
-  }
 
   return SSL_TLSEXT_ERR_OK;
 }
@@ -835,4 +945,115 @@ int bud_config_str_to_addr(const char* host,
   }
 
   return r;
+}
+
+
+/**
+ * NOTE: From node.js
+ *
+ * Read a file that contains our certificate in "PEM" format,
+ * possibly followed by a sequence of CA certificates that should be
+ * sent to the peer in the Certificate message.
+ *
+ * Taken from OpenSSL - editted for style.
+ */
+int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
+  int ret;
+  X509* x;
+  X509* ca;
+  X509_STORE* store;
+  X509_STORE_CTX store_ctx;
+  int r;
+  unsigned long err;
+
+  ERR_clear_error();
+
+  ret = 0;
+  x = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
+
+  if (x == NULL) {
+    SSLerr(SSL_F_SSL_CTX_USE_CERTIFICATE_CHAIN_FILE, ERR_R_PEM_LIB);
+    goto end;
+  }
+
+  ret = SSL_CTX_use_certificate(ctx->ctx, x);
+  ctx->cert = x;
+  ctx->issuer = NULL;
+
+  if (ERR_peek_error() != 0) {
+    /* Key/certificate mismatch doesn't imply ret==0 ... */
+    ret = 0;
+  }
+
+  if (ret) {
+    /**
+     * If we could set up our certificate, now proceed to
+     * the CA certificates.
+     */
+    if (ctx->ctx->extra_certs != NULL) {
+      sk_X509_pop_free(ctx->ctx->extra_certs, X509_free);
+      ctx->ctx->extra_certs = NULL;
+    }
+
+    while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
+      r = SSL_CTX_add_extra_chain_cert(ctx->ctx, ca);
+
+      if (!r) {
+        X509_free(ca);
+        ret = 0;
+        goto end;
+      }
+      /**
+       * Note that we must not free r if it was successfully
+       * added to the chain (while we must free the main
+       * certificate, since its reference count is increased
+       * by SSL_CTX_use_certificate).
+       */
+
+      /* Find issuer */
+      if (ctx->issuer != NULL || X509_check_issued(ca, x) != X509_V_OK)
+        continue;
+      ctx->issuer = ca;
+    }
+
+    /* When the while loop ends, it's usually just EOF. */
+    err = ERR_peek_last_error();
+    if (ERR_GET_LIB(err) == ERR_LIB_PEM &&
+        ERR_GET_REASON(err) == PEM_R_NO_START_LINE) {
+      ERR_clear_error();
+    } else  {
+      /* some real error */
+      ret = 0;
+    }
+  }
+
+end:
+  if (ret) {
+    /* Try getting issuer from cert store */
+    if (ctx->issuer == NULL) {
+      store = SSL_CTX_get_cert_store(ctx->ctx);
+      ret = X509_STORE_CTX_init(&store_ctx, store, NULL, NULL);
+      if (!ret)
+        goto fatal;
+
+      ret = X509_STORE_CTX_get1_issuer(&ctx->issuer, &store_ctx, ctx->cert);
+      X509_STORE_CTX_cleanup(&store_ctx);
+
+      ret = ret < 0 ? 0 : 1;
+      /* NOTE: get_cert_store doesn't increment reference count */
+    }
+
+    /* Increment issuer reference count */
+    if (ctx->issuer != NULL)
+      CRYPTO_add(&ctx->issuer->references, 1, CRYPTO_LOCK_X509);
+  } else {
+    if (ctx->issuer != NULL)
+      X509_free(ctx->issuer);
+  }
+
+fatal:
+  if (ctx->cert != x && x != NULL)
+    X509_free(x);
+
+  return ret;
 }

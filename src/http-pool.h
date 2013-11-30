@@ -15,6 +15,7 @@
 typedef struct bud_http_pool_s bud_http_pool_t;
 typedef struct bud_http_request_s bud_http_request_t;
 typedef enum bud_http_request_state_e bud_http_request_state_t;
+typedef enum bud_http_method_e bud_http_method_t;
 typedef void (*bud_http_cb)(bud_http_request_t* req, bud_error_t err);
 
 enum bud_http_request_state_e {
@@ -22,6 +23,11 @@ enum bud_http_request_state_e {
   kBudHttpConnected,
   kBudHttpRunning,
   kBudHttpDisconnected
+};
+
+enum bud_http_method_e {
+  kBudHttpGet,
+  kBudHttpPost
 };
 
 struct bud_http_pool_s {
@@ -52,8 +58,11 @@ struct bud_http_request_s {
   http_parser parser;
 
   /* Request */
+  bud_http_method_t method;
   char* url;
   size_t url_len;
+  char* body;
+  size_t body_len;
   bud_http_cb cb;
   void* data;
   int code;
@@ -66,12 +75,20 @@ bud_http_pool_t* bud_http_pool_new(bud_config_t* config,
                                    bud_error_t* err);
 void bud_http_pool_free(bud_http_pool_t* pool);
 
-bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
-                                     const char* fmt,
-                                     const char* arg,
-                                     size_t arg_len,
-                                     bud_http_cb cb,
-                                     bud_error_t* err);
+bud_http_request_t* bud_http_get(bud_http_pool_t* pool,
+                                 const char* fmt,
+                                 const char* arg,
+                                 size_t arg_len,
+                                 bud_http_cb cb,
+                                 bud_error_t* err);
+bud_http_request_t* bud_http_post(bud_http_pool_t* pool,
+                                  const char* fmt,
+                                  const char* arg,
+                                  size_t arg_len,
+                                  const char* data,
+                                  size_t data_len,
+                                  bud_http_cb cb,
+                                  bud_error_t* err);
 void bud_http_request_cancel(bud_http_request_t* request);
 
 #endif  /* SRC_HTTP_POOL_H_ */

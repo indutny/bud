@@ -11,6 +11,15 @@
 #include "config.h"
 #include "queue.h"
 
+static bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
+                                            bud_http_method_t method,
+                                            const char* fmt,
+                                            const char* arg,
+                                            size_t arg_len,
+                                            const char* body,
+                                            size_t body_len,
+                                            bud_http_cb cb,
+                                            bud_error_t* err);
 static bud_http_request_t* bud_http_request_new(bud_http_pool_t* pool,
                                                 bud_error_t* err);
 static bud_error_t bud_http_request_send(bud_http_request_t* req);
@@ -119,19 +128,45 @@ void bud_http_pool_free(bud_http_pool_t* pool) {
 
 
 bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
+                                     bud_http_method_t method,
                                      const char* fmt,
                                      const char* arg,
                                      size_t arg_len,
+                                     const char* body,
+                                     size_t body_len,
                                      bud_http_cb cb,
                                      bud_error_t* err) {
   bud_http_request_t* req;
+  char* body_copy;
+  char* url;
+  size_t url_len;
   QUEUE* q;
 
+  /* Clone body */
+  if (body_len != 0) {
+    body_copy = malloc(body_len);
+    if (body_copy == NULL) {
+      *err = bud_error_str(kBudErrNoMem, "body_copy");
+      goto fatal;
+    }
+    memcpy(body_copy, body, body_len);
+  } else {
+    body_copy = NULL;
+  }
+
+  /* Format url */
+  url = bud_http_request_escape_url(fmt, arg, arg_len, &url_len);
+  if (url == NULL) {
+    *err = bud_error_str(kBudErrNoMem, "bud_http_request_t url");
+    goto failed_escape_url;
+  }
+
+  /* Obtain request */
   if (QUEUE_EMPTY(&pool->pool)) {
     /* Create new request */
     req = bud_http_request_new(pool, err);
     if (!bud_is_ok(*err))
-      goto fatal;
+      goto failed_http_request;
   } else {
     /* Reuse existing connection */
     q = QUEUE_HEAD(&pool->pool);
@@ -139,22 +174,73 @@ bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
     req = QUEUE_DATA(q, bud_http_request_t, member);
   }
 
-  req->url = bud_http_request_escape_url(fmt, arg, arg_len, &req->url_len);
+  req->method = method;
+  req->url = url;
+  req->url_len = url_len;
+  req->body = body_copy;
+  req->body_len = body_len;
   req->cb = cb;
-  if (req->url == NULL) {
-    *err = bud_error_str(kBudErrNoMem, "bud_http_request_t url");
-    free(req);
-    goto fatal;
-  }
 
   /* If reused socket - send request immediately */
-  if (req->state == kBudHttpConnected)
+  if (req->state == kBudHttpConnected) {
     *err = bud_http_request_send(req);
+    if (!bud_is_ok(*err))
+      goto failed_send;
+  }
 
   return req;
 
+failed_send:
+  /* Fail without calling cb */
+  bud_http_request_error(req, bud_ok());
+  return NULL;
+
+failed_http_request:
+  free(url);
+
+failed_escape_url:
+  free(body_copy);
+
 fatal:
   return NULL;
+}
+
+
+bud_http_request_t* bud_http_get(bud_http_pool_t* pool,
+                                 const char* fmt,
+                                 const char* arg,
+                                 size_t arg_len,
+                                 bud_http_cb cb,
+                                 bud_error_t* err) {
+  return bud_http_request(pool,
+                          kBudHttpGet,
+                          fmt,
+                          arg,
+                          arg_len,
+                          NULL,
+                          0,
+                          cb,
+                          err);
+}
+
+
+bud_http_request_t* bud_http_post(bud_http_pool_t* pool,
+                                  const char* fmt,
+                                  const char* arg,
+                                  size_t arg_len,
+                                  const char* data,
+                                  size_t data_len,
+                                  bud_http_cb cb,
+                                  bud_error_t* err) {
+  return bud_http_request(pool,
+                          kBudHttpPost,
+                          fmt,
+                          arg,
+                          arg_len,
+                          data,
+                          data_len,
+                          cb,
+                          err);
 }
 
 
@@ -229,6 +315,7 @@ bud_http_request_t* bud_http_request_new(bud_http_pool_t* pool,
   req->state = kBudHttpConnecting;
   QUEUE_INSERT_TAIL(&pool->reqs, &req->member);
 
+  *err = bud_ok();
   return req;
 
 failed_tcp_connect:
@@ -246,20 +333,46 @@ fatal:
 
 bud_error_t bud_http_request_send(bud_http_request_t* req) {
   int r;
-  uv_buf_t buf[3];
+  uv_buf_t get_buf[3];
+  uv_buf_t post_buf[6];
+  char body_length[128];
 
   ASSERT(req->state == kBudHttpConnected, "Writing to not connected socket");
 
   req->state = kBudHttpRunning;
 
-  buf[0] = UV_STR_BUF("GET ");
-  buf[1] = uv_buf_init(req->url, req->url_len);
-  buf[2] = UV_STR_BUF(" HTTP/1.1\r\n\r\n");
-  r = uv_write(&req->write,
-               (uv_stream_t*) &req->tcp,
-               buf,
-               ARRAY_SIZE(buf),
-               bud_http_request_write_cb);
+  if (req->method == kBudHttpGet) {
+    get_buf[0] = UV_STR_BUF("GET ");
+    get_buf[1] = uv_buf_init(req->url, req->url_len);
+    get_buf[2] = UV_STR_BUF(" HTTP/1.1\r\n\r\n");
+
+    r = uv_write(&req->write,
+                 (uv_stream_t*) &req->tcp,
+                 get_buf,
+                 ARRAY_SIZE(get_buf),
+                 bud_http_request_write_cb);
+  } else {
+    /* TODO(indutny): consider adding content-type? */
+    post_buf[0] = UV_STR_BUF("POST ");
+    post_buf[1] = uv_buf_init(req->url, req->url_len);
+    post_buf[2] = UV_STR_BUF(" HTTP/1.1\r\n"
+                             "Transfer-Encoding: chunked\r\n"
+                             "Content-Length: ");
+    post_buf[3] = uv_buf_init(body_length,
+                              snprintf(body_length,
+                                       sizeof(body_length),
+                                       "%d\r\n\r\n%x\r\n",
+                                       (int) req->body_len,
+                                       (int) req->body_len));
+    post_buf[4] = uv_buf_init(req->body, req->body_len);
+    post_buf[5] = UV_STR_BUF("\r\n0\r\n\r\n");
+
+    r = uv_write(&req->write,
+                 (uv_stream_t*) &req->tcp,
+                 post_buf,
+                 ARRAY_SIZE(post_buf),
+                 bud_http_request_write_cb);
+  }
   if (r != 0)
     return bud_error_num(kBudErrHttpWrite, r);
 
@@ -339,7 +452,7 @@ void bud_http_request_read_cb(uv_stream_t* stream,
   }
 
   if (nread == UV_EOF) {
-    bud_http_request_error(req, bud_ok());
+    bud_http_request_error(req, bud_error(kBudErrHttpEof));
     return;
   }
 
@@ -414,7 +527,9 @@ void bud_http_request_close_cb(uv_handle_t* handle) {
   req = container_of(handle, bud_http_request_t, tcp);
   ringbuffer_destroy(&req->response_buf);
   free(req->url);
+  free(req->body);
   req->url = NULL;
+  req->body = NULL;
   free(req);
 }
 
@@ -464,7 +579,7 @@ char* bud_http_request_escape_url(const char* fmt,
             c == '/' || c == ':' || c == ';' || c == '=' || c == '?' ||
             c == '@' || c == '[' || c == ']') {
           url[j++] = '%';
-          url[j++] = c >> 4;
+          url[j++] = '0' + (c >> 4);
           c = c & 15;
           if (c > 9)
             c = 'a' + c - 10;

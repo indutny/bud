@@ -4,7 +4,10 @@
 #include <stdint.h>
 
 #include "uv.h"
+#include "openssl/bio.h"
+#include "openssl/ocsp.h"
 #include "openssl/ssl.h"
+#include "openssl/x509.h"
 #include "parson.h"
 
 #include "common.h"
@@ -26,7 +29,7 @@ int kBudSSLSNIIndex;
 struct bud_context_s {
   /* From config file */
   const char* servername;
-  int servername_len;
+  size_t servername_len;
 
   const char* cert_file;
   const char* key_file;
@@ -35,8 +38,13 @@ struct bud_context_s {
 
   /* Various */
   SSL_CTX* ctx;
+  X509* cert;
+  X509* issuer;
   char* npn_line;
   size_t npn_line_len;
+  OCSP_CERTID* ocsp_id;
+  const char* ocsp_url;
+  size_t ocsp_url_len;
 };
 
 struct bud_config_http_pool_s {
@@ -139,9 +147,21 @@ void bud_context_free(bud_context_t* context);
 bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
                                    bud_context_t* context);
 
+/* Helper for stapling */
+bud_context_t* bud_config_select_context(bud_config_t* config,
+                                         const char* servername,
+                                         size_t servername_len);
+const char* bud_context_get_ocsp(bud_context_t* context,
+                                 size_t* size,
+                                 char** ocsp_request,
+                                 size_t* ocsp_request_len);
+
 /* Helper for http-pool.c */
 int bud_config_str_to_addr(const char* host,
                            uint16_t port,
                            struct sockaddr_storage* addr);
+
+/* Helper for SNI and stapling */
+int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in);
 
 #endif  /* SRC_CONFIG_H_ */
