@@ -388,6 +388,7 @@ void bud_context_free(bud_context_t* context) {
   free(context->npn_line);
   context->ctx = NULL;
   context->cert = NULL;
+  context->issuer = NULL;
   context->npn_line = NULL;
   context->ocsp_id = NULL;
   context->ocsp_der_id = NULL;
@@ -1085,6 +1086,9 @@ end:
 
       ret = ret < 0 ? 0 : 1;
       /* NOTE: get_cert_store doesn't increment reference count */
+    } else {
+      /* Increment issuer reference count */
+      CRYPTO_add(&ctx->issuer->references, 1, CRYPTO_LOCK_X509);
     }
 
     if (ctx->issuer != NULL) {
@@ -1094,9 +1098,6 @@ end:
         ctx->issuer = NULL;
         goto fatal;
       }
-
-      /* Increment issuer reference count */
-      CRYPTO_add(&ctx->issuer->references, 1, CRYPTO_LOCK_X509);
     }
   } else {
     if (ctx->issuer != NULL)
