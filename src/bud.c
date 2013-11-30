@@ -39,11 +39,11 @@ int main(int argc, char** argv) {
     bud_server_free(config);
   }
 
-  uv_run(config->loop, UV_RUN_ONCE);
-
 fatal:
   if (config != NULL)
     bud_config_free(config);
+
+  uv_run(uv_default_loop(), UV_RUN_ONCE);
 
   if (!bud_is_ok(err)) {
     bud_error_print(stderr, err);
