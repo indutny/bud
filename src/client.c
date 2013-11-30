@@ -777,8 +777,14 @@ int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side) {
 
   DBG_LN(side, "shutdown");
 
-  if (side == &client->frontend && SSL_shutdown(client->ssl) == 0)
-    SSL_shutdown(client->ssl);
+  if (side == &client->frontend) {
+    if (SSL_shutdown(client->ssl) == 0)
+      SSL_shutdown(client->ssl);
+
+    /* Try writing close_notify */
+    if (bud_client_send(client, &client->frontend) != 0)
+      goto fatal;
+  }
 
   side->shutdown_req.data = client;
   r = uv_shutdown(&side->shutdown_req,
@@ -788,6 +794,8 @@ int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side) {
     NOTICE(side, "uv_shutdown() failed: %d - \"%s\"", r, uv_strerror(r));
     bud_client_close(client, side);
   }
+
+fatal:
   side->shutdown = 1;
 
   /* Just to let know callers that we have closed the client */
