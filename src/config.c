@@ -521,9 +521,9 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->sni.port, 0, 9000);
   DEFAULT(config->sni.host, NULL, "127.0.0.1");
   DEFAULT(config->sni.query_fmt, NULL, "/bud/sni/%s");
-  DEFAULT(config->stapling.port, 0, 9001);
+  DEFAULT(config->stapling.port, 0, 9000);
   DEFAULT(config->stapling.host, NULL, "127.0.0.1");
-  DEFAULT(config->stapling.query_fmt, NULL, "/bud/stapling?ocsp_id=%s");
+  DEFAULT(config->stapling.query_fmt, NULL, "/bud/stapling/%s");
 }
 
 #undef DEFAULT
