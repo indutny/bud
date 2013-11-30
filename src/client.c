@@ -101,6 +101,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->hello_parse = config->sni.enabled ? kBudProgressNone :
                                                kBudProgressDone;
   client->sni_req = NULL;
+  client->sni_ctx.ctx = NULL;
   client->destroy_waiting = 0;
 
   /* Initialize buffers */
