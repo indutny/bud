@@ -452,10 +452,10 @@ void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
 
   if (req->code == 404) {
     /* Not found */
-    NOTICE(&client->frontend,
-           "SNI name not found: \"%.*s\"",
-           client->hello.servername_len,
-           client->hello.servername);
+    DBG(&client->frontend,
+        "SNI name not found: \"%.*s\"",
+        client->hello.servername_len,
+        client->hello.servername);
     goto done;
   }
 
@@ -471,10 +471,10 @@ void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
   }
 
   /* Success */
-  NOTICE(&client->frontend,
-         "SNI name found: \"%.*s\"",
-         client->hello.servername_len,
-         client->hello.servername);
+  DBG(&client->frontend,
+      "SNI name found: \"%.*s\"",
+      client->hello.servername_len,
+      client->hello.servername);
   if (!SSL_set_ex_data(client->ssl, kBudSSLSNIIndex, &client->sni_ctx)) {
     WARNING(&client->frontend,
            "Failed to set app data for SNI: \"%.*s\"",
