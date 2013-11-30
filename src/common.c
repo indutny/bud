@@ -28,10 +28,10 @@ static const int unbase64_table[] =
 #define unbase64(x) unbase64_table[(uint8_t)(x)]
 
 
-size_t base64_decode(char *buf,
-                     size_t len,
-                     const char *src,
-                     const size_t srcLen) {
+size_t bud_base64_decode(char *buf,
+                         size_t len,
+                         const char *src,
+                          const size_t srcLen) {
   char a, b, c, d;
   char* dst;
   char* dstEnd;
@@ -75,7 +75,7 @@ size_t base64_decode(char *buf,
 
 
 /* Doesn't check for padding at the end.  Can be 1-2 bytes over. */
-size_t base64_decoded_size_fast(size_t size) {
+size_t bud_base64_decoded_size_fast(size_t size) {
   size_t remainder;
 
   remainder = size % 4;
@@ -92,4 +92,68 @@ size_t base64_decoded_size_fast(size_t size) {
   }
 
   return size;
+}
+
+
+size_t bud_base64_encode(const char* src,
+                         size_t slen,
+                         char* dst,
+                         size_t dlen) {
+  // We know how much we'll write, just make sure that there's space.
+  ASSERT(dlen >= bud_base64_encoded_size(slen),
+         "not enough space provided for base64 encode");
+
+  dlen = bud_base64_encoded_size(slen);
+
+  unsigned a;
+  unsigned b;
+  unsigned c;
+  unsigned i;
+  unsigned k;
+  unsigned n;
+
+  static const char table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                              "abcdefghijklmnopqrstuvwxyz"
+                              "0123456789+/";
+
+  i = 0;
+  k = 0;
+  n = slen / 3 * 3;
+
+  while (i < n) {
+    a = src[i + 0] & 0xff;
+    b = src[i + 1] & 0xff;
+    c = src[i + 2] & 0xff;
+
+    dst[k + 0] = table[a >> 2];
+    dst[k + 1] = table[((a & 3) << 4) | (b >> 4)];
+    dst[k + 2] = table[((b & 0x0f) << 2) | (c >> 6)];
+    dst[k + 3] = table[c & 0x3f];
+
+    i += 3;
+    k += 4;
+  }
+
+  if (n != slen) {
+    switch (slen - n) {
+      case 1:
+        a = src[i + 0] & 0xff;
+        dst[k + 0] = table[a >> 2];
+        dst[k + 1] = table[(a & 3) << 4];
+        dst[k + 2] = '=';
+        dst[k + 3] = '=';
+        break;
+
+      case 2:
+        a = src[i + 0] & 0xff;
+        b = src[i + 1] & 0xff;
+        dst[k + 0] = table[a >> 2];
+        dst[k + 1] = table[((a & 3) << 4) | (b >> 4)];
+        dst[k + 2] = table[(b & 0x0f) << 2];
+        dst[k + 3] = '=';
+        break;
+    }
+  }
+
+  return dlen;
 }

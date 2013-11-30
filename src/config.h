@@ -43,6 +43,8 @@ struct bud_context_s {
   char* npn_line;
   size_t npn_line_len;
   OCSP_CERTID* ocsp_id;
+  char* ocsp_der_id;
+  size_t ocsp_der_id_len;
   const char* ocsp_url;
   size_t ocsp_url_len;
 };
@@ -151,10 +153,12 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
 bud_context_t* bud_config_select_context(bud_config_t* config,
                                          const char* servername,
                                          size_t servername_len);
-const char* bud_context_get_ocsp(bud_context_t* context,
-                                 size_t* size,
-                                 char** ocsp_request,
-                                 size_t* ocsp_request_len);
+const char* bud_context_get_ocsp_id(bud_context_t* context,
+                                    size_t* size);
+const char* bud_context_get_ocsp_req(bud_context_t* context,
+                                     size_t* size,
+                                     char** ocsp_request,
+                                     size_t* ocsp_request_len);
 
 /* Helper for http-pool.c */
 int bud_config_str_to_addr(const char* host,

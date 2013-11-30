@@ -74,6 +74,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->sni_ctx.ctx = NULL;
 
   /* Stapling */
+  client->stapling_cache_req = NULL;
   client->stapling_req = NULL;
   client->stapling_ocsp_resp = NULL;
 
@@ -265,17 +266,22 @@ void bud_client_close_cb(uv_handle_t* handle) {
 
   if (client->ssl != NULL)
     SSL_free(client->ssl);
-  client->ssl = NULL;
   if (client->sni_ctx.ctx != NULL)
     bud_context_free(&client->sni_ctx);
-  client->ssl = NULL;
   if (client->sni_req != NULL)
     bud_http_request_cancel(client->sni_req);
+  if (client->stapling_cache_req != NULL)
+    bud_http_request_cancel(client->stapling_cache_req);
   if (client->stapling_req != NULL)
     bud_http_request_cancel(client->stapling_req);
   if (client->stapling_ocsp_resp != NULL)
     free(client->stapling_ocsp_resp);
+
+  client->ssl = NULL;
   client->sni_req = NULL;
+  client->stapling_cache_req = NULL;
+  client->stapling_req = NULL;
+  client->stapling_ocsp_resp = NULL;
   free(client);
 }
 

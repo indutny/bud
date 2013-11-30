@@ -180,6 +180,8 @@ bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
   req->body = body_copy;
   req->body_len = body_len;
   req->cb = cb;
+  req->response = NULL;
+  req->code = 0;
 
   /* If reused socket - send request immediately */
   if (req->state == kBudHttpConnected) {
@@ -352,11 +354,11 @@ bud_error_t bud_http_request_send(bud_http_request_t* req) {
                  ARRAY_SIZE(get_buf),
                  bud_http_request_write_cb);
   } else {
-    /* TODO(indutny): consider adding content-type? */
     post_buf[0] = UV_STR_BUF("POST ");
     post_buf[1] = uv_buf_init(req->url, req->url_len);
     post_buf[2] = UV_STR_BUF(" HTTP/1.1\r\n"
                              "Transfer-Encoding: chunked\r\n"
+                             "Content-Type: application/json\r\n"
                              "Content-Length: ");
     post_buf[3] = uv_buf_init(body_length,
                               snprintf(body_length,

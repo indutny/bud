@@ -32,10 +32,16 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
-size_t base64_decode(char *buf,
-                     size_t len,
-                     const char *src,
-                     const size_t srcLen);
-size_t base64_decoded_size_fast(size_t size);
+size_t bud_base64_decode(char *buf,
+                         size_t len,
+                         const char *src,
+                         const size_t srcLen);
+size_t bud_base64_decoded_size_fast(size_t size);
+
+#define bud_base64_encoded_size(size) ((size + 2 - ((size + 2) % 3)) / 3 * 4)
+size_t bud_base64_encode(const char* src,
+                         size_t slen,
+                         char* dst,
+                         size_t dlen);
 
 #endif  /* SRC_COMMON_H_ */

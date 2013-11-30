@@ -30,7 +30,7 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   }
 
   /* Load NPN from response */
-  memset(&ctx, 0, sizeof(ctx));
+  memset(ctx, 0, sizeof(*ctx));
   ctx->ciphers = json_object_get_string(obj, "ciphers");
   ctx->npn = json_object_get_array(obj, "npn");
 

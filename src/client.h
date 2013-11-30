@@ -72,6 +72,7 @@ struct bud_client_s {
   bud_context_t sni_ctx;
 
   /* Stapling */
+  bud_http_request_t* stapling_cache_req;
   bud_http_request_t* stapling_req;
   char* stapling_ocsp_resp;
   size_t stapling_ocsp_resp_len;

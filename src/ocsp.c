@@ -13,17 +13,18 @@
 #include "error.h"
 #include "http-pool.h"
 
+static void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
+                                             bud_error_t err);
 static void bud_client_stapling_req_cb(bud_http_request_t* req,
                                        bud_error_t err);
+static int bud_client_staple_json(bud_client_t* client, JSON_Value* json);
 
 bud_error_t bud_client_ocsp_stapling(bud_client_t* client) {
   bud_config_t* config;
   bud_context_t* context;
   bud_error_t err;
-  const char* url;
-  size_t url_size;
-  char* ocsp;
-  size_t ocsp_size;
+  const char* id;
+  size_t id_size;
 
   config = client->config;
 
@@ -35,35 +36,31 @@ bud_error_t bud_client_ocsp_stapling(bud_client_t* client) {
     context = bud_config_select_context(config,
                                         client->hello.servername,
                                         client->hello.servername_len);
-
-    /* Cache context to prevent second search in OpenSSL's callback */
-    if (context != NULL) {
-      if (!SSL_set_ex_data(client->ssl, kBudSSLSNIIndex, context)) {
-        err = bud_error(kBudErrStaplingSetData);
-        goto fatal;
-      }
-    }
   } else {
     /* Default context */
     context = &config->contexts[0];
   }
 
-  url = bud_context_get_ocsp(context, &url_size, &ocsp, &ocsp_size);
+  /* Cache context to prevent second search in OpenSSL's callback */
+  if (!SSL_set_ex_data(client->ssl, kBudSSLSNIIndex, context)) {
+    err = bud_error(kBudErrStaplingSetData);
+    goto fatal;
+  }
 
-  /* Certificate has no OCSP url */
-  if (url == NULL)
+  id = bud_context_get_ocsp_id(context, &id_size);
+
+  /* Certificate has no OCSP id */
+  if (id == NULL)
     return bud_ok();
 
-  client->stapling_req = bud_http_post(config->stapling.pool,
-                                       config->stapling.query_fmt,
-                                       url,
-                                       url_size,
-                                       ocsp,
-                                       ocsp_size,
-                                       bud_client_stapling_req_cb,
-                                       &err);
-  free(ocsp);
-  client->stapling_req->data = client;
+  /* Request backend for cached respose first */
+  client->stapling_cache_req = bud_http_get(config->stapling.pool,
+                                            config->stapling.query_fmt,
+                                            id,
+                                            id_size,
+                                            bud_client_stapling_cache_req_cb,
+                                            &err);
+  client->stapling_cache_req->data = client;
 
   if (!bud_is_ok(err))
     goto fatal;
@@ -76,21 +73,86 @@ fatal:
 }
 
 
-void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
+void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
+                                      bud_error_t err) {
   bud_client_t* client;
   bud_config_t* config;
-  JSON_Object* obj;
-  const char* b64_body;
-  size_t b64_body_len;
-  char* body;
-  const unsigned char* pbody;
-  size_t body_len;
-  OCSP_RESPONSE* resp;
-  int status;
+  bud_context_t* context;
+  const char* id;
+  size_t id_size;
+  const char* url;
+  size_t url_size;
+  char* ocsp;
+  size_t ocsp_size;
+  char* json;
+  size_t json_size;
+  size_t offset;
 
   client = req->data;
   config = client->config;
-  body = NULL;
+  context = SSL_get_ex_data(client->ssl, kBudSSLSNIIndex);
+
+  client->hello_parse = kBudProgressDone;
+  json = NULL;
+  ocsp = NULL;
+
+  ASSERT(context != NULL, "Context disappeared");
+
+  /* Cache hit, success */
+  if (req->code == 200 && bud_client_staple_json(client, req->response) == 0)
+    goto done;
+
+  id = bud_context_get_ocsp_id(context, &id_size);
+  url = bud_context_get_ocsp_req(context, &url_size, &ocsp, &ocsp_size);
+
+  /* Certificate has no OCSP url */
+  if (url == NULL)
+    goto done;
+
+  /* Format JSON request */
+  json_size = 2 + bud_base64_encoded_size(ocsp_size) + 2 + url_size;
+  json_size += /* "ocsp": */ 7 + /* "url": */ 6 + /* {,}\0 */ 4;
+  json = malloc(json_size);
+  if (json == NULL)
+    goto done;
+
+  offset = snprintf(json,
+                    json_size,
+                    "{\"url\":\"%.*s\",\"ocsp\":\"",
+                    (int) url_size,
+                    url);
+  bud_base64_encode(ocsp, ocsp_size, json + offset, json_size - offset);
+  offset += bud_base64_encoded_size(ocsp_size);
+  snprintf(json + offset, json_size - offset, "\"}");
+
+  /* Request OCSP response */
+  client->stapling_req = bud_http_post(config->stapling.pool,
+                                       config->stapling.query_fmt,
+                                       id,
+                                       id_size,
+                                       json,
+                                       json_size - 1,
+                                       bud_client_stapling_req_cb,
+                                       &err);
+  client->stapling_req->data = client;
+
+  if (!bud_is_ok(err))
+    goto done;
+
+  client->hello_parse = kBudProgressRunning;
+
+done:
+  free(ocsp);
+  free(json);
+  json_value_free(req->response);
+  bud_client_cycle(client);
+}
+
+
+void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
+  bud_client_t* client;
+
+  client = req->data;
   client->stapling_req = NULL;
   client->hello_parse = kBudProgressDone;
 
@@ -103,18 +165,42 @@ void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
   if (req->code != 200)
     goto done;
 
-  obj = json_value_get_object(req->response);
+  /* Note, ignoring return value here */
+  (void) bud_client_staple_json(client, req->response);
+
+  /* NOTE: Stapling failure should not prevent us from responding */
+done:
+  json_value_free(req->response);
+  bud_client_cycle(client);
+}
+
+
+int bud_client_staple_json(bud_client_t* client, JSON_Value* json) {
+  JSON_Object* obj;
+  const char* b64_body;
+  size_t b64_body_len;
+  char* body;
+  const unsigned char* pbody;
+  size_t body_len;
+  OCSP_RESPONSE* resp;
+  int status;
+  int r;
+
+  r = -1;
+  body = NULL;
+
+  obj = json_value_get_object(json);
   b64_body = json_object_get_string(obj, "response");
   if (b64_body == NULL)
     goto done;
 
   b64_body_len = strlen(b64_body);
-  body_len = base64_decoded_size_fast(b64_body_len);
+  body_len = bud_base64_decoded_size_fast(b64_body_len);
   body = malloc(body_len);
   if (body == NULL)
     goto done;
 
-  body_len = base64_decode(body, body_len, b64_body, b64_body_len);
+  body_len = bud_base64_decode(body, body_len, b64_body, b64_body_len);
   pbody = (const unsigned char*) body;
   resp = d2i_OCSP_RESPONSE(NULL, &pbody, body_len);
   if (resp == NULL)
@@ -130,13 +216,11 @@ void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
   client->stapling_ocsp_resp = body;
   client->stapling_ocsp_resp_len = body_len;
   body = NULL;
+  r = 0;
 
-  /* NOTE: Stapling failure should not prevent us from responding */
 done:
   free(body);
-  json_value_free(req->response);
-  bud_client_cycle(client);
-  return;
+  return r;
 }
 
 

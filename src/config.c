@@ -383,11 +383,14 @@ void bud_context_free(bud_context_t* context) {
     X509_free(context->issuer);
   if (context->ocsp_id != NULL)
     OCSP_CERTID_free(context->ocsp_id);
+  if (context->ocsp_der_id != NULL)
+    free(context->ocsp_der_id);
   free(context->npn_line);
   context->ctx = NULL;
   context->cert = NULL;
   context->npn_line = NULL;
   context->ocsp_id = NULL;
+  context->ocsp_der_id = NULL;
 }
 
 
@@ -657,10 +660,52 @@ fatal:
 }
 
 
-const char* bud_context_get_ocsp(bud_context_t* context,
-                                 size_t* size,
-                                 char** ocsp_request,
-                                 size_t* ocsp_request_len) {
+const char* bud_context_get_ocsp_id(bud_context_t* context,
+                                    size_t* size) {
+  char* encoded;
+  unsigned char* pencoded;
+  size_t encoded_len;
+  char* base64;
+  size_t base64_len;
+
+  if (context->ocsp_id == NULL)
+    return NULL;
+
+  base64 = NULL;
+  encoded = NULL;
+  /* Return cached id */
+  if (context->ocsp_der_id != NULL)
+    goto done;
+
+  encoded_len = i2d_OCSP_CERTID(context->ocsp_id, NULL);
+  base64_len = bud_base64_encoded_size(encoded_len);
+  encoded = malloc(encoded_len);
+  base64 = malloc(base64_len);
+  if (encoded == NULL || base64 == NULL) {
+    encoded_len = 0;
+    goto done;
+  }
+
+  pencoded = (unsigned char*) encoded;
+  i2d_OCSP_CERTID(context->ocsp_id, &pencoded);
+
+  bud_base64_encode(encoded, encoded_len, base64, base64_len);
+  context->ocsp_der_id = base64;
+  context->ocsp_der_id_len = base64_len;
+  base64 = NULL;
+
+done:
+  free(encoded);
+  free(base64);
+  *size = context->ocsp_der_id_len;
+  return context->ocsp_der_id;
+}
+
+
+const char* bud_context_get_ocsp_req(bud_context_t* context,
+                                     size_t* size,
+                                     char** ocsp_request,
+                                     size_t* ocsp_request_len) {
   STACK_OF(OPENSSL_STRING)* urls;
   OCSP_REQUEST* req;
   OCSP_CERTID* id;
@@ -678,10 +723,6 @@ const char* bud_context_get_ocsp(bud_context_t* context,
 
   urls = X509_get1_ocsp(context->cert);
   if (urls == NULL)
-    goto done;
-
-  context->ocsp_id = OCSP_cert_to_id(NULL, context->cert, context->issuer);
-  if (context->ocsp_id == NULL)
     goto done;
 
   context->ocsp_url = sk_OPENSSL_STRING_pop(urls);
@@ -1046,9 +1087,17 @@ end:
       /* NOTE: get_cert_store doesn't increment reference count */
     }
 
-    /* Increment issuer reference count */
-    if (ctx->issuer != NULL)
+    if (ctx->issuer != NULL) {
+      /* Get ocsp_id */
+      ctx->ocsp_id = OCSP_cert_to_id(NULL, ctx->cert, ctx->issuer);
+      if (ctx->ocsp_id == NULL) {
+        ctx->issuer = NULL;
+        goto fatal;
+      }
+
+      /* Increment issuer reference count */
       CRYPTO_add(&ctx->issuer->references, 1, CRYPTO_LOCK_X509);
+    }
   } else {
     if (ctx->issuer != NULL)
       X509_free(ctx->issuer);
