@@ -4,6 +4,7 @@
 
 Preparing:
 ```
+git submodule update --init --recursive
 svn co http://gyp.googlecode.com/svn/trunk build/gyp
 ```
 
