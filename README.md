@@ -110,6 +110,16 @@ to get default configuration options (with comments and description below):
     "query": "/bud/sni/%s"
   },
 
+  // OCSP Stapling response loading
+  "stapling": {
+    "enabled": false,
+    "port": 9000,
+    "host": "127.0.0.1",
+
+    // %s will be replaced with actual servername
+    "query": "/bud/stapling/%s"
+  },
+
   // Secure contexts (i.e. Server Name Indication support)
   "contexts": [{
     // Servername to match against
@@ -161,6 +171,30 @@ Or any other [JSON][0] and a 404 status code, if SNI certificateis not found.
 
 If optional fields are not present - their value would be taken from `frontend`
 object in configuration file.
+
+### OCSP Stapling
+
+OCSP Stapling has exactly the same configuration options as SNI Storage.
+Main difference is that 2 requests to OCSP Stapling server could be made by bud:
+
+1. `GET /stapling_url/<stapling_id>` - to probe backend's cache
+2. `POST /stapling_url/<stapling_id>` with [JSON][0] body:
+   `{"url":"http://some.ocsp.server.com/","ocsp":"base64-encoded-data"}`.
+
+For first request, if backend has cached OCSP response for given
+`<stapling_id>`, backend should respond with following [JSON][0]:
+
+`{"response":"base64-encoded-response"}`
+
+Or with 404 status code and any other [JSON][0].
+
+For the second request, backend should send a POST request to the OCSP server
+given in the [JSON][0] body. This request should have Content-Type header set
+to `application/ocsp-request` and a decoded (from base64) `ocsp` field from
+body.
+
+The response to bud should be the same as in the first case, base64-encoded
+data received from OCSP server.
 
 #### LICENSE
 
