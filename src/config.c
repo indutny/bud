@@ -606,10 +606,7 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   ctx = SSL_CTX_new(config->frontend.method);
   if (ctx == NULL)
     return bud_error_str(kBudErrNoMem, "SSL_CTX");
-  SSL_CTX_set_session_cache_mode(ctx,
-                                 SSL_SESS_CACHE_SERVER |
-                                 SSL_SESS_CACHE_NO_INTERNAL |
-                                 SSL_SESS_CACHE_NO_AUTO_CLEAR);
+  SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
   if (context->ciphers != NULL)
     SSL_CTX_set_cipher_list(ctx, context->ciphers);
   else if (config->frontend.ciphers != NULL)
