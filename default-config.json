@@ -1,0 +1,44 @@
+{
+  "daemon": false,
+  "workers": 1,
+  "restart_timeout": 250,
+  "log": {
+    "level": "info",
+    "facility": "user",
+    "stdio": true,
+    "syslog": false
+  },
+  "frontend": {
+    "port": 1443,
+    "host": "0.0.0.0",
+    "keepalive": 3600,
+    "proxyline": false,
+    "security": "ssl23",
+    "server_preference": true,
+    "ssl3": false,
+    "npn": ["http/1.1", "http/1.0"],
+    "ciphers": null,
+    "cert": "keys/cert.pem",
+    "key": "keys/key.pem",
+    "reneg_window": 600,
+    "reneg_limit": 3
+  },
+  "backend": {
+    "port": 8000,
+    "host": "127.0.0.1",
+    "keepalive": 3600
+  },
+  "sni": {
+    "enabled": false,
+    "port": 9000,
+    "host": "127.0.0.1",
+    "query": "/bud/sni/%s"
+  },
+  "stapling": {
+    "enabled": false,
+    "port": 9000,
+    "host": "127.0.0.1",
+    "query": "/bud/stapling/%s"
+  },
+  "contexts": []
+}
