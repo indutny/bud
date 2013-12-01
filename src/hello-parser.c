@@ -253,10 +253,7 @@ bud_error_t bud_parse_extension(extension_type_t type,
       if (data[0] != kStatusRequestOCSP)
         break;
 
-      /* TODO(indutny): support extensions */
-      if (size != 5)
-        break;
-
+      /* Ignore extensions, they won't work with caching on backend anyway */
       state->hello->ocsp_request = 1;
       break;
     case kTLSSessionTicket:
