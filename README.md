@@ -3,20 +3,28 @@
 ## Build
 
 Preparing:
-```
+```bash
 git submodule update --init --recursive
 svn co http://gyp.googlecode.com/svn/trunk build/gyp
 ```
 
 Building:
-```
+```bash
 ./gyp_bud
 make -C out/
 ```
 
 The result will be located at: `./out/Release/bud`.
 
-## Running
+## Starting
+
+To start bud - create configuration file using this template and:
+
+```bash
+bud --conf conf.json
+```
+
+## Configuration
 
 Bud is using [JSON][0] as a configuration format. Run `bud --default-config`
 to get default configuration options (with comments and description below):
