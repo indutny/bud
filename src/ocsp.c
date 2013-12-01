@@ -93,15 +93,20 @@ void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
   context = SSL_get_ex_data(client->ssl, kBudSSLSNIIndex);
 
   client->hello_parse = kBudProgressDone;
+  client->stapling_cache_req = NULL;
   json = NULL;
   ocsp = NULL;
 
   ASSERT(context != NULL, "Context disappeared");
 
   /* Cache hit, success */
-  if (req->code == 200 && bud_client_staple_json(client, req->response) == 0)
+  if ((req->code >= 200 && req->code < 400) &&
+      bud_client_staple_json(client, req->response) == 0) {
+    DBG_LN(&client->frontend, "stapling cache hit");
     goto done;
+  }
 
+  DBG_LN(&client->frontend, "stapling cache miss");
   id = bud_context_get_ocsp_id(context, &id_size);
   url = bud_context_get_ocsp_req(context, &url_size, &ocsp, &ocsp_size);
 
@@ -162,8 +167,11 @@ void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
   }
 
   /* Stapling backend failure - ignore */
-  if (req->code != 200)
+  if (req->code < 200 || req->code >= 400) {
+    DBG_LN(&client->frontend, "stapling request failure");
     goto done;
+  }
+  DBG_LN(&client->frontend, "stapling request success");
 
   /* Note, ignoring return value here */
   (void) bud_client_staple_json(client, req->response);

@@ -247,6 +247,9 @@ bud_http_request_t* bud_http_post(bud_http_pool_t* pool,
 
 
 void bud_http_request_error(bud_http_request_t* request, bud_error_t err) {
+  if (request->state == kBudHttpDisconnected)
+    return;
+
   request->state = kBudHttpDisconnected;
   if (!bud_is_ok(err) && request->cb != NULL)
     request->cb(request, err);
@@ -400,7 +403,12 @@ void bud_http_request_connect_cb(uv_connect_t* connect, int status) {
   bud_error_t err;
   int r;
 
+  /* Already handled */
+  if (status == UV_ECANCELED)
+    return;
+
   req = container_of(connect, bud_http_request_t, connect);
+
   req->state = kBudHttpConnected;
   if (status != 0) {
     err = bud_error_num(kBudErrHttpConnectCb, status);
