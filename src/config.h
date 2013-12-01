@@ -35,6 +35,7 @@ struct bud_context_s {
   const char* key_file;
   const JSON_Array* npn;
   const char* ciphers;
+  const char* ecdh;
 
   /* Various */
   SSL_CTX* ctx;
@@ -108,6 +109,7 @@ struct bud_config_s {
     int server_preference;
     const JSON_Array* npn;
     const char* ciphers;
+    const char* ecdh;
     const char* cert_file;
     const char* key_file;
     int reneg_window;

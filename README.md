@@ -87,6 +87,9 @@ to get default configuration options (with comments and description below):
     // **Optional** Cipher suites to use
     "ciphers": null,
 
+    // **Optional** ECDH Curve to use
+    "ecdh": "prime256v1",
+
     // **Optional** NPN protocols to advertise
     "npn": ["http/1.1", "http/1.0"],
 
@@ -143,6 +146,9 @@ to get default configuration options (with comments and description below):
     // Cipherlist to use (overrides frontend.ciphers, if not null)
     "ciphers": null,
 
+    // ECDH curve to use, overrides frontend.ecdh
+    "ecdh": null,
+
     // NPN protocols to advertise
     // (overrides frontend.npn, if not null)
     "npn": ["http/1.1", "http/1.0"]
@@ -172,7 +178,10 @@ of the following form:
   "npn": [],
 
   // Optional
-  "ciphers": "..."
+  "ciphers": "...",
+
+  // Optional
+  "ecdh": "..."
 }
 ```
 

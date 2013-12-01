@@ -75,6 +75,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("NPN not supported, but present in config")                   \
     case kBudErrExePath:                                                      \
       BUD_UV_ERROR("uv_exe_path()", err)                                      \
+    case kBudErrECDHNotFound:                                                 \
+      BUD_ERROR("ECDH curve \"%s\" not found", err.str)                       \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \

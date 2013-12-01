@@ -246,6 +246,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     config->frontend.security = json_object_get_string(frontend, "security");
     config->frontend.npn = json_object_get_array(frontend, "npn");
     config->frontend.ciphers = json_object_get_string(frontend, "ciphers");
+    config->frontend.ecdh = json_object_get_string(frontend, "ecdh");
     config->frontend.cert_file = json_object_get_string(frontend, "cert");
     config->frontend.key_file = json_object_get_string(frontend, "key");
     config->frontend.reneg_window = json_object_get_number(frontend,
@@ -306,6 +307,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     ctx->key_file = json_object_get_string(obj, "key");
     ctx->npn = json_object_get_array(obj, "npn");
     ctx->ciphers = json_object_get_string(obj, "ciphers");
+    ctx->ecdh = json_object_get_string(obj, "ecdh");
 
     *err = bud_config_verify_npn(ctx->npn);
     if (!bud_is_ok(*err))
@@ -463,6 +465,10 @@ void bud_config_print_default() {
     fprintf(stdout, "    \"ciphers\": \"%s\",\n", config.frontend.ciphers);
   else
     fprintf(stdout, "    \"ciphers\": null,\n");
+  if (config.frontend.ecdh != NULL)
+    fprintf(stdout, "    \"ecdh\": \"%s\",\n", config.frontend.ecdh);
+  else
+    fprintf(stdout, "    \"ecdh\": null,\n");
   fprintf(stdout, "    \"cert\": \"%s\",\n", config.frontend.cert_file);
   fprintf(stdout, "    \"key\": \"%s\",\n", config.frontend.key_file);
   fprintf(stdout, "    \"reneg_window\": %d,\n", config.frontend.reneg_window);
@@ -507,6 +513,7 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.host, NULL, "0.0.0.0");
   DEFAULT(config->frontend.proxyline, -1, 0);
   DEFAULT(config->frontend.security, NULL, "ssl23");
+  DEFAULT(config->frontend.ecdh, NULL, "prime256v1");
   DEFAULT(config->frontend.keepalive, -1, 3600);
   DEFAULT(config->frontend.server_preference, -1, 1);
   DEFAULT(config->frontend.ssl3, -1, 0);
@@ -586,6 +593,8 @@ char* bud_config_encode_npn(bud_config_t* config,
 bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
                                    bud_context_t* context) {
   SSL_CTX* ctx;
+  int ecdh_nid;
+  EC_KEY* ecdh;
   bud_error_t err;
   int options;
 
@@ -606,7 +615,38 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   ctx = SSL_CTX_new(config->frontend.method);
   if (ctx == NULL)
     return bud_error_str(kBudErrNoMem, "SSL_CTX");
+
+  /* Disable sessions, they won't work with cluster anyway */
   SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+
+  /* ECDH curve selection */
+  if (context->ecdh != NULL || config->frontend.ecdh != NULL) {
+    if (context->ecdh != NULL)
+      ecdh_nid = OBJ_sn2nid(context->ecdh);
+    else
+      ecdh_nid = OBJ_sn2nid(config->frontend.ecdh);
+
+    if (ecdh_nid == NID_undef) {
+      ecdh = NULL;
+      err = bud_error_str(kBudErrECDHNotFound,
+                          context->ecdh == NULL ? config->frontend.ecdh :
+                                                  context->ecdh);
+      goto fatal;
+    }
+
+    ecdh = EC_KEY_new_by_curve_name(ecdh_nid);
+    if (ecdh == NULL) {
+      err = bud_error_str(kBudErrNoMem, "EC_KEY");
+      goto fatal;
+    }
+
+    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_ECDH_USE);
+    SSL_CTX_set_tmp_ecdh(ctx, ecdh);
+    EC_KEY_free(ecdh);
+  }
+  ecdh = NULL;
+
+  /* Cipher suites */
   if (context->ciphers != NULL)
     SSL_CTX_set_cipher_list(ctx, context->ciphers);
   else if (config->frontend.ciphers != NULL)
@@ -653,6 +693,9 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   return bud_ok();
 
 fatal:
+  if (ecdh != NULL)
+    EC_KEY_free(ecdh);
+
   SSL_CTX_free(ctx);
   return err;
 }

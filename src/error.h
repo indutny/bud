@@ -26,6 +26,7 @@ enum bud_error_code_e {
   kBudErrNPNNonString = 0x107,
   kBudErrNPNNotSupported = 0x108,
   kBudErrExePath = 0x109,
+  kBudErrECDHNotFound = 0x10a,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,
