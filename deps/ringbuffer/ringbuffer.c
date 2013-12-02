@@ -274,9 +274,7 @@ char* ringbuffer_write_ptr(ringbuffer* rb, size_t* length) {
   size_t available;
 
   available = RING_BUFFER_LEN - rb->write_head->write_pos;
-  if (*length != 0 && available > *length)
-    available = *length;
-  else
+  if (*length == 0 || available < *length)
     *length = available;
 
   return rb->write_head->data + rb->write_head->write_pos;

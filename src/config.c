@@ -561,14 +561,15 @@ char* bud_config_encode_npn(bud_config_t* config,
   /* Calculate storage requirements */
   npn_count = json_array_get_count(npn);
   npn_line_len = 0;
-  for (i = 0; i < npn_count; i++) {
+  for (i = 0; i < npn_count; i++)
     npn_line_len += 1 + strlen(json_array_get_string(npn, i));
-  }
 
-  npn_line = malloc(npn_line_len);
-  if (npn_line == NULL) {
-    *err = bud_error_str(kBudErrNoMem, "NPN copy");
-    return NULL;
+  if (npn_line_len != 0) {
+    npn_line = malloc(npn_line_len);
+    if (npn_line == NULL) {
+      *err = bud_error_str(kBudErrNoMem, "NPN copy");
+      return NULL;
+    }
   }
 
   /* Fill npn line */
@@ -722,10 +723,8 @@ const char* bud_context_get_ocsp_id(bud_context_t* context,
   base64_len = bud_base64_encoded_size(encoded_len);
   encoded = malloc(encoded_len);
   base64 = malloc(base64_len);
-  if (encoded == NULL || base64 == NULL) {
-    encoded_len = 0;
+  if (encoded == NULL || base64 == NULL)
     goto done;
-  }
 
   pencoded = (unsigned char*) encoded;
   i2d_OCSP_CERTID(context->ocsp_id, &pencoded);
