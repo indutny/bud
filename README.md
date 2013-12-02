@@ -214,6 +214,10 @@ body.
 The response to bud should be the same as in the first case, base64-encoded
 data received from OCSP server.
 
+#### Backend Example
+
+Example OCSP+SNI backend implementation in node.js could be found [here][1].
+
 #### LICENSE
 
 This software is licensed under the MIT License.
@@ -240,3 +244,4 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 [0]: http://json.org/
+[1]: http://github.com/indutny/bud-backend
