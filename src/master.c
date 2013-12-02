@@ -433,6 +433,7 @@ void bud_master_balance(struct bud_server_s* server) {
 
 failed_accept:
   uv_close((uv_handle_t*) &msg->client, bud_master_msg_close_cb);
+  return;
 
 failed_tcp_init:
   free(msg);
