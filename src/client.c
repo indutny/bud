@@ -449,7 +449,7 @@ void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
   client->sni_req = NULL;
   client->hello_parse = kBudProgressDone;
   if (!bud_is_ok(err)) {
-    NOTICE(&client->frontend, "SNI cb failed: %d - \"%s\"", err.code, err.str);
+    WARNING(&client->frontend, "SNI cb failed: %d - \"%s\"", err.code, err.str);
     goto fatal;
   }
 

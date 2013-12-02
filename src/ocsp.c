@@ -99,6 +99,14 @@ void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
 
   ASSERT(context != NULL, "Context disappeared");
 
+  if (!bud_is_ok(err)) {
+    WARNING(&client->frontend,
+            "SNI cache cb failed: %d - \"%s\"",
+            err.code,
+            err.str);
+    goto done;
+  }
+
   /* Cache hit, success */
   if ((req->code >= 200 && req->code < 400) &&
       bud_client_staple_json(client, req->response) == 0) {
@@ -162,7 +170,7 @@ void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
   client->hello_parse = kBudProgressDone;
 
   if (!bud_is_ok(err)) {
-    NOTICE(&client->frontend, "SNI cb failed: %d - \"%s\"", err.code, err.str);
+    WARNING(&client->frontend, "SNI cb failed: %d - \"%s\"", err.code, err.str);
     goto done;
   }
 
