@@ -101,7 +101,7 @@ void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
 
   if (!bud_is_ok(err)) {
     WARNING(&client->frontend,
-            "SNI cache cb failed: %d - \"%s\"",
+            "OCSP cache cb failed: %d - \"%s\"",
             err.code,
             err.str);
     goto done;
@@ -170,7 +170,10 @@ void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
   client->hello_parse = kBudProgressDone;
 
   if (!bud_is_ok(err)) {
-    WARNING(&client->frontend, "SNI cb failed: %d - \"%s\"", err.code, err.str);
+    WARNING(&client->frontend,
+            "OCSP cb failed: %d - \"%s\"",
+            err.code,
+            err.str);
     goto done;
   }
 
