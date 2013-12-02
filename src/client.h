@@ -60,6 +60,7 @@ struct bud_client_s {
 
   /* State */
   uv_connect_t connect_req;
+  bud_client_progress_t connect;
   bud_client_progress_t close;
   int destroy_waiting;
 

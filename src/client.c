@@ -62,6 +62,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->ssl = NULL;
   client->last_handshake = 0;
   client->handshakes = 0;
+  client->connect = kBudProgressNone;
   client->close = kBudProgressNone;
   client->destroy_waiting = 0;
 
@@ -114,6 +115,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
                      bud_client_connect_cb);
   if (r != 0)
     goto failed_connect;
+  client->connect = kBudProgressRunning;
 
   /* Adjust sockets */
   r = uv_tcp_nodelay(&client->frontend.tcp, 1);
@@ -166,6 +168,8 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   return;
 
 failed_connect:
+  client->connect = kBudProgressDone;
+  client->close = kBudProgressDone;
   client->destroy_waiting++;
   uv_close((uv_handle_t*) &client->backend.tcp, bud_client_close_cb);
 
@@ -644,6 +648,10 @@ int bud_client_send(bud_client_t* client, bud_client_side_t* side) {
   if (client->close == kBudProgressDone)
     return 0;
 
+  /* Backend still connecting */
+  if (side == &client->backend && client->connect != kBudProgressDone)
+    return 0;
+
   count = ARRAY_SIZE(out);
   side->write_size = ringbuffer_read_nextv(&side->output, out, size, &count);
   if (side->write_size == 0)
@@ -754,6 +762,7 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
   client = container_of(req, bud_client_t, connect_req);
   DBG(&client->backend, "connect %d", status);
 
+  client->connect = kBudProgressDone;
   if (status != 0 && status != UV_ECANCELED) {
     WARNING(&client->backend,
            "uv_connect() failed: %d - \"%s\"",
