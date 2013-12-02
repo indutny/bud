@@ -212,7 +212,7 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   options.args = calloc(config->argc + 2, sizeof(*options.args));
   if (options.stdio == NULL || options.args == NULL) {
     err = bud_error(kBudErrNoMem);
-    goto fatal;
+    goto done;
   }
 
   /* args = { config.argv, "--worker" } */
@@ -232,22 +232,20 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   r = uv_timer_init(config->loop, &worker->restart_timer);
   if (r != 0) {
     err = bud_error_num(kBudErrRestartTimer, r);
-    goto fatal;
+    goto done;
   }
 
   r = uv_pipe_init(config->loop, &worker->ipc, 1);
   if (r != 0) {
     err = bud_error_num(kBudErrIPCPipeInit, r);
-    uv_close((uv_handle_t*) &worker->restart_timer, bud_master_ipc_close_cb);
-    goto fatal;
+    goto failed_pipe_init;
   }
 
   r = uv_spawn(config->loop, &worker->proc, &options);
 
   if (r != 0) {
     err = bud_error_num(kBudErrSpawn, r);
-    uv_close((uv_handle_t*) &worker->restart_timer, bud_master_ipc_close_cb);
-    uv_close((uv_handle_t*) &worker->ipc, bud_master_ipc_close_cb);
+    goto failed_uv_spawn;
   } else {
     worker->active = 1;
     err = bud_ok();
@@ -263,7 +261,15 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
     }
   }
 
-fatal:
+  goto done;
+
+failed_uv_spawn:
+  uv_close((uv_handle_t*) &worker->ipc, bud_master_ipc_close_cb);
+
+failed_pipe_init:
+  uv_close((uv_handle_t*) &worker->restart_timer, bud_master_ipc_close_cb);
+
+done:
   free(options.stdio);
   free(options.args);
   options.stdio = NULL;
