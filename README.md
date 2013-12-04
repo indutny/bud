@@ -185,7 +185,7 @@ of the following form:
 }
 ```
 
-Or any other [JSON][0] and a 404 status code, if SNI certificateis not found.
+Or any other [JSON][0] and a 404 status code, if SNI certificate is not found.
 
 If optional fields are not present - their value would be taken from `frontend`
 object in configuration file.
