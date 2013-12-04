@@ -1,5 +1,7 @@
 # Bud
 
+A TLS terminator for superheroes.
+
 ## Build
 
 Preparing:
