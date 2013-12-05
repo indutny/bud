@@ -164,6 +164,13 @@ To start bud - create configuration file using this template and:
 bud --conf conf.json
 ```
 
+To reload config - send `SIGHUP` to the bud's master process (or worker, if you
+wish to reload configuration only in a single process):
+
+```bash
+kill -SIGHUP <bud-master's-pid>
+```
+
 ### SNI Storage
 
 If you have enabled SNI lookup (`sni.enabled` set to `true`), on every TLS
