@@ -101,6 +101,7 @@ bud_error_t bud_master_finalize(bud_config_t* config) {
 #ifndef _WIN32
   uv_close((uv_handle_t*) config->signal.sigterm, bud_master_signal_close_cb);
   uv_close((uv_handle_t*) config->signal.sigint, bud_master_signal_close_cb);
+  uv_close((uv_handle_t*) config->signal.sighup, bud_master_signal_close_cb);
 #endif  /* !_WIN32 */
 
   bud_server_free(config);
@@ -154,13 +155,17 @@ bud_error_t bud_master_init_signals(bud_config_t* config) {
 
   config->signal.sigterm = malloc(sizeof(*config->signal.sigterm));
   config->signal.sigint = malloc(sizeof(*config->signal.sigint));
-  if (config->signal.sigterm == NULL || config->signal.sigint == NULL) {
+  config->signal.sighup = malloc(sizeof(*config->signal.sighup));
+  if (config->signal.sigterm == NULL ||
+      config->signal.sigint == NULL ||
+      config->signal.sighup == NULL) {
     err = bud_error_str(kBudErrNoMem, "master uv_signal_t");
     goto fatal;
   }
 
   config->signal.sigterm->data = config;
   config->signal.sigint->data = config;
+  config->signal.sighup->data = config;
 
   r = uv_signal_init(config->loop, config->signal.sigterm);
   if (r != 0) {
@@ -172,10 +177,17 @@ bud_error_t bud_master_init_signals(bud_config_t* config) {
     err = bud_error_num(kBudErrSignalInit, r);
     goto failed_sigint_init;
   }
+  r = uv_signal_init(config->loop, config->signal.sighup);
+  if (r != 0) {
+    err = bud_error_num(kBudErrSignalInit, r);
+    goto failed_sighup_init;
+  }
 
   r = uv_signal_start(config->signal.sigterm, bud_master_signal_cb, SIGTERM);
   if (r == 0)
     r = uv_signal_start(config->signal.sigint, bud_master_signal_cb, SIGINT);
+  if (r == 0)
+    r = uv_signal_start(config->signal.sighup, bud_master_signal_cb, SIGHUP);
   if (r != 0) {
     err = bud_error_num(kBudErrSignalStart, r);
     goto failed_signal_start;
@@ -184,10 +196,14 @@ bud_error_t bud_master_init_signals(bud_config_t* config) {
   /* Signals should not keep loop running */
   uv_unref((uv_handle_t*) config->signal.sigint);
   uv_unref((uv_handle_t*) config->signal.sigterm);
+  uv_unref((uv_handle_t*) config->signal.sighup);
 
   return bud_ok();
 
 failed_signal_start:
+  uv_close((uv_handle_t*) config->signal.sighup, bud_master_signal_close_cb);
+
+failed_sighup_init:
   uv_close((uv_handle_t*) config->signal.sigint, bud_master_signal_close_cb);
 
 failed_sigint_init:
@@ -197,10 +213,12 @@ failed_sigint_init:
 fatal:
   free(config->signal.sigterm);
   free(config->signal.sigint);
+  free(config->signal.sighup);
 
 cleanup:
   config->signal.sigterm = NULL;
   config->signal.sigint = NULL;
+  config->signal.sighup = NULL;
   return err;
 }
 
@@ -211,8 +229,22 @@ void bud_master_signal_close_cb(uv_handle_t* handle) {
 
 
 void bud_master_signal_cb(uv_signal_t* handle, int signum) {
+  bud_config_t* config;
+  int i;
+
+  config = handle->data;
+
   /* Stop the loop and let finalize to be called */
-  uv_stop(handle->loop);
+  if (config->signal.sighup != handle)
+    return uv_stop(handle->loop);
+
+  /* SIGHUP send it to workers */
+  bud_log(config,
+          kBudLogInfo,
+          "master got SIGHUP broadcasting to workers");
+  for (i = 0; i < config->worker_count; i++)
+    if (config->workers[i].active)
+      uv_process_kill(&config->workers[i].proc, SIGHUP);
 }
 #endif  /* !_WIN32 */
 

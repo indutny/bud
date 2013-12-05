@@ -77,6 +77,9 @@ struct bud_config_s {
   struct {
     uv_signal_t* sigterm;
     uv_signal_t* sigint;
+
+    /* NOTE: shared with worker */
+    uv_signal_t* sighup;
   } signal;
   struct bud_worker_s* workers;
   int last_worker;
@@ -89,6 +92,8 @@ struct bud_config_s {
   char proxyline_fmt[256];
 
   /* Options from config file */
+  char* path;
+
   int worker_count;
   int restart_timeout;
   int is_daemon;
@@ -144,6 +149,7 @@ bud_config_t* bud_config_cli_load(uv_loop_t* loop,
 bud_config_t* bud_config_load(uv_loop_t* loop,
                               const char* path,
                               bud_error_t* err);
+bud_error_t bud_config_reload(bud_config_t* config, int* fatal);
 void bud_config_free(bud_config_t* config);
 void bud_context_free(bud_context_t* context);
 

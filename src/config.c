@@ -22,6 +22,7 @@
 #include "version.h"
 
 static bud_error_t bud_config_init(bud_config_t* config);
+static void bud_config_destroy(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
 static void bud_print_help(int argc, char** argv);
 static void bud_print_version();
@@ -149,6 +150,41 @@ bud_config_t* bud_config_cli_load(uv_loop_t* loop,
 }
 
 
+bud_error_t bud_config_reload(bud_config_t* config, int* fatal) {
+  bud_error_t err;
+  bud_config_t* loaded;
+
+  loaded = bud_config_load(config->loop, config->path, &err);
+  if (!bud_is_ok(err)) {
+    *fatal = 0;
+    return err;
+  }
+
+  /* Destroy all config */
+  bud_config_destroy(config);
+
+  /* Load params from the new one */
+  config->json = loaded->json;
+  memcpy(&config->signal, &loaded->signal, sizeof(config->signal));
+  memcpy(&config->log, &loaded->log, sizeof(config->log));
+  memcpy(&config->frontend, &loaded->frontend, sizeof(config->frontend));
+  memcpy(&config->sni, &loaded->sni, sizeof(config->sni));
+  memcpy(&config->stapling, &loaded->stapling, sizeof(config->stapling));
+  free(loaded);
+
+  /* Initialize config with new params */
+  err = bud_config_init(config);
+  if (!bud_is_ok(err)) {
+    bud_config_free(config);
+    *fatal = 1;
+    return err;
+  }
+
+  *fatal = 0;
+  return bud_ok();
+}
+
+
 bud_error_t bud_config_verify_npn(const JSON_Array* npn) {
   int i;
   int npn_count;
@@ -198,6 +234,13 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   if (config == NULL) {
     *err = bud_error_str(kBudErrNoMem, "bud_config_t");
     goto failed_get_object;
+  }
+
+  /* Copy path */
+  config->path = strdup(path);
+  if (config->path == NULL) {
+    *err = bud_error_str(kBudErrNoMem, "bud_config_t strcpy(path)");
+    goto failed_alloc_path;
   }
 
   /* Allocate contexts */
@@ -330,6 +373,10 @@ failed_get_index:
   config->contexts = NULL;
 
 failed_alloc_contexts:
+  free(config->path);
+  config->path = NULL;
+
+failed_alloc_path:
   free(config);
 
 failed_get_object:
@@ -365,7 +412,7 @@ void bud_config_finalize(bud_config_t* config) {
 }
 
 
-void bud_config_free(bud_config_t* config) {
+void bud_config_destroy(bud_config_t* config) {
   int i;
 
   bud_config_finalize(config);
@@ -376,15 +423,26 @@ void bud_config_free(bud_config_t* config) {
   free(config->contexts);
   config->contexts = NULL;
 
-  free(config->workers);
-  config->workers = NULL;
-
   if (config->logger != NULL)
     bud_logger_free(config);
   config->logger = NULL;
 
   json_value_free(config->json);
   config->json = NULL;
+
+  free(config->path);
+  config->path = NULL;
+}
+
+
+void bud_config_free(bud_config_t* config) {
+  /* Free all reload-dependent resources */
+  bud_config_destroy(config);
+
+  /* Free rest */
+  free(config->workers);
+  config->workers = NULL;
+
   free(config);
 }
 
