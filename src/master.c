@@ -252,7 +252,7 @@ void bud_master_signal_cb(uv_signal_t* handle, int signum) {
   /* SIGHUP - send it to workers */
   bud_log(config,
           kBudLogInfo,
-          "master got SIGHUP broadcasting to workers");
+          "master got SIGHUP, broadcasting to workers");
   for (i = 0; i < config->worker_count; i++)
     if (config->workers[i].active)
       uv_process_kill(&config->workers[i].proc, SIGHUP);
