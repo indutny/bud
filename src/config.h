@@ -75,15 +75,15 @@ struct bud_config_s {
 
   /* Master state */
   struct {
-    uv_signal_t sigterm;
-    uv_signal_t sigint;
+    uv_signal_t* sigterm;
+    uv_signal_t* sigint;
   } signal;
   struct bud_worker_s* workers;
   int last_worker;
   int pending_accept;
 
   /* Worker state */
-  uv_pipe_t ipc;
+  uv_pipe_t* ipc;
 
   /* Used by client.c */
   char proxyline_fmt[256];

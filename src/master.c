@@ -99,9 +99,11 @@ bud_error_t bud_master_finalize(bud_config_t* config) {
       bud_master_kill_worker(&config->workers[i], 0, NULL);
 
 #ifndef _WIN32
-  uv_close((uv_handle_t*) &config->signal.sigterm, bud_master_signal_close_cb);
-  uv_close((uv_handle_t*) &config->signal.sigint, bud_master_signal_close_cb);
+  uv_close((uv_handle_t*) config->signal.sigterm, bud_master_signal_close_cb);
+  uv_close((uv_handle_t*) config->signal.sigint, bud_master_signal_close_cb);
 #endif  /* !_WIN32 */
+
+  bud_server_free(config);
 
   return bud_ok();
 }
@@ -150,40 +152,61 @@ bud_error_t bud_master_init_signals(bud_config_t* config) {
   int r;
   bud_error_t err;
 
-  config->signal.sigterm.data = config;
-  config->signal.sigint.data = config;
+  config->signal.sigterm = malloc(sizeof(*config->signal.sigterm));
+  config->signal.sigint = malloc(sizeof(*config->signal.sigint));
+  if (config->signal.sigterm == NULL || config->signal.sigint == NULL) {
+    err = bud_error_str(kBudErrNoMem, "master uv_signal_t");
+    goto fatal;
+  }
 
-  r = uv_signal_init(config->loop, &config->signal.sigterm);
+  config->signal.sigterm->data = config;
+  config->signal.sigint->data = config;
+
+  r = uv_signal_init(config->loop, config->signal.sigterm);
   if (r != 0) {
     err = bud_error_num(kBudErrSignalInit, r);
     goto fatal;
   }
-  r = uv_signal_init(config->loop, &config->signal.sigint);
+  r = uv_signal_init(config->loop, config->signal.sigint);
   if (r != 0) {
     err = bud_error_num(kBudErrSignalInit, r);
     goto failed_sigint_init;
   }
 
-  r = uv_signal_start(&config->signal.sigterm, bud_master_signal_cb, SIGTERM);
+  r = uv_signal_start(config->signal.sigterm, bud_master_signal_cb, SIGTERM);
   if (r == 0)
-    r = uv_signal_start(&config->signal.sigint, bud_master_signal_cb, SIGINT);
+    r = uv_signal_start(config->signal.sigint, bud_master_signal_cb, SIGINT);
   if (r != 0) {
     err = bud_error_num(kBudErrSignalStart, r);
-    goto failed_sigint_init;
+    goto failed_signal_start;
   }
+
+  /* Signals should not keep loop running */
+  uv_unref((uv_handle_t*) config->signal.sigint);
+  uv_unref((uv_handle_t*) config->signal.sigterm);
 
   return bud_ok();
 
+failed_signal_start:
+  uv_close((uv_handle_t*) config->signal.sigint, bud_master_signal_close_cb);
+
 failed_sigint_init:
-  uv_close((uv_handle_t*) &config->signal.sigterm, bud_master_signal_close_cb);
+  uv_close((uv_handle_t*) config->signal.sigterm, bud_master_signal_close_cb);
+  goto cleanup;
 
 fatal:
+  free(config->signal.sigterm);
+  free(config->signal.sigint);
+
+cleanup:
+  config->signal.sigterm = NULL;
+  config->signal.sigint = NULL;
   return err;
 }
 
 
 void bud_master_signal_close_cb(uv_handle_t* handle) {
-  /* No-op */
+  free(handle);
 }
 
 

@@ -34,9 +34,10 @@ int main(int argc, char** argv) {
 
   /* Finalize server */
   if (config->server != NULL) {
-    if (!config->is_worker)
+    if (config->is_worker)
+      err = bud_worker_finalize(config);
+    else
       err = bud_master_finalize(config);
-    bud_server_free(config);
   }
 
   uv_run(config->loop, UV_RUN_ONCE);
