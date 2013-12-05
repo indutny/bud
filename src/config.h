@@ -134,7 +134,7 @@ struct bud_config_s {
   bud_config_http_pool_t stapling;
 
   int context_count;
-  bud_context_t contexts[1];
+  bud_context_t* contexts;
 };
 
 bud_config_t* bud_config_cli_load(uv_loop_t* loop,

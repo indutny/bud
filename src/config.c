@@ -193,15 +193,20 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     *err = bud_error(kBudErrJSONNonObjectRoot);
     goto failed_get_object;
   }
-  contexts = json_object_get_array(obj, "contexts");
-  context_count = contexts == NULL ? 0 : json_array_get_count(contexts);
 
-  config = calloc(1,
-                  sizeof(*config) +
-                      context_count * sizeof(*config->contexts));
+  config = calloc(1, sizeof(*config));
   if (config == NULL) {
     *err = bud_error_str(kBudErrNoMem, "bud_config_t");
     goto failed_get_object;
+  }
+
+  /* Allocate contexts */
+  contexts = json_object_get_array(obj, "contexts");
+  context_count = contexts == NULL ? 0 : json_array_get_count(contexts);
+  config->contexts = calloc(context_count + 1, sizeof(*config->contexts));
+  if (config->contexts == NULL) {
+    *err = bud_error_str(kBudErrNoMem, "bud_context_t");
+    goto failed_alloc_contexts;
   }
 
   config->loop = loop;
@@ -321,6 +326,10 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   return config;
 
 failed_get_index:
+  free(config->contexts);
+  config->contexts = NULL;
+
+failed_alloc_contexts:
   free(config);
 
 failed_get_object:
@@ -364,6 +373,9 @@ void bud_config_free(bud_config_t* config) {
 
   for (i = 0; i < config->context_count + 1; i++)
     bud_context_free(&config->contexts[i]);
+  free(config->contexts);
+  config->contexts = NULL;
+
   free(config->workers);
   config->workers = NULL;
 
