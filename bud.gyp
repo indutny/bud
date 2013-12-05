@@ -28,5 +28,10 @@
       "src/sni.c",
       "src/worker.c",
     ],
+    "conditions": [
+      ["OS == 'linux'", {
+        "defines": [ "_POSIX_C_SOURCE=200112" ],
+      }],
+    ]
   }]
 }

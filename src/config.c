@@ -22,6 +22,7 @@
 #include "version.h"
 
 static bud_error_t bud_config_init(bud_config_t* config);
+static void bud_config_copy(bud_config_t* dst, bud_config_t* src);
 static void bud_config_destroy(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
 static void bud_print_help(int argc, char** argv);
@@ -154,6 +155,8 @@ void bud_config_copy(bud_config_t* dst, bud_config_t* src) {
   /* Load params from the new one */
   dst->loop = src->loop;
   dst->json = src->json;
+  dst->logger = src->logger;
+  dst->path = src->path;
   dst->contexts = src->contexts;
   dst->restart_timeout = src->restart_timeout;
   memcpy(&dst->log, &src->log, sizeof(src->log));
