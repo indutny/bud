@@ -34,7 +34,7 @@ struct bud_client_side_s {
   ringbuffer input;
   ringbuffer output;
 
-  uv_write_t write_req;
+  uv_write_t* write_req;
   uv_shutdown_t shutdown_req;
 
   bud_client_progress_t reading;
@@ -62,6 +62,8 @@ struct bud_client_s {
   uv_connect_t connect_req;
   bud_client_progress_t connect;
   bud_client_progress_t close;
+  bud_client_progress_t cycle;
+  int recycle;
   int destroy_waiting;
 
   /* Client hello parser */

@@ -40,6 +40,7 @@ void bud_client_log(bud_client_t* client,
     LOG(kBudLogDebug, side, fmt, __VA_ARGS__)
 
 #define WARNING_LN(side, fmt) LOG_LN(kBudLogWarning, side, fmt)
+#define NOTICE_LN(side, fmt) LOG_LN(kBudLogNotice, side, fmt)
 #define DBG_LN(side, fmt) LOG_LN(kBudLogDebug, side, fmt)
 
 #endif  /* SRC_CLIENT_PRIVATE_H_ */

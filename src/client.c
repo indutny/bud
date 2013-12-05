@@ -64,6 +64,8 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->handshakes = 0;
   client->connect = kBudProgressNone;
   client->close = kBudProgressNone;
+  client->cycle = kBudProgressNone;
+  client->recycle = 0;
   client->destroy_waiting = 0;
 
   client->hello_parse = kBudProgressDone;
@@ -194,6 +196,7 @@ void bud_client_side_init(bud_client_side_t* side,
   side->shutdown = kBudProgressNone;
   side->close = kBudProgressNone;
   side->write = kBudProgressNone;
+  side->write_req = NULL;
   side->write_size = 0;
 }
 
@@ -357,15 +360,26 @@ void bud_client_cycle(bud_client_t* client) {
   /* Parsing, must wait */
   if (client->hello_parse != kBudProgressDone) {
     bud_client_parse_hello(client);
+  } else if (client->cycle == kBudProgressRunning) {
+    /* Recursive call detected, ask cycle loop to run one more time */
+    client->recycle++;
   } else {
-    if (bud_client_backend_in(client) != 0)
-      return;
-    if (bud_client_backend_out(client) != 0)
-      return;
-    if (bud_client_send(client, &client->frontend) != 0)
-      return;
-    if (bud_client_send(client, &client->backend) != 0)
-      return;
+    client->cycle = kBudProgressRunning;
+    do {
+      client->recycle = 0;
+      if (bud_client_backend_in(client) != 0)
+        break;
+      if (bud_client_backend_out(client) != 0)
+        break;
+      if (bud_client_send(client, &client->frontend) != 0)
+        break;
+      if (bud_client_send(client, &client->backend) != 0)
+        break;
+
+      if (client->recycle)
+        DBG_LN(&client->frontend, "recycle");
+    } while (client->recycle);
+    client->cycle = kBudProgressNone;
   }
 }
 
@@ -659,25 +673,46 @@ int bud_client_send(bud_client_t* client, bud_client_side_t* side) {
 
   DBG(side, "uv_write(%ld) iovcnt: %ld", side->write_size, count);
 
+  side->write_req = malloc(sizeof(*side->write_req));
+  if (side->write_req == NULL) {
+    NOTICE_LN(side, "failed to allocate write_req");
+    goto fatal;
+  }
+
   for (i = 0; i < count; i++)
     buf[i] = uv_buf_init(out[i], size[i]);
-  side->write_req.data = client;
+  side->write_req->data = client;
 
-  r = uv_write(&side->write_req,
+  r = uv_write(side->write_req,
                (uv_stream_t*) &side->tcp,
                buf,
                count,
                bud_client_send_cb);
-  if (r == 0) {
-    side->write = kBudProgressRunning;
-    return 0;
+  if (r != 0) {
+    NOTICE(side,
+           "uv_write() failed: %d - \"%s\"",
+           r,
+           uv_strerror(r));
+    goto fatal;
   }
 
+  /* Immediate write */
+  if (side->tcp.write_queue_size == 0) {
+    DBG_LN(side, "immediate write");
+    side->write = kBudProgressNone;
+
+    /* NOTE: not causing recursion */
+    bud_client_send_cb(side->write_req, 0);
+  } else {
+    DBG_LN(side, "queued write");
+    side->write = kBudProgressRunning;
+  }
+  return 0;
+
+fatal:
+  free(side->write_req);
   side->write = kBudProgressDone;
-  NOTICE(side,
-         "uv_write() failed: %d - \"%s\"",
-         r,
-         uv_strerror(r));
+  side->write_req = NULL;
   bud_client_close(client, side);
   return -1;
 }
@@ -688,20 +723,27 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   bud_client_t* client;
   bud_client_side_t* side;
   bud_client_side_t* opposite;
-
-  /* Closing, ignore */
-  if (status == UV_ECANCELED)
-    return;
+  int immediate;
 
   client = req->data;
+  req->data = NULL;
+  immediate = 0;
 
-  if (req == &client->frontend.write_req) {
+  /* Already processed, skip */
+  if (client == NULL)
+    goto done;
+
+  if (req == client->frontend.write_req) {
     side = &client->frontend;
     opposite = &client->backend;
   } else {
     side = &client->backend;
     opposite = &client->frontend;
   }
+
+  /* Closing, ignore */
+  if (status == UV_ECANCELED)
+    goto done;
 
   if (status != 0) {
     NOTICE(side,
@@ -716,8 +758,10 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   DBG(side, "write_cb => %d", side->write_size);
   ringbuffer_read_skip(&side->output, side->write_size);
 
+  immediate = side->write == kBudProgressNone;
   side->write = kBudProgressNone;
   side->write_size = 0;
+  side->write_req = NULL;
 
   /* Start reading, if stopped and not closing */
   if (opposite->close != kBudProgressDone &&
@@ -753,6 +797,9 @@ void bud_client_send_cb(uv_write_t* req, int status) {
     else
       bud_client_close(client, side);
   }
+done:
+  if (!immediate)
+    free(req);
 }
 
 
