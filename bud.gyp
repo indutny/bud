@@ -30,7 +30,10 @@
     ],
     "conditions": [
       ["OS == 'linux'", {
-        "defines": [ "_POSIX_C_SOURCE=200112" ],
+        "defines": [
+          "_POSIX_C_SOURCE=200112",
+          "_GNU_SOURCE",
+        ],
       }],
     ]
   }]
