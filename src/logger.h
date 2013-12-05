@@ -21,8 +21,8 @@ struct bud_logger_s {
   int syslog_enabled;
 };
 
-bud_error_t bud_logger_new(bud_config_t* config);
-void bud_logger_free(bud_config_t* logger);
+bud_logger_t* bud_logger_new(bud_config_t* config, bud_error_t* err);
+void bud_logger_free(bud_logger_t* logger);
 
 void bud_log(bud_config_t* config, bud_log_level_t level, const char* fmt, ...);
 void bud_logva(bud_config_t* config,

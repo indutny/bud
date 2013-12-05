@@ -230,6 +230,7 @@ void bud_master_signal_close_cb(uv_handle_t* handle) {
 
 void bud_master_signal_cb(uv_signal_t* handle, int signum) {
   bud_config_t* config;
+  bud_error_t err;
   int i;
 
   config = handle->data;
@@ -238,7 +239,17 @@ void bud_master_signal_cb(uv_signal_t* handle, int signum) {
   if (config->signal.sighup != handle)
     return uv_stop(handle->loop);
 
-  /* SIGHUP send it to workers */
+  /* SIGHUP: 0 workers, handle it */
+  if (config->worker_count == 0) {
+    err = bud_config_reload(config);
+    if (bud_is_ok(err))
+      bud_log(config, kBudLogInfo, "Successfully reloaded config");
+    else
+      bud_error_log(config, kBudLogWarning, err);
+    return;
+  }
+
+  /* SIGHUP - send it to workers */
   bud_log(config,
           kBudLogInfo,
           "master got SIGHUP broadcasting to workers");

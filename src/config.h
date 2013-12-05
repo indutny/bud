@@ -149,7 +149,7 @@ bud_config_t* bud_config_cli_load(uv_loop_t* loop,
 bud_config_t* bud_config_load(uv_loop_t* loop,
                               const char* path,
                               bud_error_t* err);
-bud_error_t bud_config_reload(bud_config_t* config, int* fatal);
+bud_error_t bud_config_reload(bud_config_t* config);
 void bud_config_free(bud_config_t* config);
 void bud_context_free(bud_context_t* context);
 

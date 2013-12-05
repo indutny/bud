@@ -143,19 +143,15 @@ void bud_worker_read_cb(uv_pipe_t* pipe,
 void bud_worker_signal_cb(uv_signal_t* signal, int status) {
   bud_config_t* config;
   bud_error_t err;
-  int fatal;
 
   config = signal->data;
   if (status == UV_ECANCELED)
     return;
 
-  err = bud_config_reload(config, &fatal);
-  if (bud_is_ok(err)) {
+  err = bud_config_reload(config);
+  if (bud_is_ok(err))
     bud_log(config, kBudLogInfo, "Successfully reloaded config");
-    return;
-  }
-
-  bud_error_log(config, kBudLogWarning, err);
-  ASSERT(fatal == 0, "Fatal error during config reload");
+  else
+    bud_error_log(config, kBudLogWarning, err);
 }
 #endif  /* !_WIN32 */

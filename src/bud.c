@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
       err = bud_master_finalize(config);
   }
 
-  uv_run(config->loop, UV_RUN_ONCE);
+  uv_run(config->loop, UV_RUN_NOWAIT);
 
 fatal:
   if (config != NULL)

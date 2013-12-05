@@ -150,37 +150,45 @@ bud_config_t* bud_config_cli_load(uv_loop_t* loop,
 }
 
 
-bud_error_t bud_config_reload(bud_config_t* config, int* fatal) {
+void bud_config_copy(bud_config_t* dst, bud_config_t* src) {
+  /* Load params from the new one */
+  dst->loop = src->loop;
+  dst->json = src->json;
+  dst->contexts = src->contexts;
+  dst->restart_timeout = src->restart_timeout;
+  memcpy(&dst->log, &src->log, sizeof(src->log));
+  memcpy(&dst->frontend, &src->frontend, sizeof(src->frontend));
+  memcpy(&dst->backend, &src->backend, sizeof(src->backend));
+  memcpy(&dst->sni, &src->sni, sizeof(src->sni));
+  memcpy(&dst->stapling, &src->stapling, sizeof(src->stapling));
+}
+
+
+bud_error_t bud_config_reload(bud_config_t* config) {
   bud_error_t err;
   bud_config_t* loaded;
+  bud_config_t restore;
 
   loaded = bud_config_load(config->loop, config->path, &err);
-  if (!bud_is_ok(err)) {
-    *fatal = 0;
+  if (!bud_is_ok(err))
     return err;
-  }
 
-  /* Destroy all config */
-  bud_config_destroy(config);
-
-  /* Load params from the new one */
-  config->json = loaded->json;
-  memcpy(&config->signal, &loaded->signal, sizeof(config->signal));
-  memcpy(&config->log, &loaded->log, sizeof(config->log));
-  memcpy(&config->frontend, &loaded->frontend, sizeof(config->frontend));
-  memcpy(&config->sni, &loaded->sni, sizeof(config->sni));
-  memcpy(&config->stapling, &loaded->stapling, sizeof(config->stapling));
-  free(loaded);
+  memset(&restore, 0, sizeof(restore));
+  bud_config_copy(&restore, config);
+  bud_config_copy(config, loaded);
 
   /* Initialize config with new params */
   err = bud_config_init(config);
+
+  /* Restore everything on failure */
   if (!bud_is_ok(err)) {
-    bud_config_free(config);
-    *fatal = 1;
+    bud_config_copy(config, &restore);
+    bud_config_free(loaded);
     return err;
   }
 
-  *fatal = 0;
+  free(loaded);
+  bud_config_destroy(&restore);
   return bud_ok();
 }
 
@@ -416,15 +424,14 @@ void bud_config_destroy(bud_config_t* config) {
   int i;
 
   bud_config_finalize(config);
-  uv_run(config->loop, UV_RUN_ONCE);
+  uv_run(config->loop, UV_RUN_NOWAIT);
 
   for (i = 0; i < config->context_count + 1; i++)
     bud_context_free(&config->contexts[i]);
   free(config->contexts);
   config->contexts = NULL;
 
-  if (config->logger != NULL)
-    bud_logger_free(config);
+  bud_logger_free(config->logger);
   config->logger = NULL;
 
   json_value_free(config->json);
@@ -448,6 +455,9 @@ void bud_config_free(bud_config_t* config) {
 
 
 void bud_context_free(bud_context_t* context) {
+  if (context == NULL)
+    return;
+
   SSL_CTX_free(context->ctx);
   if (context->cert != NULL)
     X509_free(context->cert);
@@ -924,7 +934,7 @@ bud_error_t bud_config_init(bud_config_t* config) {
 #endif  /* !SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
 
   /* Allocate workers */
-  if (!config->is_worker) {
+  if (!config->is_worker && config->worker_count != 0) {
     config->workers = calloc(config->worker_count, sizeof(*config->workers));
     if (config->workers == NULL) {
       err = bud_error_str(kBudErrNoMem, "workers");
@@ -933,7 +943,7 @@ bud_error_t bud_config_init(bud_config_t* config) {
   }
 
   /* Initialize logger */
-  err = bud_logger_new(config);
+  config->logger = bud_logger_new(config, &err);
   if (!bud_is_ok(err))
     goto fatal;
 

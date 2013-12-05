@@ -13,27 +13,33 @@
 static const char* bud_log_level_str(bud_log_level_t level);
 
 
-bud_error_t bud_logger_new(bud_config_t* config) {
+bud_logger_t* bud_logger_new(bud_config_t* config, bud_error_t* err) {
+  bud_logger_t* logger;
 #ifndef _WIN32
   int facility;
 #endif  /* !_WIN32 */
 
-  config->logger = calloc(1, sizeof(*config->logger));
+  logger = calloc(1, sizeof(*logger));
+  if (logger == NULL) {
+    *err = bud_error_str(kBudErrNoMem, "logger");
+    goto done;
+  }
+
   if (strcmp(config->log.level, "debug") == 0)
-    config->logger->level = kBudLogDebug;
+    logger->level = kBudLogDebug;
   else if (strcmp(config->log.level, "notice") == 0)
-    config->logger->level = kBudLogNotice;
+    logger->level = kBudLogNotice;
   else if (strcmp(config->log.level, "fatal") == 0)
-    config->logger->level = kBudLogFatal;
+    logger->level = kBudLogFatal;
   else if (strcmp(config->log.level, "warning") == 0)
-    config->logger->level = kBudLogWarning;
+    logger->level = kBudLogWarning;
   else
-    config->logger->level = kBudLogInfo;
-  config->logger->stdio_enabled = config->log.stdio;
-  config->logger->syslog_enabled = config->log.syslog;
+    logger->level = kBudLogInfo;
+  logger->stdio_enabled = config->log.stdio;
+  logger->syslog_enabled = config->log.syslog;
 
 #ifndef _WIN32
-  if (config->logger->syslog_enabled) {
+  if (logger->syslog_enabled) {
     if (strcmp(config->log.facility, "auth") == 0)
       facility = LOG_AUTH;
     else if (strcmp(config->log.facility, "cron") == 0)
@@ -74,20 +80,22 @@ bud_error_t bud_logger_new(bud_config_t* config) {
   }
 #endif  /* !_WIN32 */
 
-  return bud_ok();
+  *err = bud_ok();
+
+done:
+  return logger;
 }
 
 
-void bud_logger_free(bud_config_t* config) {
-  if (config->logger == NULL)
+void bud_logger_free(bud_logger_t* logger) {
+  if (logger == NULL)
     return;
 
 #ifndef _WIN32
-  if (config->logger->syslog_enabled)
+  if (logger->syslog_enabled)
     closelog();
 #endif  /* !_WIN32 */
-  free(config->logger);
-  config->logger = NULL;
+  free(logger);
 }
 
 
