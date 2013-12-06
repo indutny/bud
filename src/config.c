@@ -547,6 +547,7 @@ void bud_config_print_default() {
   config.frontend.ssl3 = -1;
   config.backend_count = 1;
   config.backend = &backend;
+  config.backend[0].keepalive = -1;
   config.restart_timeout = -1;
 
   bud_config_set_defaults(&config);
