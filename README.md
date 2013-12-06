@@ -108,11 +108,11 @@ to get default configuration options (with comments and description below):
   },
 
   // Backend configuration (i.e. address of Cleartext server)
-  "backend": {
+  "backend": [{
     "port": 8000,
     "host": "127.0.0.1",
     "keepalive": 3600
-  },
+  }],
 
   // SNI context loading
   "sni": {
