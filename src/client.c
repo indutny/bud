@@ -48,6 +48,7 @@ static void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret);
 void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   int r;
   bud_client_t* client;
+  bud_config_backend_t* backend;
   BIO* enc_in;
   BIO* enc_out;
 #ifdef SSL_MODE_RELEASE_BUFFERS
@@ -111,9 +112,22 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   if (r != 0)
     goto failed_accept;
 
+  /*
+   * Select backend and connect to it, or wait for a backend to become
+   * alive again.
+   */
+  backend = uv_config_select_backend(config);
+
+  /* No backend alive, terminate connection */
+  /* TODO(indutny): make an option to wait for backend */
+  if (backend == NULL) {
+    DBG_LN(&client->backend, "backend select failed");
+    goto failed_connect;
+  }
+
   r = uv_tcp_connect(&client->connect_req,
                      &client->backend.tcp,
-                     (struct sockaddr*) &client->config->backend.addr,
+                     (struct sockaddr*) &backend->addr,
                      bud_client_connect_cb);
   if (r != 0)
     goto failed_connect;
@@ -125,8 +139,8 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
     r = uv_tcp_nodelay(&client->backend.tcp, 1);
   if (r == 0 && config->frontend.keepalive > 0)
     r = uv_tcp_keepalive(&client->frontend.tcp, 1, config->frontend.keepalive);
-  if (r == 0 && config->backend.keepalive > 0)
-    r = uv_tcp_keepalive(&client->backend.tcp, 1, config->backend.keepalive);
+  if (r == 0 && backend->keepalive > 0)
+    r = uv_tcp_keepalive(&client->backend.tcp, 1, backend->keepalive);
   if (r != 0)
     goto failed_connect;
 

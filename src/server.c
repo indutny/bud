@@ -93,7 +93,7 @@ bud_error_t bud_server_format_proxyline(bud_server_t* server) {
 
   config = server->config;
   addr4 = (struct sockaddr_in*) &config->frontend.addr;
-  addr6 = (struct sockaddr_in6*) &config->backend.addr;
+  addr6 = (struct sockaddr_in6*) &config->frontend.addr;
 
   if (config->frontend.addr.ss_family == AF_INET)
     r = uv_inet_ntop(AF_INET, &addr4->sin_addr, host, sizeof(host));

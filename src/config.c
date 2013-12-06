@@ -23,10 +23,8 @@
 
 static bud_error_t bud_config_init(bud_config_t* config);
 static void bud_config_load_addr(JSON_Object* obj,
-                                 const char* key,
                                  bud_config_addr_t* addr);
 static bud_error_t bud_config_load_frontend(JSON_Object* obj,
-                                            const char* key,
                                             bud_config_frontend_t* frontend);
 static void bud_config_copy(bud_config_t* dst, bud_config_t* src);
 static void bud_config_destroy(bud_config_t* config);
@@ -165,9 +163,10 @@ void bud_config_copy(bud_config_t* dst, bud_config_t* src) {
   dst->path = src->path;
   dst->contexts = src->contexts;
   dst->restart_timeout = src->restart_timeout;
+  dst->backend = src->backend;
+  src->backend = NULL;
   memcpy(&dst->log, &src->log, sizeof(src->log));
   memcpy(&dst->frontend, &src->frontend, sizeof(src->frontend));
-  memcpy(&dst->backend, &src->backend, sizeof(src->backend));
   memcpy(&dst->sni, &src->sni, sizeof(src->sni));
   memcpy(&dst->stapling, &src->stapling, sizeof(src->stapling));
 }
@@ -224,12 +223,12 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
                               const char* path,
                               bud_error_t* err) {
   int i;
-  int context_count;
   JSON_Value* json;
   JSON_Value* val;
   JSON_Object* obj;
   JSON_Object* log;
   JSON_Array* contexts;
+  JSON_Array* backend;
   bud_config_t* config;
   bud_context_t* ctx;
 
@@ -258,13 +257,18 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     goto failed_alloc_path;
   }
 
-  /* Allocate contexts */
+  /* Allocate contexts and backends */
   contexts = json_object_get_array(obj, "contexts");
-  context_count = contexts == NULL ? 0 : json_array_get_count(contexts);
-  config->contexts = calloc(context_count + 1, sizeof(*config->contexts));
-  if (config->contexts == NULL) {
+  backend = json_object_get_array(obj, "backend");
+  config->context_count = contexts == NULL ? 0 : json_array_get_count(contexts);
+  config->backend_count = backend == NULL ? 0 : json_array_get_count(backend);
+  config->contexts = calloc(config->context_count + 1,
+                            sizeof(*config->contexts));
+  config->backend = calloc(config->backend_count, sizeof(*config->backend));
+
+  if (config->contexts == NULL || config->backend == NULL) {
     *err = bud_error_str(kBudErrNoMem, "bud_context_t");
-    goto failed_alloc_contexts;
+    goto failed_get_index;
   }
 
   config->loop = loop;
@@ -297,12 +301,20 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   }
 
   /* Frontend configuration */
-  *err = bud_config_load_frontend(obj, "frontend", &config->frontend);
+  *err = bud_config_load_frontend(json_object_get_object(obj, "frontend"),
+                                  &config->frontend);
   if (!bud_is_ok(*err))
     goto failed_get_index;
 
   /* Backend configuration */
-  bud_config_load_addr(obj, "backend", &config->backend);
+  if (config->backend_count == 0) {
+    *err = bud_error(kBudErrNoBackend);
+    goto failed_get_index;
+  }
+  for (i = 0; i < config->backend_count; i++) {
+    bud_config_load_addr(json_array_get_object(backend, i),
+                         (bud_config_addr_t*) &config->backend[i]);
+  }
 
   /* SNI configuration */
   bud_config_read_pool_conf(obj, "sni", &config->sni);
@@ -313,7 +325,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   /* SSL Contexts */
 
   /* TODO(indutny): sort them and do binary search */
-  for (i = 0; i < context_count; i++) {
+  for (i = 0; i < config->context_count; i++) {
     /* NOTE: contexts[0] - is a default context */
     ctx = &config->contexts[i + 1];
     obj = json_array_get_object(contexts, i);
@@ -334,7 +346,6 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     if (!bud_is_ok(*err))
       goto failed_get_index;
   }
-  config->context_count = context_count;
 
   bud_config_set_defaults(config);
 
@@ -344,8 +355,8 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
 failed_get_index:
   free(config->contexts);
   config->contexts = NULL;
-
-failed_alloc_contexts:
+  free(config->backend);
+  config->backend = NULL;
   free(config->path);
   config->path = NULL;
 
@@ -360,63 +371,56 @@ end:
 }
 
 
-void bud_config_load_addr(JSON_Object* obj,
-                          const char* key,
-                          bud_config_addr_t* addr) {
-  JSON_Object* addr_obj;
+void bud_config_load_addr(JSON_Object* obj, bud_config_addr_t* addr) {
   JSON_Value* val;
 
   /* Backend configuration */
-  addr_obj = json_object_get_object(obj, key);
   addr->keepalive = -1;
-  if (addr_obj == NULL)
+  if (obj == NULL)
     return;
 
-  addr->port = (uint16_t) json_object_get_number(addr_obj, "port");
-  addr->host = json_object_get_string(addr_obj, "host");
-  val = json_object_get_value(addr_obj, "keepalive");
+  addr->port = (uint16_t) json_object_get_number(obj, "port");
+  addr->host = json_object_get_string(obj, "host");
+  val = json_object_get_value(obj, "keepalive");
   if (val != NULL)
     addr->keepalive = json_value_get_number(val);
 }
 
 
 bud_error_t bud_config_load_frontend(JSON_Object* obj,
-                                     const char* key,
                                      bud_config_frontend_t* frontend) {
   bud_error_t err;
-  JSON_Object* frontend_obj;
   JSON_Value* val;
 
-  bud_config_load_addr(obj, key, (bud_config_addr_t*) frontend);
+  bud_config_load_addr(obj, (bud_config_addr_t*) frontend);
 
-  frontend_obj = json_object_get_object(obj, key);
   frontend->proxyline = -1;
   frontend->server_preference = -1;
   frontend->ssl3 = -1;
-  if (frontend == NULL)
+  if (obj == NULL)
     return bud_ok();
 
-  frontend->security = json_object_get_string(frontend_obj, "security");
-  frontend->ciphers = json_object_get_string(frontend_obj, "ciphers");
-  frontend->ecdh = json_object_get_string(frontend_obj, "ecdh");
-  frontend->cert_file = json_object_get_string(frontend_obj, "cert");
-  frontend->key_file = json_object_get_string(frontend_obj, "key");
-  frontend->reneg_window = json_object_get_number(frontend_obj, "reneg_window");
-  frontend->reneg_limit = json_object_get_number(frontend_obj, "reneg_limit");
+  frontend->security = json_object_get_string(obj, "security");
+  frontend->ciphers = json_object_get_string(obj, "ciphers");
+  frontend->ecdh = json_object_get_string(obj, "ecdh");
+  frontend->cert_file = json_object_get_string(obj, "cert");
+  frontend->key_file = json_object_get_string(obj, "key");
+  frontend->reneg_window = json_object_get_number(obj, "reneg_window");
+  frontend->reneg_limit = json_object_get_number(obj, "reneg_limit");
 
   /* Get and verify NPN */
-  frontend->npn = json_object_get_array(frontend_obj, "npn");
+  frontend->npn = json_object_get_array(obj, "npn");
   err = bud_config_verify_npn(frontend->npn);
   if (!bud_is_ok(err))
     goto fatal;
 
-  val = json_object_get_value(frontend_obj, "proxyline");
+  val = json_object_get_value(obj, "proxyline");
   if (val != NULL)
     frontend->proxyline = json_value_get_boolean(val);
-  val = json_object_get_value(frontend_obj, "server_preference");
+  val = json_object_get_value(obj, "server_preference");
   if (val != NULL)
     frontend->server_preference = json_value_get_boolean(val);
-  val = json_object_get_value(frontend_obj, "ssl3");
+  val = json_object_get_value(obj, "ssl3");
   if (val != NULL)
     frontend->ssl3 = json_value_get_boolean(val);
 
@@ -469,6 +473,9 @@ void bud_config_destroy(bud_config_t* config) {
 
   free(config->path);
   config->path = NULL;
+
+  free(config->backend);
+  config->backend = NULL;
 }
 
 
@@ -528,6 +535,7 @@ void bud_print_version() {
 
 void bud_config_print_default() {
   bud_config_t config;
+  bud_config_backend_t backend;
 
   memset(&config, 0, sizeof(config));
 
@@ -537,7 +545,8 @@ void bud_config_print_default() {
   config.log.syslog = -1;
   config.frontend.keepalive = -1;
   config.frontend.ssl3 = -1;
-  config.backend.keepalive = -1;
+  config.backend_count = 1;
+  config.backend = &backend;
   config.restart_timeout = -1;
 
   bud_config_set_defaults(&config);
@@ -584,11 +593,11 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"reneg_window\": %d,\n", config.frontend.reneg_window);
   fprintf(stdout, "    \"reneg_limit\": %d\n", config.frontend.reneg_limit);
   fprintf(stdout, "  },\n");
-  fprintf(stdout, "  \"backend\": {\n");
-  fprintf(stdout, "    \"port\": %d,\n", config.backend.port);
-  fprintf(stdout, "    \"host\": \"%s\",\n", config.backend.host);
-  fprintf(stdout, "    \"keepalive\": %d\n", config.backend.keepalive);
-  fprintf(stdout, "  },\n");
+  fprintf(stdout, "  \"backend\": [{\n");
+  fprintf(stdout, "    \"port\": %d,\n", config.backend[0].port);
+  fprintf(stdout, "    \"host\": \"%s\",\n", config.backend[0].host);
+  fprintf(stdout, "    \"keepalive\": %d\n", config.backend[0].keepalive);
+  fprintf(stdout, "  }],\n");
   fprintf(stdout, "  \"sni\": {\n");
   fprintf(stdout, "    \"enabled\": false,\n");
   fprintf(stdout, "    \"port\": %d,\n", config.sni.port);
@@ -613,6 +622,8 @@ void bud_config_print_default() {
     } while (0)
 
 void bud_config_set_defaults(bud_config_t* config) {
+  int i;
+
   DEFAULT(config->worker_count, -1, 1);
   DEFAULT(config->restart_timeout, -1, 250);
   DEFAULT(config->log.level, NULL, "info");
@@ -631,9 +642,11 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.key_file, NULL, "keys/key.pem");
   DEFAULT(config->frontend.reneg_window, 0, 600);
   DEFAULT(config->frontend.reneg_limit, 0, 3);
-  DEFAULT(config->backend.port, 0, 8000);
-  DEFAULT(config->backend.host, NULL, "127.0.0.1");
-  DEFAULT(config->backend.keepalive, -1, 3600);
+  for (i = 0; i < config->backend_count; i++) {
+    DEFAULT(config->backend[i].port, 0, 8000);
+    DEFAULT(config->backend[i].host, NULL, "127.0.0.1");
+    DEFAULT(config->backend[i].keepalive, -1, 3600);
+  }
 
   DEFAULT(config->sni.port, 0, 9000);
   DEFAULT(config->sni.host, NULL, "127.0.0.1");
@@ -929,24 +942,22 @@ bud_error_t bud_config_init(bud_config_t* config) {
   const char* key_file;
   BIO* cert_bio;
 
-  i = 0;
-
   /* Get addresses of frontend and backend */
   r = bud_config_str_to_addr(config->frontend.host,
                              config->frontend.port,
                              &config->frontend.addr);
-  if (r != 0) {
-    err = bud_error_num(kBudErrPton, r);
-    goto fatal;
+  if (r != 0)
+    return bud_error_num(kBudErrPton, r);
+
+  for (i = 0; i < config->backend_count; i++) {
+    r = bud_config_str_to_addr(config->backend[i].host,
+                               config->backend[i].port,
+                               &config->backend[i].addr);
+    if (r != 0)
+      return bud_error_num(kBudErrPton, r);
   }
 
-  r = bud_config_str_to_addr(config->backend.host,
-                             config->backend.port,
-                             &config->backend.addr);
-  if (r != 0) {
-    err = bud_error_num(kBudErrPton, r);
-    goto fatal;
-  }
+  i = 0;
 
   /* Get indexes for SSL_set_ex_data()/SSL_get_ex_data() */
   if (kBudSSLClientIndex == -1) {
@@ -1258,4 +1269,21 @@ fatal:
     X509_free(x);
 
   return ret;
+}
+
+
+bud_config_backend_t* uv_config_select_backend(bud_config_t* config) {
+  bud_config_backend_t* res;
+  int first;
+
+  first = config->last_backend;
+  do {
+    res = &config->backend[config->last_backend];
+    config->last_backend = (config->last_backend + 1) % config->backend_count;
+  } while (res->dead && config->last_backend != first);
+
+  if (res->dead)
+    return NULL;
+
+  return res;
 }

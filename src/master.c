@@ -79,11 +79,16 @@ bud_error_t bud_master(bud_config_t* config) {
   if (bud_is_ok(err)) {
     bud_log(config,
             kBudLogInfo,
-            "bud listening on [%s]:%d and forwarding to [%s]:%d",
+            "bud listening on [%s]:%d and...",
             config->frontend.host,
-            config->frontend.port,
-            config->backend.host,
-            config->backend.port);
+            config->frontend.port);
+    for (i = 0; i < config->backend_count; i++) {
+      bud_log(config,
+              kBudLogInfo,
+              "...forwarding to: [%s]:%d",
+              config->backend[i].host,
+              config->backend[i].port);
+    }
   }
 
 fatal:

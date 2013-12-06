@@ -23,6 +23,7 @@ typedef struct bud_context_s bud_context_t;
 typedef struct bud_config_http_pool_s bud_config_http_pool_t;
 typedef struct bud_config_s bud_config_t;
 typedef struct bud_config_addr_s bud_config_addr_t;
+typedef struct bud_config_backend_s bud_config_backend_t;
 typedef struct bud_config_frontend_s bud_config_frontend_t;
 
 int kBudSSLClientIndex;
@@ -67,6 +68,7 @@ struct bud_config_frontend_s {
   /* Inheritance */
   BUD_CONFIG_ADDR_FIELDS
 
+  /* Public */
   int proxyline;
   const char* security;
   int server_preference;
@@ -78,7 +80,17 @@ struct bud_config_frontend_s {
   int reneg_window;
   int reneg_limit;
   int ssl3;
+
+  /* Internal */
   const SSL_METHOD* method;
+};
+
+struct bud_config_backend_s {
+  /* Inheritance */
+  BUD_CONFIG_ADDR_FIELDS
+
+  /* Internal */
+  int dead;
 };
 
 #undef BUD_CONFIG_ADDR_FIELDS
@@ -139,7 +151,9 @@ struct bud_config_s {
   } log;
 
   bud_config_frontend_t frontend;
-  bud_config_addr_t backend;
+  bud_config_backend_t* backend;
+  int backend_count;
+  int last_backend;
 
   bud_config_http_pool_t sni;
   bud_config_http_pool_t stapling;
@@ -173,6 +187,9 @@ const char* bud_context_get_ocsp_req(bud_context_t* context,
                                      size_t* size,
                                      char** ocsp_request,
                                      size_t* ocsp_request_len);
+
+/* Helper for client.c */
+bud_config_backend_t* uv_config_select_backend(bud_config_t* config);
 
 /* Helper for http-pool.c */
 int bud_config_str_to_addr(const char* host,
