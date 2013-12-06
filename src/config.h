@@ -22,6 +22,8 @@ struct bud_http_pool_s;
 typedef struct bud_context_s bud_context_t;
 typedef struct bud_config_http_pool_s bud_config_http_pool_t;
 typedef struct bud_config_s bud_config_t;
+typedef struct bud_config_addr_s bud_config_addr_t;
+typedef struct bud_config_frontend_s bud_config_frontend_t;
 
 int kBudSSLClientIndex;
 int kBudSSLSNIIndex;
@@ -49,6 +51,37 @@ struct bud_context_s {
   const char* ocsp_url;
   size_t ocsp_url_len;
 };
+
+#define BUD_CONFIG_ADDR_FIELDS                                                \
+    uint16_t port;                                                            \
+    const char* host;                                                         \
+    int keepalive;                                                            \
+    /* internal */                                                            \
+    struct sockaddr_storage addr;
+
+struct bud_config_addr_s {
+  BUD_CONFIG_ADDR_FIELDS
+};
+
+struct bud_config_frontend_s {
+  /* Inheritance */
+  BUD_CONFIG_ADDR_FIELDS
+
+  int proxyline;
+  const char* security;
+  int server_preference;
+  const JSON_Array* npn;
+  const char* ciphers;
+  const char* ecdh;
+  const char* cert_file;
+  const char* key_file;
+  int reneg_window;
+  int reneg_limit;
+  int ssl3;
+  const SSL_METHOD* method;
+};
+
+#undef BUD_CONFIG_ADDR_FIELDS
 
 struct bud_config_http_pool_s {
   int enabled;
@@ -105,35 +138,8 @@ struct bud_config_s {
     int syslog;
   } log;
 
-  struct {
-    uint16_t port;
-    const char* host;
-    int proxyline;
-    int keepalive;
-    const char* security;
-    int server_preference;
-    const JSON_Array* npn;
-    const char* ciphers;
-    const char* ecdh;
-    const char* cert_file;
-    const char* key_file;
-    int reneg_window;
-    int reneg_limit;
-    int ssl3;
-
-    /* internal */
-    struct sockaddr_storage addr;
-    const SSL_METHOD* method;
-  } frontend;
-
-  struct {
-    uint16_t port;
-    const char* host;
-    int keepalive;
-
-    /* internal */
-    struct sockaddr_storage addr;
-  } backend;
+  bud_config_frontend_t frontend;
+  bud_config_addr_t backend;
 
   bud_config_http_pool_t sni;
   bud_config_http_pool_t stapling;

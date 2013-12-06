@@ -22,6 +22,12 @@
 #include "version.h"
 
 static bud_error_t bud_config_init(bud_config_t* config);
+static void bud_config_load_addr(JSON_Object* obj,
+                                 const char* key,
+                                 bud_config_addr_t* addr);
+static bud_error_t bud_config_load_frontend(JSON_Object* obj,
+                                            const char* key,
+                                            bud_config_frontend_t* frontend);
 static void bud_config_copy(bud_config_t* dst, bud_config_t* src);
 static void bud_config_destroy(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
@@ -223,8 +229,6 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   JSON_Value* val;
   JSON_Object* obj;
   JSON_Object* log;
-  JSON_Object* frontend;
-  JSON_Object* backend;
   JSON_Array* contexts;
   bud_config_t* config;
   bud_context_t* ctx;
@@ -293,54 +297,12 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   }
 
   /* Frontend configuration */
-
-  frontend = json_object_get_object(obj, "frontend");
-  config->frontend.proxyline = -1;
-  config->frontend.keepalive = -1;
-  config->frontend.server_preference = -1;
-  config->frontend.ssl3 = -1;
-  if (frontend != NULL) {
-    config->frontend.port = (uint16_t) json_object_get_number(frontend, "port");
-    config->frontend.host = json_object_get_string(frontend, "host");
-    config->frontend.security = json_object_get_string(frontend, "security");
-    config->frontend.npn = json_object_get_array(frontend, "npn");
-    config->frontend.ciphers = json_object_get_string(frontend, "ciphers");
-    config->frontend.ecdh = json_object_get_string(frontend, "ecdh");
-    config->frontend.cert_file = json_object_get_string(frontend, "cert");
-    config->frontend.key_file = json_object_get_string(frontend, "key");
-    config->frontend.reneg_window = json_object_get_number(frontend,
-                                                           "reneg_window");
-    config->frontend.reneg_limit = json_object_get_number(frontend,
-                                                          "reneg_limit");
-
-    *err = bud_config_verify_npn(config->frontend.npn);
-    if (!bud_is_ok(*err))
-      goto failed_get_index;
-
-    val = json_object_get_value(frontend, "proxyline");
-    if (val != NULL)
-      config->frontend.proxyline = json_value_get_boolean(val);
-    val = json_object_get_value(frontend, "keepalive");
-    if (val != NULL)
-      config->frontend.keepalive = json_value_get_number(val);
-    val = json_object_get_value(frontend, "server_preference");
-    if (val != NULL)
-      config->frontend.server_preference = json_value_get_boolean(val);
-    val = json_object_get_value(frontend, "ssl3");
-    if (val != NULL)
-      config->frontend.ssl3 = json_value_get_boolean(val);
-  }
+  *err = bud_config_load_frontend(obj, "frontend", &config->frontend);
+  if (!bud_is_ok(*err))
+    goto failed_get_index;
 
   /* Backend configuration */
-  backend = json_object_get_object(obj, "backend");
-  config->backend.keepalive = -1;
-  if (backend != NULL) {
-    config->backend.port = (uint16_t) json_object_get_number(backend, "port");
-    config->backend.host = json_object_get_string(backend, "host");
-    val = json_object_get_value(backend, "keepalive");
-    if (val != NULL)
-      config->backend.keepalive = json_value_get_number(val);
-  }
+  bud_config_load_addr(obj, "backend", &config->backend);
 
   /* SNI configuration */
   bud_config_read_pool_conf(obj, "sni", &config->sni);
@@ -395,6 +357,71 @@ failed_get_object:
 
 end:
   return NULL;
+}
+
+
+void bud_config_load_addr(JSON_Object* obj,
+                          const char* key,
+                          bud_config_addr_t* addr) {
+  JSON_Object* addr_obj;
+  JSON_Value* val;
+
+  /* Backend configuration */
+  addr_obj = json_object_get_object(obj, key);
+  addr->keepalive = -1;
+  if (addr_obj == NULL)
+    return;
+
+  addr->port = (uint16_t) json_object_get_number(addr_obj, "port");
+  addr->host = json_object_get_string(addr_obj, "host");
+  val = json_object_get_value(addr_obj, "keepalive");
+  if (val != NULL)
+    addr->keepalive = json_value_get_number(val);
+}
+
+
+bud_error_t bud_config_load_frontend(JSON_Object* obj,
+                                     const char* key,
+                                     bud_config_frontend_t* frontend) {
+  bud_error_t err;
+  JSON_Object* frontend_obj;
+  JSON_Value* val;
+
+  bud_config_load_addr(obj, key, (bud_config_addr_t*) frontend);
+
+  frontend_obj = json_object_get_object(obj, key);
+  frontend->proxyline = -1;
+  frontend->server_preference = -1;
+  frontend->ssl3 = -1;
+  if (frontend == NULL)
+    return bud_ok();
+
+  frontend->security = json_object_get_string(frontend_obj, "security");
+  frontend->ciphers = json_object_get_string(frontend_obj, "ciphers");
+  frontend->ecdh = json_object_get_string(frontend_obj, "ecdh");
+  frontend->cert_file = json_object_get_string(frontend_obj, "cert");
+  frontend->key_file = json_object_get_string(frontend_obj, "key");
+  frontend->reneg_window = json_object_get_number(frontend_obj, "reneg_window");
+  frontend->reneg_limit = json_object_get_number(frontend_obj, "reneg_limit");
+
+  /* Get and verify NPN */
+  frontend->npn = json_object_get_array(frontend_obj, "npn");
+  err = bud_config_verify_npn(frontend->npn);
+  if (!bud_is_ok(err))
+    goto fatal;
+
+  val = json_object_get_value(frontend_obj, "proxyline");
+  if (val != NULL)
+    frontend->proxyline = json_value_get_boolean(val);
+  val = json_object_get_value(frontend_obj, "server_preference");
+  if (val != NULL)
+    frontend->server_preference = json_value_get_boolean(val);
+  val = json_object_get_value(frontend_obj, "ssl3");
+  if (val != NULL)
+    frontend->ssl3 = json_value_get_boolean(val);
+
+fatal:
+  return err;
 }
 
 
