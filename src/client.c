@@ -430,7 +430,7 @@ void bud_client_parse_hello(bud_client_t* client) {
   /* Parse success, perform SNI lookup */
   if (config->sni.enabled && client->hello.servername_len != 0) {
     client->sni_req = bud_http_get(config->sni.pool,
-                                   config->sni.query_fmt,
+                                   config->sni.url,
                                    client->hello.servername,
                                    client->hello.servername_len,
                                    bud_client_sni_cb,

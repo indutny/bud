@@ -55,7 +55,7 @@ bud_error_t bud_client_ocsp_stapling(bud_client_t* client) {
 
   /* Request backend for cached respose first */
   client->stapling_cache_req = bud_http_get(config->stapling.pool,
-                                            config->stapling.query_fmt,
+                                            config->stapling.url,
                                             id,
                                             id_size,
                                             bud_client_stapling_cache_req_cb,
@@ -140,7 +140,7 @@ void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
 
   /* Request OCSP response */
   client->stapling_req = bud_http_post(config->stapling.pool,
-                                       config->stapling.query_fmt,
+                                       config->stapling.url,
                                        id,
                                        id_size,
                                        json,

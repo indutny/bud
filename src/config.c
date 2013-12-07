@@ -439,7 +439,7 @@ void bud_config_read_pool_conf(JSON_Object* obj,
     pool->enabled = json_object_get_boolean(p, "enabled");
     pool->port = (uint16_t) json_object_get_number(p, "port");
     pool->host = json_object_get_string(p, "host");
-    pool->query_fmt = json_object_get_string(p, "query");
+    pool->url = json_object_get_string(p, "url");
   }
 }
 
@@ -603,13 +603,13 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"enabled\": false,\n");
   fprintf(stdout, "    \"port\": %d,\n", config.sni.port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.sni.host);
-  fprintf(stdout, "    \"query\": \"%s\"\n", config.sni.query_fmt);
+  fprintf(stdout, "    \"url\": \"%s\"\n", config.sni.url);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"stapling\": {\n");
   fprintf(stdout, "    \"enabled\": false,\n");
   fprintf(stdout, "    \"port\": %d,\n", config.stapling.port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.stapling.host);
-  fprintf(stdout, "    \"query\": \"%s\"\n", config.stapling.query_fmt);
+  fprintf(stdout, "    \"url\": \"%s\"\n", config.stapling.url);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"contexts\": []\n");
   fprintf(stdout, "}\n");
@@ -651,10 +651,10 @@ void bud_config_set_defaults(bud_config_t* config) {
 
   DEFAULT(config->sni.port, 0, 9000);
   DEFAULT(config->sni.host, NULL, "127.0.0.1");
-  DEFAULT(config->sni.query_fmt, NULL, "/bud/sni/%s");
+  DEFAULT(config->sni.url, NULL, "/bud/sni/%s");
   DEFAULT(config->stapling.port, 0, 9000);
   DEFAULT(config->stapling.host, NULL, "127.0.0.1");
-  DEFAULT(config->stapling.query_fmt, NULL, "/bud/stapling/%s");
+  DEFAULT(config->stapling.url, NULL, "/bud/stapling/%s");
 }
 
 #undef DEFAULT

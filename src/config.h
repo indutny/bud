@@ -53,6 +53,17 @@ struct bud_context_s {
   size_t ocsp_url_len;
 };
 
+struct bud_config_http_pool_s {
+  int enabled;
+
+  uint16_t port;
+  const char* host;
+  const char* url;
+
+  /* internal */
+  struct bud_http_pool_s* pool;
+};
+
 #define BUD_CONFIG_ADDR_FIELDS                                                \
     uint16_t port;                                                            \
     const char* host;                                                         \
@@ -94,17 +105,6 @@ struct bud_config_backend_s {
 };
 
 #undef BUD_CONFIG_ADDR_FIELDS
-
-struct bud_config_http_pool_s {
-  int enabled;
-
-  uint16_t port;
-  const char* host;
-  const char* query_fmt;
-
-  /* internal */
-  struct bud_http_pool_s* pool;
-};
 
 struct bud_config_s {
   /* Internal, just to keep stuff allocated */
