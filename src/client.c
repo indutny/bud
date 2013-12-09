@@ -944,6 +944,10 @@ void bud_client_connect_close_cb(uv_handle_t* handle) {
 bud_error_t bud_client_retry(bud_client_t* client) {
   int r;
 
+  /* Client closing can't retry */
+  if (client->close != kBudProgressNone)
+    return bud_error(kBudErrRetryAfterClose);
+
   if (++client->retry_count > client->config->availability.max_retries) {
     WARNING_LN(&client->backend, "Retried too many times");
     return bud_error(kBudErrMaxRetries);
@@ -994,6 +998,10 @@ int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side) {
 
   /* Ignore if already shutdown or destroyed */
   if (side->shutdown || client->close == kBudProgressDone)
+    return 0;
+
+  /* Do not shutdown not-connected socket */
+  if (side == &client->backend && client->connect != kBudProgressDone)
     return 0;
 
   side->shutdown = kBudProgressNone;

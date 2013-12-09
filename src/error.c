@@ -141,6 +141,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("Tried hard, but failed to reconnect", NULL)                  \
     case kBudErrRetryTimerStart:                                              \
       BUD_UV_ERROR("uv_read_start(retry_timer)", err)                         \
+    case kBudErrRetryAfterClose:                                              \
+      BUD_ERROR("Closed, can\'t retry", NULL)                                 \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }

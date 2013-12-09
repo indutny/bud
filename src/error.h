@@ -70,7 +70,8 @@ enum bud_error_code_e {
 
   /* Availability */
   kBudErrMaxRetries = 0x700,
-  kBudErrRetryTimerStart = 0x701
+  kBudErrRetryTimerStart = 0x701,
+  kBudErrRetryAfterClose = 0x702
 };
 
 struct bud_error_s {
