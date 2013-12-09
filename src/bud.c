@@ -1,3 +1,6 @@
+#ifndef _WIN32
+# include <signal.h>  /* signal */
+#endif  /* !_WIN32 */
 #include <stdio.h>  /* stderr */
 #include <stdlib.h>  /* NULL */
 
@@ -15,6 +18,11 @@ static void bud_init_openssl();
 int main(int argc, char** argv) {
   bud_config_t* config;
   bud_error_t err;
+
+#ifndef _WIN32
+  /* Ignore SIGPIPE */
+  signal(SIGPIPE, SIG_IGN);
+#endif  /* !_WIN32 */
 
   bud_init_openssl();
 
