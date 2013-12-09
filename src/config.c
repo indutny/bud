@@ -1374,6 +1374,10 @@ void bud_config_kill_backend(bud_config_t* config,
                              bud_config_backend_t* backend) {
   int r;
 
+  /* If there're no reviving - there are no death */
+  if (config->availability.revive_interval == 0)
+    return;
+
   /* Already waiting for revival */
   if (backend->revive_timer != NULL)
     return;
