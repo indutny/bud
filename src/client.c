@@ -229,6 +229,8 @@ bud_client_side_t* bud_client_side_by_tcp(bud_client_t* client, uv_tcp_t* tcp) {
 
 
 void bud_client_close(bud_client_t* client, bud_client_side_t* side) {
+  DBG_LN(side, "bud_client_close()");
+
   if (client->close == kBudProgressRunning) {
     /* Force close, even if waiting */
     if (side->close == kBudProgressRunning) {
