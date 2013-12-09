@@ -1058,7 +1058,7 @@ void bud_client_shutdown_cb(uv_shutdown_t* req, int status) {
     DBG_LN(side, "shutdown cb");
   }
 
-  if (side->close == kBudProgressRunning)
+  if (side->close == kBudProgressRunning || status != 0)
     bud_client_close(client, side);
 }
 
