@@ -865,6 +865,7 @@ int bud_client_connect(bud_client_t* client) {
 
 failed_connect:
   uv_close((uv_handle_t*) &client->backend.tcp, bud_client_close_cb);
+  client->backend.close = kBudProgressDone;
 
   /* TODO(indutny): report errors */
   return r;
