@@ -60,6 +60,21 @@ to get default configuration options (with comments and description below):
     "syslog": true
   },
 
+  // Availability configuration
+  "availability": {
+    // Maximum number of backend reconnects before giving up
+    "max_retries": 5,
+
+    // Time between retries
+    "retry_interval": 250,
+
+    // How long backend should not be responding until considered to bedead
+    "death_timeout": 1000,
+
+    // Timeout after which it should be revived
+    "revive_interval": 2500
+  },
+
   // Frontend configuration (i.e. TLS/SSL server)
   "frontend": {
     "port": 1443,
