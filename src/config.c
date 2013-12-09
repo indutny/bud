@@ -50,6 +50,9 @@ static int bud_config_advertise_next_proto(SSL* s,
                                            void* arg);
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 static bud_error_t bud_config_verify_npn(const JSON_Array* npn);
+static void bud_config_kill_backend(bud_config_t* config,
+                                    bud_config_backend_t* backend);
+static void bud_config_revive_backend(uv_timer_t* timer, int status);
 
 
 int kBudSSLClientIndex = -1;
@@ -166,6 +169,7 @@ void bud_config_copy(bud_config_t* dst, bud_config_t* src) {
   dst->backend = src->backend;
   src->backend = NULL;
   memcpy(&dst->log, &src->log, sizeof(src->log));
+  memcpy(&dst->availability, &src->availability, sizeof(src->availability));
   memcpy(&dst->frontend, &src->frontend, sizeof(src->frontend));
   memcpy(&dst->sni, &src->sni, sizeof(src->sni));
   memcpy(&dst->stapling, &src->stapling, sizeof(src->stapling));
@@ -227,6 +231,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   JSON_Value* val;
   JSON_Object* obj;
   JSON_Object* log;
+  JSON_Object* avail;
   JSON_Array* contexts;
   JSON_Array* backend;
   bud_config_t* config;
@@ -300,6 +305,27 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
       config->log.syslog = json_value_get_boolean(val);
   }
 
+  /* Availability configuration */
+  avail = json_object_get_object(obj, "availability");
+  config->availability.death_timeout = -1;
+  config->availability.revive_interval = -1;
+  config->availability.retry_interval = -1;
+  config->availability.max_retries = -1;
+  if (avail != NULL) {
+    val = json_object_get_value(avail, "death_timeout");
+    if (val != NULL)
+      config->availability.death_timeout = json_value_get_number(val);
+    val = json_object_get_value(avail, "revive_interval");
+    if (val != NULL)
+      config->availability.revive_interval = json_value_get_number(val);
+    val = json_object_get_value(avail, "retry_interval");
+    if (val != NULL)
+      config->availability.retry_interval = json_value_get_number(val);
+    val = json_object_get_value(avail, "max_retries");
+    if (val != NULL)
+      config->availability.max_retries = json_value_get_number(val);
+  }
+
   /* Frontend configuration */
   *err = bud_config_load_frontend(json_object_get_object(obj, "frontend"),
                                   &config->frontend);
@@ -314,6 +340,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   for (i = 0; i < config->backend_count; i++) {
     bud_config_load_addr(json_array_get_object(backend, i),
                          (bud_config_addr_t*) &config->backend[i]);
+    config->backend[i].config = config;
   }
 
   /* SNI configuration */
@@ -474,6 +501,13 @@ void bud_config_destroy(bud_config_t* config) {
   free(config->path);
   config->path = NULL;
 
+  for (i = 0; i < config->backend_count; i++) {
+    if (config->backend[i].revive_timer != NULL) {
+      uv_close((uv_handle_t*) config->backend[i].revive_timer,
+               (uv_close_cb) free);
+      config->backend[i].revive_timer = NULL;
+    }
+  }
   free(config->backend);
   config->backend = NULL;
 }
@@ -549,6 +583,10 @@ void bud_config_print_default() {
   config.backend = &backend;
   config.backend[0].keepalive = -1;
   config.restart_timeout = -1;
+  config.availability.death_timeout = -1;
+  config.availability.revive_interval = -1;
+  config.availability.retry_interval = -1;
+  config.availability.max_retries = -1;
 
   bud_config_set_defaults(&config);
 
@@ -565,6 +603,20 @@ void bud_config_print_default() {
   fprintf(stdout,
           "    \"syslog\": %s\n",
           config.log.syslog ? "true" : "false");
+  fprintf(stdout, "  },\n");
+  fprintf(stdout, "  \"availability\": {\n");
+  fprintf(stdout,
+      "    \"death_timeout\": %d,\n",
+          config.availability.death_timeout);
+  fprintf(stdout,
+          "    \"revive_interval\": %d,\n",
+          config.availability.revive_interval);
+  fprintf(stdout,
+          "    \"retry_interval\": %d,\n",
+          config.availability.retry_interval);
+  fprintf(stdout,
+          "    \"max_retries\": %d\n",
+          config.availability.max_retries);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"frontend\": {\n");
   fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
@@ -631,6 +683,10 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->log.facility, NULL, "user");
   DEFAULT(config->log.stdio, -1, 1);
   DEFAULT(config->log.syslog, -1, 0);
+  DEFAULT(config->availability.death_timeout, -1, 1000);
+  DEFAULT(config->availability.revive_interval, -1, 2500);
+  DEFAULT(config->availability.retry_interval, -1, 250);
+  DEFAULT(config->availability.max_retries, -1, 5);
   DEFAULT(config->frontend.port, 0, 1443);
   DEFAULT(config->frontend.host, NULL, "0.0.0.0");
   DEFAULT(config->frontend.proxyline, -1, 0);
@@ -1273,18 +1329,106 @@ fatal:
 }
 
 
-bud_config_backend_t* uv_config_select_backend(bud_config_t* config) {
+bud_config_backend_t* bud_config_select_backend(bud_config_t* config) {
   bud_config_backend_t* res;
   int first;
+  uint64_t now;
+  uint64_t death_timeout;
+
+  now = uv_now(config->loop);
+  death_timeout = (uint64_t) config->availability.death_timeout;
 
   first = config->last_backend;
   do {
     res = &config->backend[config->last_backend];
-    config->last_backend = (config->last_backend + 1) % config->backend_count;
+
+    /*
+     * Mark backend as dead if it isn't responding for a significant
+     * amount of time
+     */
+    if (!res->dead && res->dead_since != 0) {
+      if (now - res->last_checked < death_timeout &&
+          now - res->dead_since > death_timeout) {
+        bud_config_kill_backend(config, res);
+      }
+    }
+
+    config->last_backend++;
+    config->last_backend %= config->backend_count;
   } while (res->dead && config->last_backend != first);
 
-  if (res->dead)
-    return NULL;
+  /* All dead.
+   * Make sure we make progress when selecting backends.
+   */
+  if (res->dead) {
+    res = &config->backend[config->last_backend];
+    config->last_backend++;
+    config->last_backend %= config->backend_count;
+  }
 
   return res;
+}
+
+
+void bud_config_kill_backend(bud_config_t* config,
+                             bud_config_backend_t* backend) {
+  int r;
+
+  /* Already waiting for revival */
+  if (backend->revive_timer != NULL)
+    return;
+
+  backend->revive_timer = malloc(sizeof(*backend->revive_timer));
+  if (backend->revive_timer == NULL)
+    return;
+
+  r = uv_timer_init(config->loop, backend->revive_timer);
+  if (r != 0)
+    goto failed_init;
+  backend->revive_timer->data = backend;
+  r = uv_timer_start(backend->revive_timer,
+                     bud_config_revive_backend,
+                     config->availability.revive_interval,
+                     0);
+  if (r != 0)
+    goto failed_start;
+
+
+  bud_log(config,
+          kBudLogWarning,
+          "Killed backend %s:%d",
+          backend->host,
+          backend->port);
+  backend->dead = 1;
+  return;
+
+failed_start:
+  uv_close((uv_handle_t*) backend->revive_timer, (uv_close_cb) free);
+  backend->revive_timer = NULL;
+  return;
+
+failed_init:
+  free(backend->revive_timer);
+  backend->revive_timer = NULL;
+}
+
+
+void bud_config_revive_backend(uv_timer_t* timer, int status) {
+  bud_config_backend_t* backend;
+
+  if (status == UV_ECANCELED)
+    return;
+
+  /* Ignore errors */
+  backend = timer->data;
+  backend->dead = 0;
+  backend->dead_since = 0;
+  uv_close((uv_handle_t*) backend->revive_timer, (uv_close_cb) free);
+  backend->revive_timer = NULL;
+
+  bud_log(backend->config,
+          kBudLogWarning,
+          "Reviving backend %s:%d",
+          backend->host,
+          backend->port);
 }

@@ -101,7 +101,11 @@ struct bud_config_backend_s {
   BUD_CONFIG_ADDR_FIELDS
 
   /* Internal */
+  bud_config_t* config;
   int dead;
+  uint64_t last_checked;
+  uint64_t dead_since;
+  uv_timer_t* revive_timer;
 };
 
 #undef BUD_CONFIG_ADDR_FIELDS
@@ -150,6 +154,13 @@ struct bud_config_s {
     int syslog;
   } log;
 
+  struct {
+    int death_timeout;
+    int revive_interval;
+    int retry_interval;
+    int max_retries;
+  } availability;
+
   bud_config_frontend_t frontend;
   bud_config_backend_t* backend;
   int backend_count;
@@ -189,7 +200,7 @@ const char* bud_context_get_ocsp_req(bud_context_t* context,
                                      size_t* ocsp_request_len);
 
 /* Helper for client.c */
-bud_config_backend_t* uv_config_select_backend(bud_config_t* config);
+bud_config_backend_t* bud_config_select_backend(bud_config_t* config);
 
 /* Helper for http-pool.c */
 int bud_config_str_to_addr(const char* host,

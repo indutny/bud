@@ -137,6 +137,10 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("http_req's unexpected eof", NULL)                            \
     case kBudErrStaplingSetData:                                              \
       BUD_ERROR("SSL_set_ex_data(stapling ctx) failed", NULL)                 \
+    case kBudErrMaxRetries:                                                   \
+      BUD_ERROR("Tried hard, but failed to reconnect", NULL)                  \
+    case kBudErrRetryTimerStart:                                              \
+      BUD_UV_ERROR("uv_read_start(retry_timer)", err)                         \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }

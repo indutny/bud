@@ -11,6 +11,7 @@
 
 /* Forward declaration */
 struct bud_config_s;
+struct bud_config_backend_s;
 
 typedef struct bud_client_s bud_client_t;
 typedef struct bud_client_side_s bud_client_side_t;
@@ -79,6 +80,12 @@ struct bud_client_s {
   bud_http_request_t* stapling_req;
   char* stapling_ocsp_resp;
   size_t stapling_ocsp_resp_len;
+
+  /* Availability */
+  bud_client_progress_t retry;
+  struct bud_config_backend_s* selected_backend;
+  uv_timer_t retry_timer;
+  int retry_count;
 };
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream);

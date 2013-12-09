@@ -66,7 +66,11 @@ enum bud_error_code_e {
   kBudErrHttpEof = 0x508,
 
   /* Stapling */
-  kBudErrStaplingSetData = 0x600
+  kBudErrStaplingSetData = 0x600,
+
+  /* Availability */
+  kBudErrMaxRetries = 0x700,
+  kBudErrRetryTimerStart = 0x701
 };
 
 struct bud_error_s {
