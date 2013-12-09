@@ -848,18 +848,23 @@ int bud_client_connect(bud_client_t* client) {
   if (r == 0 && backend->keepalive > 0)
     r = uv_tcp_keepalive(&client->backend.tcp, 1, backend->keepalive);
   if (r != 0)
-    goto fatal;
+    goto failed_connect;
 
   r = uv_tcp_connect(&client->connect_req,
                      &client->backend.tcp,
                      (struct sockaddr*) &backend->addr,
                      bud_client_connect_cb);
   if (r != 0)
-    goto fatal;
+    goto failed_connect;
 
   client->connect = kBudProgressRunning;
 
-fatal:
+  return r;
+
+failed_connect:
+  uv_close((uv_handle_t*) &client->backend.tcp, bud_client_close_cb);
+
+  /* TODO(indutny): report errors */
   return r;
 }
 
