@@ -973,6 +973,7 @@ bud_error_t bud_client_retry(bud_client_t* client) {
 
 void bud_client_retry_cb(uv_timer_t* timer, int status) {
   int r;
+  bud_error_t err;
   bud_client_t* client;
 
   if (status == UV_ECANCELED)
@@ -980,6 +981,19 @@ void bud_client_retry_cb(uv_timer_t* timer, int status) {
 
   client = timer->data;
   client->retry = kBudProgressDone;
+
+  /* Backend still dead, try again */
+  if (client->selected_backend->dead) {
+    err = bud_client_retry(client);
+    if (!bud_is_ok(err)) {
+      WARNING(&client->backend,
+              "bud_client_retry() failed: %d - \"%s\"",
+              err.code,
+              err.str);
+      bud_client_close(client, &client->backend);
+    }
+    return;
+  }
 
   r = status;
   if (r == 0)
