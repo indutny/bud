@@ -1020,8 +1020,10 @@ bud_error_t bud_config_init(bud_config_t* config) {
   if (kBudSSLClientIndex == -1) {
     kBudSSLClientIndex = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
     kBudSSLSNIIndex = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
-    if (kBudSSLClientIndex == -1 || kBudSSLSNIIndex == -1)
+    if (kBudSSLClientIndex == -1 || kBudSSLSNIIndex == -1) {
+      err = bud_error(kBudErrNoSSLIndex);
       goto fatal;
+    }
   }
 
 #ifndef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB

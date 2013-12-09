@@ -28,6 +28,7 @@ enum bud_error_code_e {
   kBudErrExePath = 0x109,
   kBudErrECDHNotFound = 0x10a,
   kBudErrNoBackend = 0x10b,
+  kBudErrNoSSLIndex = 0x10c,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,

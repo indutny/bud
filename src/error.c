@@ -79,6 +79,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("ECDH curve \"%s\" not found", err.str)                       \
     case kBudErrNoBackend:                                                    \
       BUD_ERROR("Empty \"backend\" array, or \"backend\" is not array")       \
+    case kBudErrNoSSLIndex:                                                   \
+      BUD_ERROR("SSL_get_ex_new_index failed")                                \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \
@@ -134,15 +136,15 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
     case kBudErrHttpParse:                                                    \
       BUD_ERROR("http_req's body parse failed %s", err.str)                   \
     case kBudErrHttpEof:                                                      \
-      BUD_ERROR("http_req's unexpected eof", NULL)                            \
+      BUD_ERROR("http_req's unexpected eof")                                  \
     case kBudErrStaplingSetData:                                              \
-      BUD_ERROR("SSL_set_ex_data(stapling ctx) failed", NULL)                 \
+      BUD_ERROR("SSL_set_ex_data(stapling ctx) failed")                       \
     case kBudErrMaxRetries:                                                   \
-      BUD_ERROR("Tried hard, but failed to reconnect", NULL)                  \
+      BUD_ERROR("Tried hard, but failed to reconnect")                        \
     case kBudErrRetryTimerStart:                                              \
       BUD_UV_ERROR("uv_read_start(retry_timer)", err)                         \
     case kBudErrRetryAfterClose:                                              \
-      BUD_ERROR("Closed, can\'t retry", NULL)                                 \
+      BUD_ERROR("Closed, can\'t retry")                                       \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }

@@ -38,12 +38,6 @@ BIO* bud_bio_new(ringbuffer* buffer) {
 }
 
 
-ringbuffer* bud_bio_get_buffer(BIO* bio) {
-  ASSERT(bio->ptr != NULL, "Used bio after free");
-  return bio->ptr;
-}
-
-
 int bud_bio_init(BIO* bio) {
   bio->shutdown = 1;
   bio->init = 1;
