@@ -769,7 +769,8 @@ void bud_client_send_cb(uv_write_t* req, int status) {
            status,
            uv_strerror(status));
     side->write = kBudProgressDone;
-    return bud_client_close(client, side);
+    bud_client_close(client, side);
+    goto done;
   }
 
   /* Consume written data */
@@ -801,7 +802,8 @@ void bud_client_send_cb(uv_write_t* req, int status) {
                "uv_read_start() failed: %d - \"%s\"",
                r,
                uv_strerror(r));
-        return bud_client_close(client, opposite);
+        bud_client_close(client, opposite);
+        goto done;
       }
       opposite->reading = kBudProgressRunning;
     }
@@ -813,7 +815,7 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   if (side->close == kBudProgressRunning ||
       side->shutdown == kBudProgressRunning) {
     if (!ringbuffer_is_empty(&side->output))
-      return;
+      goto done;
 
     /* No new data, destroy or shutdown */
     if (side->shutdown == kBudProgressRunning)
