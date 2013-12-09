@@ -178,7 +178,6 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
       goto failed_connect;
   }
 
-  client->destroy_waiting = 3;
   DBG_LN(&client->frontend, "new");
   return;
 
