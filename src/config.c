@@ -571,6 +571,7 @@ void bud_config_print_default() {
   bud_config_t config;
   bud_config_backend_t backend;
 
+  memset(&backend, 0, sizeof(backend));
   memset(&config, 0, sizeof(config));
 
   /* Set zero-y values */
