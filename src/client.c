@@ -1131,7 +1131,7 @@ int bud_client_prepend_proxyline(bud_client_t* client) {
                ntohs(port));
   ASSERT(r < (int) sizeof(proxyline), "Client proxyline overflow");
 
-  return (int) ringbuffer_write_into(&client->backend.input, proxyline, r);
+  return (int) ringbuffer_write_into(&client->backend.output, proxyline, r);
 }
 
 
