@@ -11,12 +11,15 @@ script_dir = os.path.dirname(__file__)
 root = os.path.normpath(script_dir)
 output_dir = os.path.join(os.path.abspath(root), 'out')
 
-sys.path.insert(0, os.path.join(root, 'build', 'gyp', 'pylib'))
+sys.path.insert(0, os.path.join(root, 'tools', 'gyp', 'pylib'))
 try:
   import gyp
 except ImportError:
-  print('You need to install gyp in build/gyp first, run:')
-  print('  svn co http://gyp.googlecode.com/svn/trunk build/gyp');
+  print('You need to install gyp in tools/gyp first, run:')
+  print('  svn co http://gyp.googlecode.com/svn/trunk tools/gyp');
+  print('or')
+  print('  git clone https://chromium.googlesource.com/external/gyp.git ' +
+        'tools/gyp')
   sys.exit(42)
 
 
@@ -88,12 +91,6 @@ if __name__ == '__main__':
 
   if not any(a.startswith('-Dtarget_arch=') for a in args):
     args.append('-Dtarget_arch=%s' % host_arch())
-
-  if not any(a.startswith('-Dlibrary=') for a in args):
-    args.append('-Dlibrary=static_library')
-
-  if not any(a.startswith('-Dcomponent=') for a in args):
-    args.append('-Dcomponent=static_library')
 
   gyp_args = list(args)
   print gyp_args

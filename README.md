@@ -7,7 +7,7 @@ A TLS terminator for superheroes.
 Preparing:
 ```bash
 git submodule update --init --recursive
-svn co http://gyp.googlecode.com/svn/trunk build/gyp
+svn co http://gyp.googlecode.com/svn/trunk tools/gyp
 ```
 
 Building:

@@ -1,3 +1,6 @@
-/build/gyp
+/tools/gyp
 *.json
+*.sh
+/build/
 /out/
+/bud
