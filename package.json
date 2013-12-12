@@ -1,0 +1,27 @@
+{
+  "name": "bud-tls",
+  "version": "0.0.0",
+  "description": "Bud - TLS Terminator",
+  "bin": {
+    "bud": "./npm/bud"
+  },
+  "scripts": {
+    "preinstall": "node-gyp configure && node-gyp rebuild && node npm/locate.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:indutny/bud.git"
+  },
+  "keywords": [
+    "bud",
+    "tls",
+    "openssl"
+  ],
+  "author": "Fedor Indutny <fedor@indutny.com>",
+  "license": "MIT",
+  "gypfile": true,
+  "bugs": {
+    "url": "https://github.com/indutny/bud/issues"
+  },
+  "homepage": "https://github.com/indutny/bud"
+}

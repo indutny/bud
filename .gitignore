@@ -1,6 +1,9 @@
 /tools/gyp
 *.json
+!package.json
 *.sh
 /build/
 /out/
-/bud
+/npm/bud
+/npm/bud.exe
+npm-debug.log

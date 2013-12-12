@@ -27,8 +27,13 @@ for (var i = 0; i < paths.length; i++) {
       continue;
     }
 
+    var out = path.resolve(root, 'npm', exename);
     try {
-      fs.symlinkSync(filename, path.resolve(root, exename));
+      fs.unlinkSync(out);
+    } catch (e) {
+    }
+    try {
+      fs.symlinkSync(filename, out);
     } catch (e) {
       // Ignore errors
     }
