@@ -209,7 +209,6 @@ void bud_client_side_init(bud_client_side_t* side,
   side->shutdown = kBudProgressNone;
   side->close = kBudProgressNone;
   side->write = kBudProgressNone;
-  side->write_req = NULL;
   side->write_size = 0;
 }
 
@@ -667,6 +666,7 @@ int bud_client_throttle(bud_client_t* client,
 int bud_client_send(bud_client_t* client, bud_client_side_t* side) {
   char* out[RING_BUFFER_COUNT];
   uv_buf_t buf[RING_BUFFER_COUNT];
+  uv_buf_t* pbuf;
   size_t size[ARRAY_SIZE(out)];
   size_t count;
   size_t i;
@@ -691,19 +691,51 @@ int bud_client_send(bud_client_t* client, bud_client_side_t* side) {
 
   DBG(side, "uv_write(%ld) iovcnt: %ld", side->write_size, count);
 
-  side->write_req = malloc(sizeof(*side->write_req));
-  if (side->write_req == NULL) {
-    NOTICE_LN(side, "failed to allocate write_req");
+  side->write_req.data = client;
+  for (i = 0; i < count; i++)
+    buf[i] = uv_buf_init(out[i], size[i]);
+
+  /* Try writing without queueing first */
+  r = uv_try_write((uv_stream_t*) &side->tcp, buf, count);
+
+  /* Fully written */
+  if (r == (int) side->write_size) {
+    DBG_LN(side, "immediate write");
+
+    /* NOTE: not causing recursion */
+    bud_client_send_cb(&side->write_req, 0);
+    if (client->close == kBudProgressRunning)
+      return -1;
+    else
+      return 0;
+  } if (r == UV_ENOSYS) {
+    /* Not supported try_write */
+    r = 0;
+  } else {
+    NOTICE(side,
+           "uv_try_write() failed: %d - \"%s\"",
+           r,
+           uv_strerror(r));
     goto fatal;
   }
 
-  for (i = 0; i < count; i++)
-    buf[i] = uv_buf_init(out[i], size[i]);
-  side->write_req->data = client;
+  /* Partially written */
+  side->write_size -= r;
+  pbuf = buf;
+  for (; r > 0; pbuf++, count--) {
+    if ((int) pbuf->len > r) {
+      /* Split */
+      pbuf->base += r;
+      pbuf->len -= r;
+      r = 0;
+    } else {
+      r -= pbuf->len;
+    }
+  }
 
-  r = uv_write(side->write_req,
+  r = uv_write(&side->write_req,
                (uv_stream_t*) &side->tcp,
-               buf,
+               pbuf,
                count,
                bud_client_send_cb);
   if (r != 0) {
@@ -714,23 +746,12 @@ int bud_client_send(bud_client_t* client, bud_client_side_t* side) {
     goto fatal;
   }
 
-  /* Immediate write */
-  if (side->tcp.write_queue_size == 0) {
-    DBG_LN(side, "immediate write");
-    side->write = kBudProgressNone;
-
-    /* NOTE: not causing recursion */
-    bud_client_send_cb(side->write_req, 0);
-  } else {
-    DBG_LN(side, "queued write");
-    side->write = kBudProgressRunning;
-  }
+  DBG_LN(side, "queued write");
+  side->write = kBudProgressRunning;
   return 0;
 
 fatal:
-  free(side->write_req);
   side->write = kBudProgressDone;
-  side->write_req = NULL;
   bud_client_close(client, side);
   return -1;
 }
@@ -741,27 +762,20 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   bud_client_t* client;
   bud_client_side_t* side;
   bud_client_side_t* opposite;
-  int immediate;
+
+  /* Closing, ignore */
+  if (status == UV_ECANCELED)
+    return;
 
   client = req->data;
-  req->data = NULL;
-  immediate = 0;
 
-  /* Already processed, skip */
-  if (client == NULL)
-    goto done;
-
-  if (req == client->frontend.write_req) {
+  if (req == &client->frontend.write_req) {
     side = &client->frontend;
     opposite = &client->backend;
   } else {
     side = &client->backend;
     opposite = &client->frontend;
   }
-
-  /* Closing, ignore */
-  if (status == UV_ECANCELED)
-    goto done;
 
   if (status != 0) {
     NOTICE(side,
@@ -770,19 +784,16 @@ void bud_client_send_cb(uv_write_t* req, int status) {
            uv_strerror(status));
     side->write = kBudProgressDone;
     bud_client_close(client, side);
-    goto done;
+    return;
   }
 
   /* Consume written data */
   DBG(side, "write_cb => %d", side->write_size);
   ringbuffer_read_skip(&side->output, side->write_size);
 
-  immediate = side->write == kBudProgressNone;
   side->write = kBudProgressNone;
   side->write_size = 0;
-  side->write_req = NULL;
 
-  /* Start reading, if stopped and not closing */
   if (opposite->reading == kBudProgressNone) {
     if ((client->retry == kBudProgressRunning ||
          client->connect == kBudProgressRunning) &&
@@ -803,7 +814,7 @@ void bud_client_send_cb(uv_write_t* req, int status) {
                r,
                uv_strerror(r));
         bud_client_close(client, opposite);
-        goto done;
+        return;
       }
       opposite->reading = kBudProgressRunning;
     }
@@ -815,7 +826,7 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   if (side->close == kBudProgressRunning ||
       side->shutdown == kBudProgressRunning) {
     if (!ringbuffer_is_empty(&side->output))
-      goto done;
+      return;
 
     /* No new data, destroy or shutdown */
     if (side->shutdown == kBudProgressRunning)
@@ -823,9 +834,6 @@ void bud_client_send_cb(uv_write_t* req, int status) {
     else
       bud_client_close(client, side);
   }
-done:
-  if (!immediate)
-    free(req);
 }
 
 

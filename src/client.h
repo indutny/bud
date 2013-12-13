@@ -35,7 +35,7 @@ struct bud_client_side_s {
   ringbuffer input;
   ringbuffer output;
 
-  uv_write_t* write_req;
+  uv_write_t write_req;
   uv_shutdown_t shutdown_req;
 
   bud_client_progress_t reading;
