@@ -964,6 +964,7 @@ bud_error_t bud_client_retry(bud_client_t* client) {
   }
 
   /* Select backend again */
+  client->backend.close = kBudProgressDone;
   client->selected_backend = bud_config_select_backend(client->config);
 
   client->retry = kBudProgressNone;
