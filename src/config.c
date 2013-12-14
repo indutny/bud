@@ -26,6 +26,9 @@ static void bud_config_load_addr(JSON_Object* obj,
                                  bud_config_addr_t* addr);
 static bud_error_t bud_config_load_frontend(JSON_Object* obj,
                                             bud_config_frontend_t* frontend);
+static bud_error_t bud_config_load_backend(bud_config_t* config,
+                                           JSON_Object* obj,
+                                           bud_config_backend_t* backend);
 static void bud_config_copy(bud_config_t* dst, bud_config_t* src);
 static void bud_config_destroy(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
@@ -50,9 +53,6 @@ static int bud_config_advertise_next_proto(SSL* s,
                                            void* arg);
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 static bud_error_t bud_config_verify_npn(const JSON_Array* npn);
-static void bud_config_kill_backend(bud_config_t* config,
-                                    bud_config_backend_t* backend);
-static void bud_config_revive_backend(uv_timer_t* timer, int status);
 
 
 int kBudSSLClientIndex = -1;
@@ -230,6 +230,7 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
   JSON_Value* json;
   JSON_Value* val;
   JSON_Object* obj;
+  JSON_Object* tmp;
   JSON_Object* log;
   JSON_Object* avail;
   JSON_Array* contexts;
@@ -338,9 +339,9 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     goto failed_get_index;
   }
   for (i = 0; i < config->backend_count; i++) {
-    bud_config_load_addr(json_array_get_object(backend, i),
-                         (bud_config_addr_t*) &config->backend[i]);
-    config->backend[i].config = config;
+    bud_config_load_backend(config,
+                            json_array_get_object(backend, i),
+                            &config->backend[i]);
   }
 
   /* SNI configuration */
@@ -368,6 +369,12 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     ctx->npn = json_object_get_array(obj, "npn");
     ctx->ciphers = json_object_get_string(obj, "ciphers");
     ctx->ecdh = json_object_get_string(obj, "ecdh");
+
+    tmp = json_object_get_object(obj, "backend");
+    if (tmp != NULL) {
+      ctx->backend = &ctx->backend_st;
+      bud_config_load_backend(config, tmp, ctx->backend);
+    }
 
     *err = bud_config_verify_npn(ctx->npn);
     if (!bud_is_ok(*err))
@@ -453,6 +460,16 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
 
 fatal:
   return err;
+}
+
+
+bud_error_t bud_config_load_backend(bud_config_t* config,
+                                    JSON_Object* obj,
+                                    bud_config_backend_t* backend) {
+  bud_config_load_addr(obj, (bud_config_addr_t*) backend);
+  backend->config = config;
+
+  return bud_ok();
 }
 
 
@@ -1329,113 +1346,4 @@ fatal:
     X509_free(x);
 
   return ret;
-}
-
-
-bud_config_backend_t* bud_config_select_backend(bud_config_t* config) {
-  bud_config_backend_t* res;
-  int first;
-  uint64_t now;
-  uint64_t death_timeout;
-
-  now = uv_now(config->loop);
-  death_timeout = (uint64_t) config->availability.death_timeout;
-
-  first = config->last_backend;
-  do {
-    res = &config->backend[config->last_backend];
-
-    /*
-     * Mark backend as dead if it isn't responding for a significant
-     * amount of time
-     */
-    if (!res->dead && res->dead_since != 0) {
-      if (now - res->last_checked < death_timeout &&
-          now - res->dead_since > death_timeout) {
-        bud_config_kill_backend(config, res);
-      }
-    }
-
-    config->last_backend++;
-    config->last_backend %= config->backend_count;
-  } while (res->dead && config->last_backend != first);
-
-  /* All dead.
-   * Make sure we make progress when selecting backends.
-   */
-  if (res->dead) {
-    res = &config->backend[config->last_backend];
-    config->last_backend++;
-    config->last_backend %= config->backend_count;
-  }
-
-  return res;
-}
-
-
-void bud_config_kill_backend(bud_config_t* config,
-                             bud_config_backend_t* backend) {
-  int r;
-
-  /* If there're no reviving - there are no death */
-  if (config->availability.revive_interval == 0)
-    return;
-
-  /* Already waiting for revival */
-  if (backend->revive_timer != NULL)
-    return;
-
-  backend->revive_timer = malloc(sizeof(*backend->revive_timer));
-  if (backend->revive_timer == NULL)
-    return;
-
-  r = uv_timer_init(config->loop, backend->revive_timer);
-  if (r != 0)
-    goto failed_init;
-  backend->revive_timer->data = backend;
-  r = uv_timer_start(backend->revive_timer,
-                     bud_config_revive_backend,
-                     config->availability.revive_interval,
-                     0);
-  if (r != 0)
-    goto failed_start;
-
-
-  bud_log(config,
-          kBudLogWarning,
-          "Killed backend %s:%d",
-          backend->host,
-          backend->port);
-  backend->dead = 1;
-  return;
-
-failed_start:
-  uv_close((uv_handle_t*) backend->revive_timer, (uv_close_cb) free);
-  backend->revive_timer = NULL;
-  return;
-
-failed_init:
-  free(backend->revive_timer);
-  backend->revive_timer = NULL;
-}
-
-
-void bud_config_revive_backend(uv_timer_t* timer, int status) {
-  bud_config_backend_t* backend;
-
-  if (status == UV_ECANCELED)
-    return;
-
-  /* Ignore errors */
-  backend = timer->data;
-  backend->dead = 0;
-  backend->dead_since = 0;
-  uv_close((uv_handle_t*) backend->revive_timer, (uv_close_cb) free);
-  backend->revive_timer = NULL;
-
-  bud_log(backend->config,
-          kBudLogWarning,
-          "Reviving backend %s:%d",
-          backend->host,
-          backend->port);
 }

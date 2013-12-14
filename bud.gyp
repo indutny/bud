@@ -13,6 +13,7 @@
       "src",
     ],
     "sources": [
+      "src/avail.c",
       "src/bio.c",
       "src/bud.c",
       "src/client.c",

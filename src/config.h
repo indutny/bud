@@ -29,30 +29,6 @@ typedef struct bud_config_frontend_s bud_config_frontend_t;
 int kBudSSLClientIndex;
 int kBudSSLSNIIndex;
 
-struct bud_context_s {
-  /* From config file */
-  const char* servername;
-  size_t servername_len;
-
-  const char* cert_file;
-  const char* key_file;
-  const JSON_Array* npn;
-  const char* ciphers;
-  const char* ecdh;
-
-  /* Various */
-  SSL_CTX* ctx;
-  X509* cert;
-  X509* issuer;
-  char* npn_line;
-  size_t npn_line_len;
-  OCSP_CERTID* ocsp_id;
-  char* ocsp_der_id;
-  size_t ocsp_der_id_len;
-  const char* ocsp_url;
-  size_t ocsp_url_len;
-};
-
 struct bud_config_http_pool_s {
   int enabled;
 
@@ -109,6 +85,33 @@ struct bud_config_backend_s {
 };
 
 #undef BUD_CONFIG_ADDR_FIELDS
+
+struct bud_context_s {
+  /* From config file */
+  const char* servername;
+  size_t servername_len;
+
+  const char* cert_file;
+  const char* key_file;
+  const JSON_Array* npn;
+  const char* ciphers;
+  const char* ecdh;
+  bud_config_backend_t* backend;
+
+  /* Various */
+  SSL_CTX* ctx;
+  X509* cert;
+  X509* issuer;
+  char* npn_line;
+  size_t npn_line_len;
+  OCSP_CERTID* ocsp_id;
+  char* ocsp_der_id;
+  size_t ocsp_der_id_len;
+  const char* ocsp_url;
+  size_t ocsp_url_len;
+  bud_config_backend_t backend_st;
+};
+
 
 struct bud_config_s {
   /* Internal, just to keep stuff allocated */
@@ -198,9 +201,6 @@ const char* bud_context_get_ocsp_req(bud_context_t* context,
                                      size_t* size,
                                      char** ocsp_request,
                                      size_t* ocsp_request_len);
-
-/* Helper for client.c */
-bud_config_backend_t* bud_config_select_backend(bud_config_t* config);
 
 /* Helper for http-pool.c */
 int bud_config_str_to_addr(const char* host,

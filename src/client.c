@@ -7,6 +7,7 @@
 #include "openssl/bio.h"
 #include "parson.h"
 
+#include "avail.h"
 #include "common.h"
 #include "client.h"
 #include "client-private.h"
@@ -123,7 +124,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
    * Select a backend and connect to it, or wait for a backend to become
    * alive again.
    */
-  client->selected_backend = bud_config_select_backend(config);
+  client->selected_backend = bud_select_backend(config);
 
   /* No backend alive, try reconnecting */
   if (client->selected_backend->dead) {
@@ -965,7 +966,7 @@ bud_error_t bud_client_retry(bud_client_t* client) {
 
   /* Select backend again */
   client->backend.close = kBudProgressDone;
-  client->selected_backend = bud_config_select_backend(client->config);
+  client->selected_backend = bud_select_backend(client->config);
 
   client->retry = kBudProgressNone;
   r = uv_timer_start(&client->retry_timer,
