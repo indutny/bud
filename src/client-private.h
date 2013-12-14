@@ -5,6 +5,8 @@
 #include "logger.h"
 
 void bud_client_close(bud_client_t* client, bud_client_side_t* side);
+void bud_client_close_cb(uv_handle_t* handle);
+int bud_client_read_start(bud_client_t* client, bud_client_side_t* side);
 void bud_client_cycle(bud_client_t* client);
 const char* bud_side_str(bud_client_side_type_t side);
 void bud_client_log(bud_client_t* client,
