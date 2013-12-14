@@ -41,7 +41,6 @@ static void bud_client_send_cb(uv_write_t* req, int status);
 static int bud_client_shutdown(bud_client_t* client, bud_client_side_t* side);
 static void bud_client_shutdown_cb(uv_shutdown_t* req, int status);
 static int bud_client_prepend_proxyline(bud_client_t* client);
-static const char* bud_sslerror_str(int err);
 static void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret);
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
@@ -990,38 +989,6 @@ void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret) {
 
 end:
   client->last_handshake = now;
-}
-
-
-const char* bud_side_str(bud_client_side_type_t side) {
-  if (side == kBudFrontend)
-    return "frontend";
-  else
-    return "backend";
-}
-
-
-const char* bud_sslerror_str(int err) {
-  switch (err) {
-    case SSL_ERROR_SSL:
-      return "SSL";
-    case SSL_ERROR_WANT_READ:
-      return "WANT_READ";
-    case SSL_ERROR_WANT_WRITE:
-      return "WANT_WRITE";
-    case SSL_ERROR_WANT_X509_LOOKUP:
-      return "WANT_X509_LOOKUP";
-    case SSL_ERROR_SYSCALL:
-      return "SYSCALL";
-    case SSL_ERROR_ZERO_RETURN:
-      return "ZERO_RETURN";
-    case SSL_ERROR_WANT_CONNECT:
-      return "WANT_CONNECT";
-    case SSL_ERROR_WANT_ACCEPT:
-      return "WANT_ACCEPT";
-    default:
-      return "UKNOWN";
-  }
 }
 
 

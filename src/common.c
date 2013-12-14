@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "openssl/ssl.h"
 
 #include "common.h"
 
@@ -158,4 +159,36 @@ size_t bud_base64_encode(const char* src,
   }
 
   return dlen;
+}
+
+
+const char* bud_sslerror_str(int err) {
+  switch (err) {
+    case SSL_ERROR_SSL:
+      return "SSL";
+    case SSL_ERROR_WANT_READ:
+      return "WANT_READ";
+    case SSL_ERROR_WANT_WRITE:
+      return "WANT_WRITE";
+    case SSL_ERROR_WANT_X509_LOOKUP:
+      return "WANT_X509_LOOKUP";
+    case SSL_ERROR_SYSCALL:
+      return "SYSCALL";
+    case SSL_ERROR_ZERO_RETURN:
+      return "ZERO_RETURN";
+    case SSL_ERROR_WANT_CONNECT:
+      return "WANT_CONNECT";
+    case SSL_ERROR_WANT_ACCEPT:
+      return "WANT_ACCEPT";
+    default:
+      return "UKNOWN";
+  }
+}
+
+
+const char* bud_side_str(bud_client_side_type_t side) {
+  if (side == kBudFrontend)
+    return "frontend";
+  else
+    return "backend";
 }

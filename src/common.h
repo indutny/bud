@@ -4,6 +4,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef enum bud_client_side_type_e bud_client_side_type_t;
+
+enum bud_client_side_type_e {
+  kBudFrontend,
+  kBudBackend
+};
+
 #define ASSERT__COMMON(expr, desc, ...)                                       \
     do {                                                                      \
       if (!(expr)) {                                                          \
@@ -43,5 +50,8 @@ size_t bud_base64_encode(const char* src,
                          size_t slen,
                          char* dst,
                          size_t dlen);
+
+const char* bud_side_str(bud_client_side_type_t side);
+const char* bud_sslerror_str(int err);
 
 #endif  /* SRC_COMMON_H_ */

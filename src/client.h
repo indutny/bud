@@ -15,13 +15,7 @@ struct bud_config_backend_s;
 
 typedef struct bud_client_s bud_client_t;
 typedef struct bud_client_side_s bud_client_side_t;
-typedef enum bud_client_side_type_e bud_client_side_type_t;
 typedef enum bud_client_progress_e bud_client_progress_t;
-
-enum bud_client_side_type_e {
-  kBudFrontend,
-  kBudBackend
-};
 
 enum bud_client_progress_e {
   kBudProgressNone,
