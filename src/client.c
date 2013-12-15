@@ -650,7 +650,7 @@ bud_client_error_t bud_client_throttle(bud_client_t* client,
 
   opposite = side == &client->frontend ? &client->backend : &client->frontend;
   if (opposite->reading != kBudProgressRunning)
-    return bud_client_ok(side);
+    goto done;
 
   DBG(opposite, "throttle, buffer full: %ld", ringbuffer_size(buf));
 
@@ -664,6 +664,7 @@ bud_client_error_t bud_client_throttle(bud_client_t* client,
   }
   opposite->reading = kBudProgressNone;
 
+done:
   return bud_client_error(bud_error(kBudErrClientThrottle), side);
 }
 
