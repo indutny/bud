@@ -2,7 +2,7 @@
 
 #include "avail.h"
 #include "client.h"
-#include "client-private.h"
+#include "client-common.h"
 #include "config.h"
 #include "logger.h"
 

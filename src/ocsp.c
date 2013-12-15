@@ -7,7 +7,7 @@
 
 #include "ocsp.h"
 #include "client.h"
-#include "client-private.h"
+#include "client-common.h"
 #include "common.h"
 #include "config.h"
 #include "error.h"
@@ -101,9 +101,8 @@ void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
 
   if (!bud_is_ok(err)) {
     WARNING(&client->frontend,
-            "OCSP cache cb failed: %d - \"%s\"",
-            err.code,
-            err.str);
+            "OCSP cache cb failed: \"%s\"",
+            bud_error_to_str(err));
     goto done;
   }
 
@@ -171,9 +170,8 @@ void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
 
   if (!bud_is_ok(err)) {
     WARNING(&client->frontend,
-            "OCSP cb failed: %d - \"%s\"",
-            err.code,
-            err.str);
+            "OCSP cb failed: \"%s\"",
+            bud_error_to_str(err));
     goto done;
   }
 

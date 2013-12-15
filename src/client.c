@@ -10,7 +10,7 @@
 #include "avail.h"
 #include "common.h"
 #include "client.h"
-#include "client-private.h"
+#include "client-common.h"
 #include "hello-parser.h"
 #include "http-pool.h"
 #include "logger.h"
