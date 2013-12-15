@@ -90,5 +90,6 @@ void bud_error_log(struct bud_config_s* config,
                    int level,
                    bud_error_t err);
 void bud_error_print(FILE* fp, bud_error_t err);
+const char* bud_error_to_str(bud_error_t err);
 
 #endif  /* SRC_ERROR_H_ */

@@ -186,3 +186,27 @@ void bud_error_print(FILE* fp, bud_error_t err) {
 
 #undef BUD_ERROR
 #undef BUD_UV_ERROR
+
+#define BUD_ERROR(...)                                                        \
+    snprintf(storage, sizeof(storage), __VA_ARGS__);                          \
+    break;
+
+#define BUD_UV_ERROR(msg, err)                                                \
+    snprintf(storage,                                                         \
+             sizeof(storage),                                                 \
+             msg " returned %d (%s)",                                         \
+             err.ret,                                                         \
+             uv_strerror(err.ret));                                           \
+    break;
+
+
+const char* bud_error_to_str(bud_error_t err) {
+  static char storage[1024];
+
+  BUD_ERROR_HANDLER(err)
+
+  return storage;
+}
+
+#undef BUD_ERROR
+#undef BUD_UV_ERROR
