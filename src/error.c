@@ -145,6 +145,38 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_UV_ERROR("uv_read_start(retry_timer)", err)                         \
     case kBudErrRetryAfterClose:                                              \
       BUD_ERROR("Closed, can\'t retry")                                       \
+    case kBudErrClientReadStart:                                              \
+      BUD_UV_ERROR("uv_read_start(client)", err)                              \
+    case kBudErrClientReadStop:                                               \
+      BUD_UV_ERROR("uv_read_stop(client)", err)                               \
+    case kBudErrClientWrite:                                                  \
+      BUD_UV_ERROR("uv_write(client)", err)                                   \
+    case kBudErrClientTryWrite:                                               \
+      BUD_UV_ERROR("uv_try_write(client)", err)                               \
+    case kBudErrClientConnect:                                                \
+      BUD_UV_ERROR("uv_connect(client)", err)                                 \
+    case kBudErrClientReadCb:                                                 \
+      BUD_UV_ERROR("uv_read_start(client) cb", err)                           \
+    case kBudErrClientWriteAppend:                                            \
+      BUD_ERROR("ringbuffer_write_append(client)")                            \
+    case kBudErrClientSetExData:                                              \
+      BUD_ERROR("SSL_set_ex_data() for SNI")                                  \
+    case kBudErrClientSSLWrite:                                               \
+      BUD_ERROR("SSL_write(client) - %d", err.ret)                            \
+    case kBudErrClientSSLRead:                                                \
+      BUD_ERROR("SSL_read(client) - %d", err.ret)                             \
+    case kBudErrClientThrottle:                                               \
+      BUD_ERROR("throttle(client) **NOT A ERROR**")                           \
+    case kBudErrClientShutdown:                                               \
+      BUD_UV_ERROR("uv_shutdown(client)", err)                                \
+    case kBudErrClientShutdownCb:                                             \
+      BUD_UV_ERROR("uv_shutdown(client) cb", err)                             \
+    case kBudErrClientRenegotiationAttack:                                    \
+      BUD_ERROR("Renegotiation attack prevented")                             \
+    case kBudErrClientRetry:                                                  \
+      BUD_ERROR("retry connecting to backend")                                \
+    case kBudErrClientProxyline:                                              \
+      BUD_ERROR("append proxyline")                                           \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }

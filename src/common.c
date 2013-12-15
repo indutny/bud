@@ -184,11 +184,3 @@ const char* bud_sslerror_str(int err) {
       return "UKNOWN";
   }
 }
-
-
-const char* bud_side_str(bud_client_side_type_t side) {
-  if (side == kBudFrontend)
-    return "frontend";
-  else
-    return "backend";
-}

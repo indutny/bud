@@ -17,6 +17,7 @@
       "src/bio.c",
       "src/bud.c",
       "src/client.c",
+      "src/client-common.c",
       "src/common.c",
       "src/config.c",
       "src/error.c",

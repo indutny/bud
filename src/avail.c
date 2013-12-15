@@ -119,7 +119,7 @@ void bud_revive_backend(uv_timer_t* timer, int status) {
 }
 
 
-int bud_client_connect(bud_client_t* client) {
+bud_client_error_t bud_client_connect(bud_client_t* client) {
   int r;
   bud_config_t* config;
   bud_config_backend_t* backend;
@@ -133,7 +133,7 @@ int bud_client_connect(bud_client_t* client) {
    */
   r = uv_tcp_init(config->loop, &client->backend.tcp);
   if (r != 0)
-    return r;
+    goto fatal;
   client->backend.close = client->close;
   client->destroy_waiting++;
 
@@ -153,20 +153,24 @@ int bud_client_connect(bud_client_t* client) {
 
   client->connect = kBudProgressRunning;
 
-  return r;
+  return bud_client_ok(&client->backend);
 
 failed_connect:
   uv_close((uv_handle_t*) &client->backend.tcp, bud_client_close_cb);
   client->backend.close = kBudProgressDone;
 
-  /* TODO(indutny): report errors */
-  return r;
+  return bud_client_error(bud_error_num(kBudErrClientConnect, r),
+                          &client->backend);
+
+fatal:
+  return bud_client_error(bud_error_num(kBudErrClientConnect, r),
+                          &client->backend);
 }
 
 
 void bud_client_connect_cb(uv_connect_t* req, int status) {
-  int r;
   bud_client_t* client;
+  bud_client_error_t cerr;
 
   if (status == UV_ECANCELED)
     return;
@@ -198,48 +202,45 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
 
   /* Start reading if queued */
   if (client->backend.reading == kBudProgressRunning) {
-    r = bud_client_read_start(client, &client->backend);
-    if (r != 0) {
-      WARNING(&client->backend,
-              "uv_read_start() failed: %d - \"%s\"",
-              r,
-              uv_strerror(r));
-      return;
-    }
+    cerr = bud_client_read_start(client, &client->backend);
+    if (!bud_is_ok(cerr.err))
+      return bud_client_close(client, cerr);
   }
 
   /* Cycle data anyway */
-  bud_client_cycle(client);
+  cerr = bud_client_cycle(client);
+  if (!bud_is_ok(cerr.err))
+    return bud_client_close(client, cerr);
 }
 
 
 void bud_client_connect_close_cb(uv_handle_t* handle) {
-  bud_error_t err;
+  bud_client_error_t cerr;
   bud_client_t* client;
 
   client = handle->data;
 
-  err = bud_client_retry(client);
-  if (bud_is_ok(err))
+  cerr = bud_client_retry(client);
+  if (bud_is_ok(cerr.err))
     return;
 
-  WARNING(&client->backend,
-          "bud_client_retry() failed: \"%s\"",
-          bud_error_to_str(err));
-  bud_client_close(client, &client->backend);
+  bud_client_close(client, cerr);
 }
 
 
-bud_error_t bud_client_retry(bud_client_t* client) {
+bud_client_error_t bud_client_retry(bud_client_t* client) {
   int r;
+  bud_client_side_t* side;
+
+  side = &client->backend;
 
   /* Client closing can't retry */
   if (client->close != kBudProgressNone)
-    return bud_error(kBudErrRetryAfterClose);
+    return bud_client_error(bud_error(kBudErrRetryAfterClose), side);
 
   if (++client->retry_count > client->config->availability.max_retries) {
     WARNING_LN(&client->backend, "Retried too many times");
-    return bud_error(kBudErrMaxRetries);
+    return bud_client_error(bud_error(kBudErrMaxRetries), side);
   }
 
   /* Select backend again */
@@ -252,16 +253,15 @@ bud_error_t bud_client_retry(bud_client_t* client) {
                      client->config->availability.retry_interval,
                      0);
   if (r != 0)
-    return bud_error_num(kBudErrRetryTimerStart, r);
+    return bud_client_error(bud_error_num(kBudErrRetryTimerStart, r), side);
   client->retry = kBudProgressRunning;
 
-  return bud_ok();
+  return bud_client_ok();
 }
 
 
 void bud_client_retry_cb(uv_timer_t* timer, int status) {
-  int r;
-  bud_error_t err;
+  bud_client_error_t cerr;
   bud_client_t* client;
 
   if (status == UV_ECANCELED)
@@ -272,25 +272,20 @@ void bud_client_retry_cb(uv_timer_t* timer, int status) {
 
   /* Backend still dead, try again */
   if (client->selected_backend->dead) {
-    err = bud_client_retry(client);
-    if (!bud_is_ok(err)) {
-      WARNING(&client->backend,
-              "bud_client_retry() failed: \"%s\"",
-              bud_error_to_str(err));
-      bud_client_close(client, &client->backend);
-    }
+    cerr = bud_client_retry(client);
+    if (!bud_is_ok(cerr.err))
+      bud_client_close(client, cerr);
     return;
   }
 
-  r = status;
-  if (r == 0)
-    r = bud_client_connect(client);
-  if (r < 0) {
-    WARNING(&client->backend,
-            "bud_client_retry_cb() failure: %d - \"%s\"",
-            r,
-            uv_strerror(r));
-    bud_client_close(client, &client->backend);
-    return;
+  if (status != 0) {
+    return bud_client_close(
+        client,
+        bud_client_error(bud_error_num(kBudErrClientRetry, status),
+                         &client->backend));
   }
+
+  cerr = bud_client_connect(client);
+  if (!bud_is_ok(cerr.err))
+    bud_client_close(client, cerr);
 }

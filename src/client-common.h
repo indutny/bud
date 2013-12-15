@@ -1,14 +1,69 @@
 #ifndef SRC_CLIENT_PRIVATE_H_
 #define SRC_CLIENT_PRIVATE_H_
 
-#include "client.h"
+#include "ringbuffer.h"
+
+#include "error.h"
 #include "logger.h"
 
-void bud_client_close(bud_client_t* client, bud_client_side_t* side);
+
+/* Forward declarations */
+struct bud_client_s;
+
+typedef enum bud_client_side_type_e bud_client_side_type_t;
+typedef enum bud_client_progress_e bud_client_progress_t;
+typedef struct bud_client_side_s bud_client_side_t;
+typedef struct bud_client_error_s bud_client_error_t;
+
+enum bud_client_side_type_e {
+  kBudFrontend,
+  kBudBackend
+};
+
+enum bud_client_progress_e {
+  kBudProgressNone,
+  kBudProgressRunning,
+  kBudProgressDone
+};
+
+struct bud_client_side_s {
+  bud_client_side_type_t type;
+  uv_tcp_t tcp;
+  ringbuffer input;
+  ringbuffer output;
+
+  uv_write_t write_req;
+  uv_shutdown_t shutdown_req;
+
+  bud_client_progress_t reading;
+  bud_client_progress_t shutdown;
+  bud_client_progress_t close;
+  bud_client_progress_t write;
+
+  size_t write_size;
+};
+
+struct bud_client_error_s {
+  bud_error_t err;
+  bud_client_side_t* side;
+};
+
+const char* bud_side_str(bud_client_side_type_t side);
+bud_client_error_t bud_client_error(bud_error_t err, bud_client_side_t* side);
+bud_client_error_t bud_client_ok();
+
+void bud_client_close(struct bud_client_s* client, bud_client_error_t err);
 void bud_client_close_cb(uv_handle_t* handle);
-int bud_client_read_start(bud_client_t* client, bud_client_side_t* side);
-void bud_client_cycle(bud_client_t* client);
-void bud_client_log(bud_client_t* client,
+void bud_client_alloc_cb(uv_handle_t* handle,
+                         size_t suggested_size,
+                         uv_buf_t* buf);
+void bud_client_read_cb(uv_stream_t* stream,
+                        ssize_t nread,
+                        const uv_buf_t* buf);
+bud_client_error_t bud_client_read_start(struct bud_client_s* client,
+                                         bud_client_side_t* side);
+bud_client_error_t bud_client_cycle(struct bud_client_s* client);
+void bud_client_log(struct bud_client_s* client,
                     bud_log_level_t level,
                     const char* fmt,
                     ...);

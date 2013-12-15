@@ -76,6 +76,7 @@ fatal:
 void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
                                       bud_error_t err) {
   bud_client_t* client;
+  bud_client_error_t cerr;
   bud_config_t* config;
   bud_context_t* context;
   const char* id;
@@ -157,12 +158,15 @@ done:
   free(ocsp);
   free(json);
   json_value_free(req->response);
-  bud_client_cycle(client);
+  cerr = bud_client_cycle(client);
+  if (!bud_is_ok(cerr.err))
+    return bud_client_close(client, cerr);
 }
 
 
 void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
   bud_client_t* client;
+  bud_client_error_t cerr;
 
   client = req->data;
   client->stapling_req = NULL;
@@ -188,7 +192,9 @@ void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
   /* NOTE: Stapling failure should not prevent us from responding */
 done:
   json_value_free(req->response);
-  bud_client_cycle(client);
+  cerr = bud_client_cycle(client);
+  if (!bud_is_ok(cerr.err))
+    return bud_client_close(client, cerr);
 }
 
 

@@ -2,9 +2,9 @@
 #define SRC_CLIENT_H_
 
 #include "uv.h"
-#include "ringbuffer.h"
 #include "openssl/ssl.h"
 
+#include "client-common.h"
 #include "hello-parser.h"
 #include "server.h"
 #include "http-pool.h"
@@ -14,31 +14,6 @@ struct bud_config_s;
 struct bud_config_backend_s;
 
 typedef struct bud_client_s bud_client_t;
-typedef struct bud_client_side_s bud_client_side_t;
-typedef enum bud_client_progress_e bud_client_progress_t;
-
-enum bud_client_progress_e {
-  kBudProgressNone,
-  kBudProgressRunning,
-  kBudProgressDone
-};
-
-struct bud_client_side_s {
-  bud_client_side_type_t type;
-  uv_tcp_t tcp;
-  ringbuffer input;
-  ringbuffer output;
-
-  uv_write_t write_req;
-  uv_shutdown_t shutdown_req;
-
-  bud_client_progress_t reading;
-  bud_client_progress_t shutdown;
-  bud_client_progress_t close;
-  bud_client_progress_t write;
-
-  size_t write_size;
-};
 
 struct bud_client_s {
   struct bud_config_s* config;

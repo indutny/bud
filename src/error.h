@@ -72,7 +72,26 @@ enum bud_error_code_e {
   /* Availability */
   kBudErrMaxRetries = 0x700,
   kBudErrRetryTimerStart = 0x701,
-  kBudErrRetryAfterClose = 0x702
+  kBudErrRetryAfterClose = 0x702,
+
+  /* Client */
+  kBudErrClientReadStart = 0x800,
+  kBudErrClientReadStop = 0x801,
+  kBudErrClientWrite = 0x802,
+  kBudErrClientWriteCb = 0x803,
+  kBudErrClientTryWrite = 0x804,
+  kBudErrClientConnect = 0x805,
+  kBudErrClientReadCb = 0x806,
+  kBudErrClientWriteAppend = 0x807,
+  kBudErrClientSetExData = 0x808,
+  kBudErrClientSSLWrite = 0x809,
+  kBudErrClientSSLRead = 0x80a,
+  kBudErrClientThrottle = 0x80b,
+  kBudErrClientShutdown = 0x80c,
+  kBudErrClientShutdownCb = 0x80d,
+  kBudErrClientRenegotiationAttack = 0x80e,
+  kBudErrClientRetry = 0x80f,
+  kBudErrClientProxyline = 0x810
 };
 
 struct bud_error_s {
