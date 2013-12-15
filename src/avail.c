@@ -224,9 +224,8 @@ void bud_client_connect_close_cb(uv_handle_t* handle) {
     return;
 
   WARNING(&client->backend,
-          "bud_client_retry() failed: %d - \"%s\"",
-          err.code,
-          err.str);
+          "bud_client_retry() failed: \"%s\"",
+          bud_error_to_str(err));
   bud_client_close(client, &client->backend);
 }
 
@@ -276,9 +275,8 @@ void bud_client_retry_cb(uv_timer_t* timer, int status) {
     err = bud_client_retry(client);
     if (!bud_is_ok(err)) {
       WARNING(&client->backend,
-              "bud_client_retry() failed: %d - \"%s\"",
-              err.code,
-              err.str);
+              "bud_client_retry() failed: \"%s\"",
+              bud_error_to_str(err));
       bud_client_close(client, &client->backend);
     }
     return;

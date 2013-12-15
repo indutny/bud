@@ -423,9 +423,8 @@ void bud_client_parse_hello(bud_client_t* client) {
 
   if (!bud_is_ok(err)) {
     NOTICE(&client->frontend,
-           "failed to parse hello: %d - \"%s\"",
-           err.code,
-           err.str);
+           "failed to parse hello: \"%s\"",
+           bud_error_to_str(err));
     goto fatal;
   }
 
@@ -440,9 +439,8 @@ void bud_client_parse_hello(bud_client_t* client) {
     client->sni_req->data = client;
     if (!bud_is_ok(err)) {
       NOTICE(&client->frontend,
-             "failed to request SNI: %d - \"%s\"",
-             err.code,
-             err.str);
+             "failed to request SNI: \"%s\"",
+             bud_error_to_str(err));
       goto fatal;
     }
 
@@ -479,7 +477,7 @@ void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
   client->sni_req = NULL;
   client->hello_parse = kBudProgressDone;
   if (!bud_is_ok(err)) {
-    WARNING(&client->frontend, "SNI cb failed: %d - \"%s\"", err.code, err.str);
+    WARNING(&client->frontend, "SNI cb failed: \"%s\"", bud_error_to_str(err));
     goto fatal;
   }
 
@@ -496,9 +494,8 @@ void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
   sni_err = bud_sni_from_json(config, req->response, &client->sni_ctx);
   if (!bud_is_ok(sni_err)) {
     WARNING(&client->frontend,
-           "SNI from json failed: %d - \"%s\"",
-           err.code,
-           err.str);
+           "SNI from json failed: \"%s\"",
+           bud_error_to_str(err));
     goto fatal;
   }
 
