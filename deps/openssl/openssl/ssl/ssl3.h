@@ -513,6 +513,7 @@ typedef struct ssl3_state_st
 
 		int use_rsa_tmp;
 
+#define SSL3_ST_CUTTHROUGH_COMPLETE	(0x101|SSL_ST_CONNECT)
 		int key_block_length;
 		unsigned char *key_block;
 

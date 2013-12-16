@@ -431,6 +431,7 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   frontend->proxyline = -1;
   frontend->server_preference = -1;
   frontend->ssl3 = -1;
+  frontend->false_start = -1;
   if (obj == NULL)
     return bud_ok();
 
@@ -457,6 +458,9 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   val = json_object_get_value(obj, "ssl3");
   if (val != NULL)
     frontend->ssl3 = json_value_get_boolean(val);
+  val = json_object_get_value(obj, "false_start");
+  if (val != NULL)
+    frontend->false_start = json_value_get_boolean(val);
 
 fatal:
   return err;
@@ -597,6 +601,7 @@ void bud_config_print_default() {
   config.log.syslog = -1;
   config.frontend.keepalive = -1;
   config.frontend.ssl3 = -1;
+  config.frontend.false_start = -1;
   config.backend_count = 1;
   config.backend = &backend;
   config.backend[0].keepalive = -1;
@@ -647,6 +652,10 @@ void bud_config_print_default() {
     fprintf(stdout, "    \"ssl3\": true,\n");
   else
     fprintf(stdout, "    \"ssl3\": false,\n");
+  if (config.frontend.false_start)
+    fprintf(stdout, "    \"false_start\": true,\n");
+  else
+    fprintf(stdout, "    \"false_start\": false,\n");
 #ifdef OPENSSL_NPN_NEGOTIATED
   /* Sorry, hard-coded */
   fprintf(stdout, "    \"npn\": [\"http/1.1\", \"http/1.0\"],\n");
@@ -713,6 +722,7 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.keepalive, -1, 3600);
   DEFAULT(config->frontend.server_preference, -1, 1);
   DEFAULT(config->frontend.ssl3, -1, 0);
+  DEFAULT(config->frontend.false_start, -1, 1);
   DEFAULT(config->frontend.cert_file, NULL, "keys/cert.pem");
   DEFAULT(config->frontend.key_file, NULL, "keys/key.pem");
   DEFAULT(config->frontend.reneg_window, 0, 600);
@@ -796,6 +806,7 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   EC_KEY* ecdh;
   bud_error_t err;
   int options;
+  int ssl_mode;
 
   /* Choose method, tlsv1_2 by default */
   if (config->frontend.method == NULL) {
@@ -817,6 +828,13 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
 
   /* Disable sessions, they won't work with cluster anyway */
   SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+
+  /* Enable TLS False Start */
+  if (config->frontend.false_start) {
+    ssl_mode = SSL_CTX_get_mode(ctx);
+    ssl_mode |= SSL_MODE_HANDSHAKE_CUTTHROUGH;
+    SSL_CTX_set_mode(ctx, ssl_mode);
+  }
 
   /* ECDH curve selection */
   if (context->ecdh != NULL || config->frontend.ecdh != NULL) {
