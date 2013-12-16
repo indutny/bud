@@ -119,7 +119,10 @@ to get default configuration options (with comments and description below):
     "reneg_limit": 3,
 
     // **Optional** If true - enable SSL3 support
-    "ssl3": false
+    "ssl3": false,
+
+    // **Optional** If true - enable TLS False Start
+    "false_start": true
   },
 
   // Backend configuration (i.e. address of Cleartext server)
