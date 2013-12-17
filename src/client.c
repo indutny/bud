@@ -982,7 +982,7 @@ void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret) {
   now = uv_now(client->config->loop);
 
   /* NOTE: config's limit is in ms */
-  limit = (uint64_t) client->config->frontend.reneg_window;
+  limit = (uint64_t) client->config->frontend.reneg_window * 1000;
   if (now - client->last_handshake > limit)
     client->handshakes = 0;
 
