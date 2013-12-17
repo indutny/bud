@@ -432,6 +432,7 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   frontend->server_preference = -1;
   frontend->ssl3 = -1;
   frontend->false_start = -1;
+  frontend->max_send_fragment = -1;
   if (obj == NULL)
     return bud_ok();
 
@@ -461,6 +462,9 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   val = json_object_get_value(obj, "false_start");
   if (val != NULL)
     frontend->false_start = json_value_get_boolean(val);
+  val = json_object_get_value(obj, "max_send_fragment");
+  if (val != NULL)
+    frontend->max_send_fragment = json_value_get_number(val);
 
 fatal:
   return err;
@@ -602,6 +606,7 @@ void bud_config_print_default() {
   config.frontend.keepalive = -1;
   config.frontend.ssl3 = -1;
   config.frontend.false_start = -1;
+  config.frontend.max_send_fragment = -1;
   config.backend_count = 1;
   config.backend = &backend;
   config.backend[0].keepalive = -1;
@@ -656,6 +661,9 @@ void bud_config_print_default() {
     fprintf(stdout, "    \"false_start\": true,\n");
   else
     fprintf(stdout, "    \"false_start\": false,\n");
+  fprintf(stdout,
+          "    \"max_send_fragment\": %d,\n",
+          config.frontend.max_send_fragment);
 #ifdef OPENSSL_NPN_NEGOTIATED
   /* Sorry, hard-coded */
   fprintf(stdout, "    \"npn\": [\"http/1.1\", \"http/1.0\"],\n");
@@ -723,6 +731,7 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.server_preference, -1, 1);
   DEFAULT(config->frontend.ssl3, -1, 0);
   DEFAULT(config->frontend.false_start, -1, 1);
+  DEFAULT(config->frontend.max_send_fragment, -1, 1400);
   DEFAULT(config->frontend.cert_file, NULL, "keys/cert.pem");
   DEFAULT(config->frontend.key_file, NULL, "keys/key.pem");
   DEFAULT(config->frontend.reneg_window, 0, 600);
@@ -835,6 +844,9 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
     ssl_mode |= SSL_MODE_HANDSHAKE_CUTTHROUGH;
     SSL_CTX_set_mode(ctx, ssl_mode);
   }
+
+  if (config->frontend.max_send_fragment)
+    SSL_CTX_set_max_send_fragment(ctx, config->frontend.max_send_fragment);
 
   /* ECDH curve selection */
   if (context->ecdh != NULL || config->frontend.ecdh != NULL) {

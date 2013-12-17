@@ -68,6 +68,7 @@ struct bud_config_frontend_s {
   int reneg_limit;
   int ssl3;
   int false_start;
+  int max_send_fragment;
 
   /* Internal */
   const SSL_METHOD* method;

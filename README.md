@@ -123,6 +123,9 @@ to get default configuration options (with comments and description below):
 
     // **Optional** If true - enable TLS False Start
     "false_start": true
+
+    // **Optional** Maximum size of TLS fragment
+    "max_send_fragment": 1400
   },
 
   // Backend configuration (i.e. address of Cleartext server)
