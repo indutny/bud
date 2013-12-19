@@ -151,6 +151,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_UV_ERROR("uv_read_stop(client)", err)                               \
     case kBudErrClientWrite:                                                  \
       BUD_UV_ERROR("uv_write(client)", err)                                   \
+    case kBudErrClientWriteCb:                                                \
+      BUD_UV_ERROR("uv_write(client) cb", err)                                \
     case kBudErrClientTryWrite:                                               \
       BUD_UV_ERROR("uv_try_write(client)", err)                               \
     case kBudErrClientConnect:                                                \

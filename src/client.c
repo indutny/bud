@@ -716,7 +716,7 @@ bud_client_error_t bud_client_send(bud_client_t* client,
   } if (r == UV_ENOSYS) {
     /* Not supported try_write */
     r = 0;
-  } else if (r <  0) {
+  } else if (r < 0) {
     cerr = bud_client_error(bud_error_num(kBudErrClientTryWrite, r), side);
     goto fatal;
   }
