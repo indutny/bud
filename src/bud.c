@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
 
   bud_init_openssl();
 
-  config = bud_config_cli_load(uv_default_loop(), argc, argv, &err);
+  config = bud_config_cli_load(argc, argv, &err);
 
   /* NOTE: bud_config_load will print everything itself */
   if (config == NULL)

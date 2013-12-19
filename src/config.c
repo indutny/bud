@@ -59,10 +59,7 @@ int kBudSSLClientIndex = -1;
 int kBudSSLSNIIndex = -1;
 
 
-bud_config_t* bud_config_cli_load(uv_loop_t* loop,
-                                  int argc,
-                                  char** argv,
-                                  bud_error_t* err) {
+bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   int c;
   int r;
   int index;
@@ -94,7 +91,7 @@ bud_config_t* bud_config_cli_load(uv_loop_t* loop,
         bud_print_version();
         break;
       case 'c':
-        config = bud_config_load(loop,optarg, err);
+        config = bud_config_load(optarg, err);
         if (config == NULL) {
           ASSERT(!bud_is_ok(*err), "Config load failed without error");
           c = -1;
@@ -181,7 +178,7 @@ bud_error_t bud_config_reload(bud_config_t* config) {
   bud_config_t* loaded;
   bud_config_t restore;
 
-  loaded = bud_config_load(config->loop, config->path, &err);
+  loaded = bud_config_load(config->path, &err);
   if (!bud_is_ok(err))
     return err;
 
@@ -223,9 +220,7 @@ bud_error_t bud_config_verify_npn(const JSON_Array* npn) {
 }
 
 
-bud_config_t* bud_config_load(uv_loop_t* loop,
-                              const char* path,
-                              bud_error_t* err) {
+bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
   int i;
   JSON_Value* json;
   JSON_Value* val;
@@ -277,7 +272,6 @@ bud_config_t* bud_config_load(uv_loop_t* loop,
     goto failed_get_index;
   }
 
-  config->loop = loop;
   config->json = json;
 
   /* Workers configuration */

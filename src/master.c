@@ -54,7 +54,12 @@ bud_error_t bud_master(bud_config_t* config) {
   if (config->is_daemon)
     if (bud_daemonize(&err) != 0)
       goto fatal;
+#endif  /* !_WIN32 */
 
+  /* Create loop after forking */
+  config->loop = uv_default_loop();
+
+#ifndef _WIN32
   /* Initialize signal watchers */
   err = bud_master_init_signals(config);
   if (!bud_is_ok(err))
@@ -121,10 +126,8 @@ int bud_daemonize(bud_error_t* err) {
 
   p = fork();
   if (p > 0) {
-    *err = bud_ok();
-
     /* Make parent exit */
-    return -1;
+    exit(0);
   } else if (p == -1) {
     *err = bud_error_num(kBudErrForkFailed, errno);
     return -1;
