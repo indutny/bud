@@ -863,7 +863,7 @@ bud_client_error_t bud_client_shutdown(bud_client_t* client,
   DBG_LN(side, "shutdown");
 
   if (side == &client->frontend) {
-    if (SSL_shutdown(client->ssl) == 0)
+    if (SSL_shutdown(client->ssl) != 1)
       SSL_shutdown(client->ssl);
 
     /* Try writing close_notify */
