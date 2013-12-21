@@ -87,6 +87,7 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
     switch (c) {
       case 'v':
         bud_print_version();
+        c = -1;
         break;
       case 'c':
         config = bud_config_load(optarg, err);
@@ -578,7 +579,11 @@ void bud_print_help(int argc, char** argv) {
 
 
 void bud_print_version() {
-  fprintf(stdout, "v%d.%d\n", BUD_VERSION_MAJOR, BUD_VERSION_MINOR);
+  fprintf(stdout,
+          "v%d.%d.%d\n",
+          BUD_VERSION_MAJOR,
+          BUD_VERSION_MINOR,
+          BUD_VERSION_PATCH);
 }
 
 
