@@ -885,10 +885,12 @@ bud_client_error_t bud_client_shutdown(bud_client_t* client,
   r = uv_shutdown(&side->shutdown_req,
                   (uv_stream_t*) &side->tcp,
                   bud_client_shutdown_cb);
-  if (r != 0)
+  if (r != 0) {
     cerr = bud_client_error(bud_error_num(kBudErrClientShutdown, r), side);
-  else
+  } else {
     cerr = bud_client_ok(side);
+    side->shutdown = kBudProgressRunning;
+  }
 
 fatal:
   side->shutdown = 1;
