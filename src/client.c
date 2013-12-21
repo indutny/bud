@@ -645,6 +645,10 @@ bud_client_error_t bud_client_backend_out(bud_client_t* client) {
   if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
     return bud_client_ok(&client->backend);
 
+  /* Close-notify, most likely */
+  if (err == SSL_ERROR_ZERO_RETURN)
+    return bud_client_shutdown(client, &client->backend);
+
   return bud_client_error(bud_error_num(kBudErrClientSSLRead, err),
                           &client->frontend);
 }
