@@ -501,7 +501,8 @@ void bud_config_destroy(bud_config_t* config) {
   int i;
 
   bud_config_finalize(config);
-  uv_run(config->loop, UV_RUN_NOWAIT);
+  if (config->loop != NULL)
+    uv_run(config->loop, UV_RUN_NOWAIT);
 
   for (i = 0; i < config->context_count + 1; i++)
     bud_context_free(&config->contexts[i]);
