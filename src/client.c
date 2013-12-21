@@ -37,6 +37,8 @@ static bud_client_error_t bud_client_shutdown(bud_client_t* client,
                                               bud_client_side_t* side);
 static void bud_client_shutdown_cb(uv_shutdown_t* req, int status);
 static bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client);
+static void bud_client_handshake_start_cb(const SSL* ssl);
+static void bud_client_handshake_done_cb(const SSL* ssl);
 static void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret);
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
@@ -114,10 +116,17 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
    */
   client->selected_backend = bud_select_backend(config);
 
+  /* No backend can be selected yet, wait for SNI */
+  if (client->selected_backend == NULL) {
+    client->backend.close = kBudProgressDone;
+    cerr = bud_client_ok(&client->backend);
+
   /* No backend alive, try reconnecting */
-  if (client->selected_backend->dead) {
+  } else if (client->selected_backend->dead) {
     DBG_LN(&client->backend, "all backends dead, scheduling reconnection");
     cerr = bud_client_retry(client);
+
+  /* Backend alive - connect immediately */
   } else {
     cerr = bud_client_connect(client);
   }
@@ -972,15 +981,13 @@ fatal:
 }
 
 
-void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret) {
+void bud_client_handshake_start_cb(const SSL* ssl) {
   bud_client_t* client;
   uint64_t now;
   uint64_t limit;
 
-  if ((where & SSL_CB_HANDSHAKE_START) == 0)
-    return;
-
   client = SSL_get_ex_data(ssl, kBudSSLClientIndex);
+
   now = uv_now(client->config->loop);
 
   /* NOTE: config's limit is in ms */
@@ -1003,6 +1010,45 @@ void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret) {
 
 end:
   client->last_handshake = now;
+}
+
+
+void bud_client_handshake_done_cb(const SSL* ssl) {
+  bud_client_t* client;
+  bud_context_t* context;
+  bud_client_error_t cerr;
+
+  client = SSL_get_ex_data(ssl, kBudSSLClientIndex);
+  context = SSL_get_ex_data(ssl, kBudSSLSNIIndex);
+
+  if (client->selected_backend != NULL)
+    return;
+
+  if (client->config->balance_e != kBudBalanceSNI)
+    return;
+
+  if (context != NULL)
+    client->selected_backend = context->backend;
+  if (client->selected_backend != NULL) {
+    /* Backend provided - connect */
+    cerr = bud_client_connect(client);
+  } else {
+    /* No backend in SNI response */
+    cerr = bud_client_error(bud_error(kBudErrClientNoBackendInSNI),
+                            &client->frontend);
+  }
+
+  if (!bud_is_ok(cerr.err))
+    bud_client_close(client, cerr);
+}
+
+
+void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret) {
+  if ((where & SSL_CB_HANDSHAKE_START) != 0)
+    bud_client_handshake_start_cb(ssl);
+
+  if ((where & SSL_CB_HANDSHAKE_DONE) != 0)
+    bud_client_handshake_done_cb(ssl);
 }
 
 

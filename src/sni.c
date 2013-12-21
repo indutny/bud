@@ -15,6 +15,7 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
                               bud_context_t* ctx) {
   int r;
   JSON_Object* obj;
+  JSON_Object* tmp;
   const char* cert_str;
   const char* key_str;
   bud_error_t err;
@@ -34,6 +35,11 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   ctx->ciphers = json_object_get_string(obj, "ciphers");
   ctx->ecdh = json_object_get_string(obj, "ecdh");
   ctx->npn = json_object_get_array(obj, "npn");
+  tmp = json_object_get_object(obj, "backend");
+  if (tmp != NULL) {
+    ctx->backend = &ctx->backend_st;
+    bud_config_load_backend(config, tmp, ctx->backend);
+  }
 
   err = bud_config_new_ssl_ctx(config, ctx);
   if (!bud_is_ok(err))

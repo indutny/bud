@@ -128,6 +128,10 @@ to get default configuration options (with comments and description below):
     "max_send_fragment": 1400
   },
 
+  // Balance tactic
+  // **Optional** possible values: "roundrobin", "sni"
+  "balance": "roundrobin"
+
   // Backend configuration (i.e. address of Cleartext server)
   "backend": [{
     "port": 8000,
@@ -173,8 +177,15 @@ to get default configuration options (with comments and description below):
     "ecdh": null,
 
     // NPN protocols to advertise
-    // (overrides frontend.npn, if not null)
-    "npn": ["http/1.1", "http/1.0"]
+    // **optional** (overrides frontend.npn, if not null)
+    "npn": ["http/1.1", "http/1.0"],
+
+    // Backend to use, works only when "balance" is set to "sni"
+    "backend": {
+      "port": 8000,
+      "host": "127.0.0.1",
+      "keepalive": 3600
+    }
   }]
 }
 ```

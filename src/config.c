@@ -26,9 +26,6 @@ static void bud_config_load_addr(JSON_Object* obj,
                                  bud_config_addr_t* addr);
 static bud_error_t bud_config_load_frontend(JSON_Object* obj,
                                             bud_config_frontend_t* frontend);
-static bud_error_t bud_config_load_backend(bud_config_t* config,
-                                           JSON_Object* obj,
-                                           bud_config_backend_t* backend);
 static void bud_config_copy(bud_config_t* dst, bud_config_t* src);
 static void bud_config_destroy(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
@@ -57,6 +54,7 @@ static bud_error_t bud_config_verify_npn(const JSON_Array* npn);
 
 int kBudSSLClientIndex = -1;
 int kBudSSLSNIIndex = -1;
+static const int kBudDefaultKeepalive = 3600;
 
 
 bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
@@ -163,6 +161,7 @@ void bud_config_copy(bud_config_t* dst, bud_config_t* src) {
   dst->path = src->path;
   dst->contexts = src->contexts;
   dst->restart_timeout = src->restart_timeout;
+  dst->balance = src->balance;
   dst->backend = src->backend;
   src->backend = NULL;
   memcpy(&dst->log, &src->log, sizeof(src->log));
@@ -328,10 +327,7 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
     goto failed_get_index;
 
   /* Backend configuration */
-  if (config->backend_count == 0) {
-    *err = bud_error(kBudErrNoBackend);
-    goto failed_get_index;
-  }
+  config->balance = json_object_get_string(obj, "balance");
   for (i = 0; i < config->backend_count; i++) {
     bud_config_load_backend(config,
                             json_array_get_object(backend, i),
@@ -675,6 +671,7 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"reneg_window\": %d,\n", config.frontend.reneg_window);
   fprintf(stdout, "    \"reneg_limit\": %d\n", config.frontend.reneg_limit);
   fprintf(stdout, "  },\n");
+  fprintf(stdout, "  \"balance\": \"%s\",\n", config.balance);
   fprintf(stdout, "  \"backend\": [{\n");
   fprintf(stdout, "    \"port\": %d,\n", config.backend[0].port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.backend[0].host);
@@ -721,7 +718,7 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.proxyline, -1, 0);
   DEFAULT(config->frontend.security, NULL, "ssl23");
   DEFAULT(config->frontend.ecdh, NULL, "prime256v1");
-  DEFAULT(config->frontend.keepalive, -1, 3600);
+  DEFAULT(config->frontend.keepalive, -1, kBudDefaultKeepalive);
   DEFAULT(config->frontend.server_preference, -1, 1);
   DEFAULT(config->frontend.ssl3, -1, 0);
   DEFAULT(config->frontend.false_start, -1, 1);
@@ -730,10 +727,11 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.key_file, NULL, "keys/key.pem");
   DEFAULT(config->frontend.reneg_window, 0, 600);
   DEFAULT(config->frontend.reneg_limit, 0, 3);
+  DEFAULT(config->balance, NULL, "roundrobin");
   for (i = 0; i < config->backend_count; i++) {
     DEFAULT(config->backend[i].port, 0, 8000);
     DEFAULT(config->backend[i].host, NULL, "127.0.0.1");
-    DEFAULT(config->backend[i].keepalive, -1, 3600);
+    DEFAULT(config->backend[i].keepalive, -1, kBudDefaultKeepalive);
   }
 
   DEFAULT(config->sni.port, 0, 9000);
@@ -810,6 +808,17 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   bud_error_t err;
   int options;
   int ssl_mode;
+  int r;
+
+  if (context->backend != NULL) {
+    if (context->backend->keepalive == -1)
+      context->backend->keepalive = kBudDefaultKeepalive;
+    r = bud_config_str_to_addr(context->backend->host,
+                               context->backend->port,
+                               &context->backend->addr);
+    if (r != 0)
+      return bud_error_num(kBudErrPton, r);
+  }
 
   /* Choose method, tlsv1_2 by default */
   if (config->frontend.method == NULL) {
@@ -1056,7 +1065,16 @@ bud_error_t bud_config_init(bud_config_t* config) {
       return bud_error_num(kBudErrPton, r);
   }
 
+  /* Balance str to enum */
+  if (strcmp(config->balance, "sni") == 0)
+    config->balance_e = kBudBalanceSNI;
+  else
+    config->balance_e = kBudBalanceRoundRobin;
+
   i = 0;
+
+  if (config->backend_count == 0 && config->balance_e == kBudBalanceRoundRobin)
+    return bud_error(kBudErrNoBackend);
 
   /* Get indexes for SSL_set_ex_data()/SSL_get_ex_data() */
   if (kBudSSLClientIndex == -1) {
@@ -1204,8 +1222,11 @@ int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
   if (ctx == NULL)
     ctx = bud_config_select_context(config, servername, strlen(servername));
 
-  if (ctx != NULL)
+  if (ctx != NULL) {
     SSL_set_SSL_CTX(s, ctx->ctx);
+    if (!SSL_set_ex_data(s, kBudSSLSNIIndex, ctx))
+      return SSL_TLSEXT_ERR_ALERT_FATAL;
+  }
 
   return SSL_TLSEXT_ERR_OK;
 }

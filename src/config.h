@@ -21,6 +21,7 @@ struct bud_http_pool_s;
 
 typedef struct bud_context_s bud_context_t;
 typedef struct bud_config_http_pool_s bud_config_http_pool_t;
+typedef enum bud_config_balance_e bud_config_balance_t;
 typedef struct bud_config_s bud_config_t;
 typedef struct bud_config_addr_s bud_config_addr_t;
 typedef struct bud_config_backend_s bud_config_backend_t;
@@ -115,6 +116,12 @@ struct bud_context_s {
 };
 
 
+enum bud_config_balance_e {
+  kBudBalanceRoundRobin,
+  kBudBalanceSNI
+};
+
+
 struct bud_config_s {
   /* Internal, just to keep stuff allocated */
   JSON_Value* json;
@@ -144,6 +151,7 @@ struct bud_config_s {
 
   /* Used by client.c */
   char proxyline_fmt[256];
+  bud_config_balance_t balance_e;
 
   /* Options from config file */
   char* path;
@@ -168,6 +176,7 @@ struct bud_config_s {
 
   bud_config_frontend_t frontend;
   bud_config_backend_t* backend;
+  const char* balance;
   int backend_count;
   int last_backend;
 
@@ -187,6 +196,9 @@ void bud_context_free(bud_context_t* context);
 /* Helper for loading SNI */
 bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
                                    bud_context_t* context);
+bud_error_t bud_config_load_backend(bud_config_t* config,
+                                    JSON_Object* obj,
+                                    bud_config_backend_t* backend);
 
 /* Helper for stapling */
 bud_context_t* bud_config_select_context(bud_config_t* config,

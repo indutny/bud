@@ -91,7 +91,8 @@ enum bud_error_code_e {
   kBudErrClientShutdownCb = 0x80d,
   kBudErrClientRenegotiationAttack = 0x80e,
   kBudErrClientRetry = 0x80f,
-  kBudErrClientProxyline = 0x810
+  kBudErrClientProxyline = 0x810,
+  kBudErrClientNoBackendInSNI = 0x811
 };
 
 struct bud_error_s {

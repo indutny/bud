@@ -16,6 +16,10 @@ bud_config_backend_t* bud_select_backend(bud_config_t* config) {
   uint64_t now;
   uint64_t death_timeout;
 
+  /* SNI backend comes from `backend` or sni callback */
+  if (config->balance_e == kBudBalanceSNI)
+    return NULL;
+
   now = uv_now(config->loop);
   death_timeout = (uint64_t) config->availability.death_timeout;
 
@@ -245,7 +249,8 @@ bud_client_error_t bud_client_retry(bud_client_t* client) {
 
   /* Select backend again */
   client->backend.close = kBudProgressDone;
-  client->selected_backend = bud_select_backend(client->config);
+  if (client->config->balance_e != kBudBalanceSNI)
+    client->selected_backend = bud_select_backend(client->config);
 
   client->retry = kBudProgressNone;
   r = uv_timer_start(&client->retry_timer,

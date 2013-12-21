@@ -179,6 +179,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("retry connecting to backend")                                \
     case kBudErrClientProxyline:                                              \
       BUD_ERROR("append proxyline")                                           \
+    case kBudErrClientNoBackendInSNI:                                         \
+      BUD_ERROR("no backend provided in SNI context")                         \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }
