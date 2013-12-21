@@ -242,10 +242,8 @@ bud_client_error_t bud_client_retry(bud_client_t* client) {
   if (client->close != kBudProgressNone)
     return bud_client_error(bud_error(kBudErrRetryAfterClose), side);
 
-  if (++client->retry_count > client->config->availability.max_retries) {
-    WARNING_LN(&client->backend, "Retried too many times");
+  if (++client->retry_count > client->config->availability.max_retries)
     return bud_client_error(bud_error(kBudErrMaxRetries), side);
-  }
 
   /* Select backend again */
   client->backend.close = kBudProgressDone;
@@ -277,6 +275,7 @@ void bud_client_retry_cb(uv_timer_t* timer, int status) {
 
   /* Backend still dead, try again */
   if (client->selected_backend->dead) {
+    WARNING_LN(&client->backend, "backend still dead, retrying");
     cerr = bud_client_retry(client);
     if (!bud_is_ok(cerr.err))
       bud_client_close(client, cerr);
