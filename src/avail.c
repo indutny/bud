@@ -203,6 +203,7 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
 
   /* Success */
   client->connect = kBudProgressDone;
+  client->selected_backend->dead_since = 0;
 
   /* Start reading if queued */
   if (client->backend.reading == kBudProgressRunning) {
