@@ -125,7 +125,10 @@ to get default configuration options (with comments and description below):
     "false_start": true
 
     // **Optional** Maximum size of TLS fragment
-    "max_send_fragment": 1400
+    "max_send_fragment": 1400,
+
+    // **Optional** If false - close frontend connection on backend EOF
+    "allow_half_open": false
   },
 
   // Balance tactic

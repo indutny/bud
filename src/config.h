@@ -70,6 +70,7 @@ struct bud_config_frontend_s {
   int ssl3;
   int false_start;
   int max_send_fragment;
+  int allow_half_open;
 
   /* Internal */
   const SSL_METHOD* method;

@@ -929,7 +929,9 @@ void bud_client_shutdown_cb(uv_shutdown_t* req, int status) {
 
   /* If either closing, or shutdown both sides - kill both sockets! */
   } else if (side->close == kBudProgressRunning ||
-             client->frontend.shutdown == client->backend.shutdown) {
+             client->frontend.shutdown == client->backend.shutdown ||
+             (side == &client->frontend &&
+                  !client->config->frontend.allow_half_open)) {
     bud_client_close(client, bud_client_ok(side));
   }
 }

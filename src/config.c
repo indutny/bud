@@ -424,6 +424,7 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   frontend->ssl3 = -1;
   frontend->false_start = -1;
   frontend->max_send_fragment = -1;
+  frontend->allow_half_open = -1;
   if (obj == NULL)
     return bud_ok();
 
@@ -456,6 +457,9 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   val = json_object_get_value(obj, "max_send_fragment");
   if (val != NULL)
     frontend->max_send_fragment = json_value_get_number(val);
+  val = json_object_get_value(obj, "allow_half_open");
+  if (val != NULL)
+    frontend->allow_half_open = json_value_get_boolean(val);
 
 fatal:
   return err;
@@ -603,6 +607,7 @@ void bud_config_print_default() {
   config.frontend.ssl3 = -1;
   config.frontend.false_start = -1;
   config.frontend.max_send_fragment = -1;
+  config.frontend.allow_half_open = -1;
   config.backend_count = 1;
   config.backend = &backend;
   config.backend[0].keepalive = -1;
@@ -660,6 +665,10 @@ void bud_config_print_default() {
   fprintf(stdout,
           "    \"max_send_fragment\": %d,\n",
           config.frontend.max_send_fragment);
+  if (config.frontend.allow_half_open)
+    fprintf(stdout, "    \"allow_half_open\": true,\n");
+  else
+    fprintf(stdout, "    \"allow_half_open\": false,\n");
 #ifdef OPENSSL_NPN_NEGOTIATED
   /* Sorry, hard-coded */
   fprintf(stdout, "    \"npn\": [\"http/1.1\", \"http/1.0\"],\n");
@@ -729,6 +738,7 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.ssl3, -1, 0);
   DEFAULT(config->frontend.false_start, -1, 1);
   DEFAULT(config->frontend.max_send_fragment, -1, 1400);
+  DEFAULT(config->frontend.allow_half_open, -1, 0);
   DEFAULT(config->frontend.cert_file, NULL, "keys/cert.pem");
   DEFAULT(config->frontend.key_file, NULL, "keys/key.pem");
   DEFAULT(config->frontend.reneg_window, 0, 600);
