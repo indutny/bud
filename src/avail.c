@@ -195,7 +195,6 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
       client->selected_backend->dead_since = uv_now(client->config->loop);
 
     /* But reopen the socket first */
-    client->destroy_waiting--;
     uv_close((uv_handle_t*) &client->backend.tcp, bud_client_connect_close_cb);
     client->backend.close = kBudProgressDone;
     return;
@@ -224,7 +223,10 @@ void bud_client_connect_close_cb(uv_handle_t* handle) {
   bud_client_t* client;
 
   client = handle->data;
+  if (client->close != kBudProgressNone)
+    return bud_client_close_cb(handle);
 
+  client->destroy_waiting++;
   cerr = bud_client_retry(client);
   if (bud_is_ok(cerr.err))
     return;
