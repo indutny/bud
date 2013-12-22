@@ -926,7 +926,10 @@ void bud_client_shutdown_cb(uv_shutdown_t* req, int status) {
                      bud_client_error(bud_error_num(kBudErrClientShutdownCb,
                                                     status),
                                       side));
-  } else if (side->close == kBudProgressRunning) {
+
+  /* If either closing, or shutdown both sides - kill both sockets! */
+  } else if (side->close == kBudProgressRunning ||
+             client->frontend.shutdown == client->backend.shutdown) {
     bud_client_close(client, bud_client_ok(side));
   }
 }
