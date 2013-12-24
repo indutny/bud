@@ -35,13 +35,13 @@ node process.js > big.csv
 
 Normal response:
 
-![https://raw.github.com/indutny/bud/master/benchmarks/normal-rps.png](Normal RPS)
-![https://raw.github.com/indutny/bud/master/benchmarks/normal-resp.png](Normal Response)
+![Normal RPS](https://raw.github.com/indutny/bud/master/benchmarks/normal-rps.png)
+![Normal Response](https://raw.github.com/indutny/bud/master/benchmarks/normal-resp.png)
 
 Big response:
 
-![https://raw.github.com/indutny/bud/master/benchmarks/big2-rps.png](Big RPS)
-![https://raw.github.com/indutny/bud/master/benchmarks/big2-resp.png](Big Response)
+![Big RPS](https://raw.github.com/indutny/bud/master/benchmarks/big2-rps.png)
+![Big Response](https://raw.github.com/indutny/bud/master/benchmarks/big2-resp.png)
 
 [0]: http://smartos.org/
 [1]: http://www.joyent.com/
