@@ -34,7 +34,7 @@ static const int unbase64_table[] =
 size_t bud_base64_decode(char *buf,
                          size_t len,
                          const char *src,
-                          const size_t srcLen) {
+                         const size_t srcLen) {
   char a, b, c, d;
   char* dst;
   char* dstEnd;

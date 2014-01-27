@@ -34,6 +34,7 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   memset(ctx, 0, sizeof(*ctx));
   ctx->ciphers = json_object_get_string(obj, "ciphers");
   ctx->ecdh = json_object_get_string(obj, "ecdh");
+  ctx->ticket_key = json_object_get_string(obj, "ticket_key");
   ctx->npn = json_object_get_array(obj, "npn");
   tmp = json_object_get_object(obj, "backend");
   if (tmp != NULL) {

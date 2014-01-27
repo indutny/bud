@@ -107,6 +107,10 @@ to get default configuration options (with comments and description below):
     // **Optional** ECDH Curve to use
     "ecdh": "prime256v1",
 
+    // **Optional** Base64 encoded TLS session ticket key,
+    // should decode into 48 raw bytes
+    "ticket_key": "yzNUDktR5KmA4wX9g9kDSzEn+3+7HjCXrI+kz4tTxNL22tnPyd+2gqEW608LRBh8",
+
     // **Optional** NPN protocols to advertise
     "npn": ["http/1.1", "http/1.0"],
 
@@ -175,6 +179,9 @@ to get default configuration options (with comments and description below):
 
     // ECDH curve to use, overrides frontend.ecdh
     "ecdh": null,
+
+    // TLS session ticket key to use, overrides frontend.ticket_key
+    "ticket_key": null,
 
     // NPN protocols to advertise
     // **optional** (overrides frontend.npn, if not null)

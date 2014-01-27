@@ -360,6 +360,7 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
     ctx->npn = json_object_get_array(obj, "npn");
     ctx->ciphers = json_object_get_string(obj, "ciphers");
     ctx->ecdh = json_object_get_string(obj, "ecdh");
+    ctx->ticket_key = json_object_get_string(obj, "ticket_key");
 
     tmp = json_object_get_object(obj, "backend");
     if (tmp != NULL) {
@@ -434,6 +435,7 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   frontend->key_file = json_object_get_string(obj, "key");
   frontend->reneg_window = json_object_get_number(obj, "reneg_window");
   frontend->reneg_limit = json_object_get_number(obj, "reneg_limit");
+  frontend->ticket_key = json_object_get_string(obj, "ticket_key");
 
   /* Get and verify NPN */
   frontend->npn = json_object_get_array(obj, "npn");
@@ -674,6 +676,7 @@ void bud_config_print_default() {
     fprintf(stdout, "    \"ecdh\": null,\n");
   fprintf(stdout, "    \"cert\": \"%s\",\n", config.frontend.cert_file);
   fprintf(stdout, "    \"key\": \"%s\",\n", config.frontend.key_file);
+  fprintf(stdout, "    \"ticket_key\": null,\n");
   fprintf(stdout, "    \"reneg_window\": %d,\n", config.frontend.reneg_window);
   fprintf(stdout, "    \"reneg_limit\": %d\n", config.frontend.reneg_limit);
   fprintf(stdout, "  },\n");
@@ -814,6 +817,8 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   bud_error_t err;
   int options;
   int r;
+  const char* ticket_key;
+  size_t max_len;
 
   if (context->backend != NULL) {
     if (context->backend->keepalive == -1)
@@ -823,6 +828,19 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
                                &context->backend->addr);
     if (r != 0)
       return bud_error_num(kBudErrPton, r);
+  }
+
+  /* Decode ticket_key */
+  ticket_key = context->ticket_key == NULL ? config->frontend.ticket_key :
+                                             context->ticket_key;
+  if (ticket_key != NULL) {
+    max_len = sizeof(context->ticket_key_storage);
+    if (bud_base64_decode(context->ticket_key_storage,
+                          max_len,
+                          ticket_key,
+                          strlen(ticket_key)) < max_len) {
+      return bud_error(kBudErrSmallTicketKey);
+    }
   }
 
   /* Choose method, tlsv1_2 by default */
@@ -848,6 +866,12 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
 
   if (config->frontend.max_send_fragment)
     SSL_CTX_set_max_send_fragment(ctx, config->frontend.max_send_fragment);
+
+  if (ticket_key != NULL) {
+    SSL_CTX_set_tlsext_ticket_keys(ctx,
+                                   context->ticket_key_storage,
+                                   sizeof(context->ticket_key_storage));
+  }
 
   /* ECDH curve selection */
   if (context->ecdh != NULL || config->frontend.ecdh != NULL) {
@@ -1078,7 +1102,10 @@ bud_error_t bud_config_init(bud_config_t* config) {
   if (kBudSSLClientIndex == -1) {
     kBudSSLClientIndex = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
     kBudSSLSNIIndex = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
-    if (kBudSSLClientIndex == -1 || kBudSSLSNIIndex == -1) {
+    kBudSSLTicketKeyIndex = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
+    if (kBudSSLClientIndex == -1 ||
+        kBudSSLSNIIndex == -1 ||
+        kBudSSLTicketKeyIndex == -1) {
       err = bud_error(kBudErrNoSSLIndex);
       goto fatal;
     }

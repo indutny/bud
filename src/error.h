@@ -29,6 +29,7 @@ enum bud_error_code_e {
   kBudErrECDHNotFound = 0x10a,
   kBudErrNoBackend = 0x10b,
   kBudErrNoSSLIndex = 0x10c,
+  kBudErrSmallTicketKey = 0x10d,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,

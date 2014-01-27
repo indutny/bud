@@ -29,6 +29,7 @@ typedef struct bud_config_frontend_s bud_config_frontend_t;
 
 int kBudSSLClientIndex;
 int kBudSSLSNIIndex;
+int kBudSSLTicketKeyIndex;
 
 struct bud_config_http_pool_s {
   int enabled;
@@ -40,6 +41,17 @@ struct bud_config_http_pool_s {
   /* internal */
   struct bud_http_pool_s* pool;
 };
+
+#define BUD_COMMON_SSL_FIELDS                                                 \
+    const char* cert_file;                                                    \
+    const char* key_file;                                                     \
+    const JSON_Array* npn;                                                    \
+    const char* ciphers;                                                      \
+    const char* ecdh;                                                         \
+    const char* ticket_key;                                                   \
+    /* internal */                                                            \
+    char ticket_key_storage[48];
+
 
 #define BUD_CONFIG_ADDR_FIELDS                                                \
     uint16_t port;                                                            \
@@ -60,11 +72,7 @@ struct bud_config_frontend_s {
   int proxyline;
   const char* security;
   int server_preference;
-  const JSON_Array* npn;
-  const char* ciphers;
-  const char* ecdh;
-  const char* cert_file;
-  const char* key_file;
+  BUD_COMMON_SSL_FIELDS
   int reneg_window;
   int reneg_limit;
   int ssl3;
@@ -94,11 +102,7 @@ struct bud_context_s {
   const char* servername;
   size_t servername_len;
 
-  const char* cert_file;
-  const char* key_file;
-  const JSON_Array* npn;
-  const char* ciphers;
-  const char* ecdh;
+  BUD_COMMON_SSL_FIELDS
   bud_config_backend_t* backend;
 
   /* Various */
@@ -115,6 +119,7 @@ struct bud_context_s {
   bud_config_backend_t backend_st;
 };
 
+#undef BUD_COMMON_SSL_FIELDS
 
 enum bud_config_balance_e {
   kBudBalanceRoundRobin,

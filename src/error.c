@@ -81,6 +81,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("Empty \"backend\" array, or \"backend\" is not array")       \
     case kBudErrNoSSLIndex:                                                   \
       BUD_ERROR("SSL_get_ex_new_index failed")                                \
+    case kBudErrSmallTicketKey:                                               \
+      BUD_ERROR("ticket_key should decode into 48 byte sequence")             \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \
