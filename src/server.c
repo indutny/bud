@@ -28,7 +28,7 @@ bud_error_t bud_server_new(bud_config_t* config) {
     goto failed_tcp_init;
   }
 
-  r = uv_tcp_bind(&server->tcp, (struct sockaddr*) &config->frontend.addr);
+  r = uv_tcp_bind(&server->tcp, (struct sockaddr*) &config->frontend.addr, 0);
   if (r != 0) {
     err = bud_error_num(kBudErrTcpServerBind, r);
     goto failed_bind;
