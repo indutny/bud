@@ -2,8 +2,8 @@
 *.json
 !package.json
 *.sh
-/build/
-/out/
-/npm/bud
-/npm/bud.exe
+build/
+out/
+npm/bud
+npm/bud.exe
 npm-debug.log
