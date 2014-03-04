@@ -13,10 +13,9 @@ static void bud_worker_close_cb(uv_handle_t* handle);
 static void bud_worker_alloc_cb(uv_handle_t* handle,
                                 size_t suggested_size,
                                 uv_buf_t* buf);
-static void bud_worker_read_cb(uv_pipe_t* pipe,
+static void bud_worker_read_cb(uv_stream_t* stream,
                                ssize_t nread,
-                               const uv_buf_t* buf,
-                               uv_handle_type pending);
+                               const uv_buf_t* buf);
 #ifndef _WIN32
 static void bud_worker_signal_cb(uv_signal_t* signal, int status);
 #endif  /* !_WIN32 */
@@ -50,9 +49,9 @@ bud_error_t bud_worker(bud_config_t* config) {
     goto failed_pipe_open;
   }
 
-  r = uv_read2_start((uv_stream_t*) config->ipc,
-                     bud_worker_alloc_cb,
-                     bud_worker_read_cb);
+  r = uv_read_start((uv_stream_t*) config->ipc,
+                    bud_worker_alloc_cb,
+                    bud_worker_read_cb);
   if (r != 0) {
     err = bud_error_num(kBudErrIPCReadStart, r);
     goto failed_pipe_open;
@@ -118,25 +117,31 @@ void bud_worker_alloc_cb(uv_handle_t* handle,
 }
 
 
-void bud_worker_read_cb(uv_pipe_t* pipe,
+void bud_worker_read_cb(uv_stream_t* stream,
                         ssize_t nread,
-                        const uv_buf_t* buf,
-                        uv_handle_type pending) {
+                        const uv_buf_t* buf) {
+  uv_pipe_t* pipe;
   bud_config_t* config;
+  uv_handle_type pending;
 
+  pipe = (uv_pipe_t*) stream;
   config = pipe->data;
   ASSERT(config != NULL, "worker ipc failed to get config");
   ASSERT(nread >= 0 || nread == UV_EOF, "worker ipc read failure");
 
-  /* Ignore reads without handles */
-  if (pending == UV_UNKNOWN_HANDLE)
-    return;
+  while (uv_pipe_pending_count(pipe) > 0) {
+    pending = uv_pipe_pending_type(pipe);
 
-  ASSERT(pending == UV_TCP, "worker received non-tcp handle on ipc");
-  bud_log(config, kBudLogDebug, "worker received handle");
+    /* Ignore reads without handles */
+    if (pending == UV_UNKNOWN_HANDLE)
+      return;
 
-  /* Accept client */
-  bud_client_create(config, (uv_stream_t*) config->ipc);
+    ASSERT(pending == UV_TCP, "worker received non-tcp handle on ipc");
+    bud_log(config, kBudLogDebug, "worker received handle");
+
+    /* Accept client */
+    bud_client_create(config, (uv_stream_t*) config->ipc);
+  }
 }
 
 
