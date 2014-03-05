@@ -5,6 +5,7 @@
 #include "client-common.h"
 #include "config.h"
 #include "logger.h"
+#include "tracing.h"
 
 static void bud_kill_backend(bud_config_t* config,
                              bud_config_backend_t* backend);
@@ -203,6 +204,7 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
   /* Success */
   client->connect = kBudProgressDone;
   client->selected_backend->dead_since = 0;
+  bud_trace_backend_connect(client);
 
   /* Start reading if queued */
   if (client->backend.reading == kBudProgressRunning) {

@@ -55,6 +55,10 @@ struct bud_client_s {
   struct bud_config_backend_s* selected_backend;
   uv_timer_t retry_timer;
   int retry_count;
+
+  /* Tracing and proxyline */
+  char host[INET6_ADDRSTRLEN];
+  uint16_t port;
 };
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream);

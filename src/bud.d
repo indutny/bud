@@ -28,3 +28,22 @@ translator bud_handshake_t <bud_dtrace_handshake_t* h> {
   servername = copyinstr((uintptr_t) *(uint64_t*)
       copyin((uintptr_t) &h->servername, sizeof(h->servername)));
 };
+
+typedef struct {
+  int fd;
+  uint16_t port;
+  uint64_t host;
+} bud_dtrace_connection_t;
+
+typedef struct {
+  int fd;
+  uint16_t port;
+  string host;
+} bud_connection_t;
+
+translator bud_connection_t <bud_dtrace_connection_t* c> {
+  fd = *(int32_t*) copyin((uintptr_t) &c->fd, sizeof(c->fd));
+  port = *(uint16_t*) copyin((uintptr_t) &c->port, sizeof(c->port));
+  host = copyinstr((uintptr_t) *(uint64_t*)
+      copyin((uintptr_t) &c->host, sizeof(c->host)));
+};

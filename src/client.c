@@ -170,12 +170,11 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
 
   SSL_set_accept_state(client->ssl);
 
-  if (config->frontend.proxyline) {
-    cerr = bud_client_prepend_proxyline(client);
-    if (!bud_is_ok(cerr.err))
-      goto failed_connect;
-  }
+  cerr = bud_client_prepend_proxyline(client);
+  if (!bud_is_ok(cerr.err))
+    goto failed_connect;
 
+  bud_trace_frontend_accept(client);
   DBG_LN(&client->frontend, "new");
   return;
 
@@ -294,6 +293,7 @@ void bud_client_close_cb(uv_handle_t* handle) {
   if (--client->destroy_waiting != 0)
     return;
 
+  bud_trace_end(client);
   DBG_LN(&client->frontend, "close_cb");
 
   bud_client_side_destroy(&client->frontend);
@@ -945,8 +945,6 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
   struct sockaddr_in* addr;
   struct sockaddr_in6* addr6;
   const char* family;
-  char host[INET6_ADDRSTRLEN];
-  uint16_t port;
   char proxyline[256];
 
   storage_size = sizeof(storage);
@@ -960,12 +958,18 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
   addr6 = (struct sockaddr_in6*) &storage;
   if (storage.ss_family == AF_INET) {
     family = "TCP4";
-    port = addr->sin_port;
-    r = uv_inet_ntop(AF_INET, &addr->sin_addr, host, sizeof(host));
+    client->port = addr->sin_port;
+    r = uv_inet_ntop(AF_INET,
+                     &addr->sin_addr,
+                     client->host,
+                     sizeof(client->host));
   } else if (storage.ss_family == AF_INET6) {
     family = "TCP6";
-    port = addr6->sin6_port;
-    r = uv_inet_ntop(AF_INET6, &addr6->sin6_addr, host, sizeof(host));
+    client->port = addr6->sin6_port;
+    r = uv_inet_ntop(AF_INET6,
+                     &addr6->sin6_addr,
+                     client->host,
+                     sizeof(client->host));
   } else {
     r = -1;
     goto fatal;
@@ -974,12 +978,15 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
   if (r != 0)
     goto fatal;
 
+  if (!client->config->frontend.proxyline)
+    return bud_client_ok(&client->backend);
+
   r = snprintf(proxyline,
                sizeof(proxyline),
                client->config->proxyline_fmt,
                family,
-               host,
-               ntohs(port));
+               client->host,
+               ntohs(client->port));
   ASSERT(r < (int) sizeof(proxyline), "Client proxyline overflow");
 
   r = ringbuffer_write_into(&client->backend.output, proxyline, r);
