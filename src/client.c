@@ -16,6 +16,7 @@
 #include "logger.h"
 #include "sni.h"
 #include "ocsp.h"
+#include "tracing.h"
 
 static void bud_client_side_init(bud_client_side_t* side,
                                  bud_client_side_type_t type,
@@ -945,7 +946,7 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
   struct sockaddr_in6* addr6;
   const char* family;
   char host[INET6_ADDRSTRLEN];
-  int16_t port;
+  uint16_t port;
   char proxyline[256];
 
   storage_size = sizeof(storage);
@@ -1031,6 +1032,8 @@ void bud_client_handshake_done_cb(const SSL* ssl) {
 
   client = SSL_get_ex_data(ssl, kBudSSLClientIndex);
   context = SSL_get_ex_data(ssl, kBudSSLSNIIndex);
+
+  bud_trace_handshake(client);
 
   if (client->selected_backend != NULL)
     return;

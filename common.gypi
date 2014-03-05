@@ -9,6 +9,13 @@
     "msvs_multi_core_compile": "0",  # we do enable multicore compiles, but not using the V8 way
     "gcc_version%": "unknown",
     "clang%": 1,
+    "conditions": [
+      ["GENERATOR == 'ninja'", {
+        "OBJ_DIR": "<(PRODUCT_DIR)/obj",
+      }, {
+        "OBJ_DIR": "<(PRODUCT_DIR)/obj.target",
+      }],
+    ],
   },
 
   "target_defaults": {
