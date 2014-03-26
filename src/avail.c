@@ -9,7 +9,7 @@
 
 static void bud_kill_backend(bud_config_t* config,
                              bud_config_backend_t* backend);
-static void bud_revive_backend(uv_timer_t* timer, int status);
+static void bud_revive_backend(uv_timer_t* timer);
 
 bud_config_backend_t* bud_select_backend(bud_config_t* config) {
   bud_config_backend_t* res;
@@ -103,11 +103,8 @@ failed_init:
 }
 
 
-void bud_revive_backend(uv_timer_t* timer, int status) {
+void bud_revive_backend(uv_timer_t* timer) {
   bud_config_backend_t* backend;
-
-  if (status == UV_ECANCELED)
-    return;
 
   /* Ignore errors */
   backend = timer->data;
@@ -268,12 +265,9 @@ bud_client_error_t bud_client_retry(bud_client_t* client) {
 }
 
 
-void bud_client_retry_cb(uv_timer_t* timer, int status) {
+void bud_client_retry_cb(uv_timer_t* timer) {
   bud_client_error_t cerr;
   bud_client_t* client;
-
-  if (status == UV_ECANCELED)
-    return;
 
   client = timer->data;
   client->retry = kBudProgressDone;
@@ -285,13 +279,6 @@ void bud_client_retry_cb(uv_timer_t* timer, int status) {
     if (!bud_is_ok(cerr.err))
       bud_client_close(client, cerr);
     return;
-  }
-
-  if (status != 0) {
-    return bud_client_close(
-        client,
-        bud_client_error(bud_error_num(kBudErrClientRetry, status),
-                         &client->backend));
   }
 
   cerr = bud_client_connect(client);
