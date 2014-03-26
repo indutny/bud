@@ -110,6 +110,19 @@ void bud_trace_handshake(bud_client_t* client) {
 
 #else  /* !BUD_DTRACE */
 
+
+void bud_trace_frontend_accept(bud_client_t* client) {
+}
+
+
+void bud_trace_backend_connect(bud_client_t* client) {
+}
+
+
+void bud_trace_end(bud_client_t* client) {
+}
+
+
 void bud_trace_handshake(bud_client_t* client) {
   /* no-op */
 }
