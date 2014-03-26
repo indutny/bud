@@ -32,7 +32,7 @@ static bud_error_t bud_master_spawn_worker(bud_worker_t* worker);
 static void bud_master_kill_worker(bud_worker_t* worker,
                                    uint64_t delay,
                                    bud_worker_kill_cb cb);
-static void bud_worker_timer_cb(uv_timer_t* handle, int status);
+static void bud_worker_timer_cb(uv_timer_t* handle);
 static void bud_worker_close_cb(uv_handle_t* handle);
 static void bud_master_respawn_worker(uv_process_t* proc,
                                       int64_t exit_status,
@@ -397,7 +397,7 @@ void bud_master_kill_worker(bud_worker_t* worker,
 }
 
 
-void bud_worker_timer_cb(uv_timer_t* handle, int status) {
+void bud_worker_timer_cb(uv_timer_t* handle) {
   bud_worker_t* worker;
 
   worker = handle->data;

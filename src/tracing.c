@@ -63,7 +63,14 @@ void bud_trace_backend_connect(bud_client_t* client) {
   b.host = DSTR(bhost);
   b.port = client->selected_backend->port;
 
-  BUD_BACKEND_CONNECT(&c, &b, c.fd, c.port, client->host, b.fd, b.port, bhost);
+  BUD_BACKEND_CONNECT(&c,
+                      &b,
+                      c.fd,
+                      c.port,
+                      client->host,
+                      b.fd,
+                      b.port,
+                      (char*) bhost);
 }
 
 
