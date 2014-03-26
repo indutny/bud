@@ -1,4 +1,4 @@
-/tools/gyp
+tools/gyp
 *.json
 !package.json
 *.sh
