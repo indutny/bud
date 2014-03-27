@@ -27,6 +27,7 @@
   },
   "homepage": "https://github.com/indutny/bud",
   "devDependencies": {
-    "mocha": "~1.18.2"
+    "mocha": "~1.18.2",
+    "utile": "~0.2.1"
   }
 }

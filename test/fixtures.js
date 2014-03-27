@@ -1,5 +1,7 @@
 var assert = require('assert');
 var http = require('http');
+var https = require('https');
+var utile = require('utile');
 
 var bud = require('../');
 
@@ -9,6 +11,9 @@ var FRONT_PORT = 18001;
 var BACK_PORT = 18002;
 
 fixtures.getServers = function getServers(options) {
+  if (!options)
+    options = {};
+
   assert.equal(typeof beforeEach, 'function');
   assert.equal(typeof afterEach, 'function');
 
@@ -16,38 +21,67 @@ fixtures.getServers = function getServers(options) {
     frontend: {
       url: 'https://127.0.0.1:' + FRONT_PORT
     },
-    backend: {
-      requests: 0
-    }
+    backends: []
   };
 
   beforeEach(function(cb) {
-    sh.backend.requests = 0;
+    var count = options.backends && options.backends.length ||
+                options.backends ||
+                1;
+    for (var i = 0; i < count; i++) {
+      var backend = {
+        index: i,
+        requests: 0,
+        server: null,
+        port: BACK_PORT + i
+      };
 
-    sh.backend.server = http.createServer(function(req, res) {
-      sh.backend.requests++;
-      if (req.url === '/hello')
-        res.end('hello world');
-      else
-        res.end('nay');
-    });
+      !function(backend) {
+        backend.server = http.createServer(function(req, res) {
+          backend.requests++;
+          res.setHeader('X-Backend-Id', backend.index);
+          if (req.url === '/hello')
+            res.end('hello world');
+          else
+            res.end('nay');
+        });
+      }(backend);
+      sh.backends.push(backend);
+    }
 
     sh.frontend.server = bud.createServer({
-      backend: [{
-        port: BACK_PORT
-      }]
+      backend: sh.backends.map(function(backend, i) {
+        return utile.mixin({ port: backend.port },
+                           options.backends && options.backends[i] || {});
+      })
     });
 
     sh.frontend.server.listen(FRONT_PORT, function() {
-      sh.backend.server.listen(BACK_PORT, cb);
+      utile.async.each(sh.backends, function(backend, cb) {
+        backend.server.listen(backend.port, cb);
+      }, cb);
     });
   });
 
   afterEach(function(cb) {
-    sh.backend.server.close(function() {
+    utile.async.each(sh.backends, function(backend, cb) {
+      backend.server.close(cb);
+    }, function() {
       sh.frontend.server.close(cb);
     });
   });
 
   return sh;
+};
+
+fixtures.request = function request(sh, uri, cb) {
+  https.get(sh.frontend.url + uri, function(res) {
+    var chunks = '';
+    res.on('readable', function() {
+      chunks += res.read() || '';
+    });
+    res.on('end', function() {
+      cb(res, chunks);
+    });
+  });
 };

@@ -1,24 +1,40 @@
 var assert = require('assert');
 var fixtures = require('./fixtures');
-var https = require('https');
+var request = fixtures.request;
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 describe('Bud TLS Terminator', function() {
-  var sh = fixtures.getServers();
+  describe('single backend', function() {
+    var sh = fixtures.getServers();
 
-  it('should support basic termination', function(cb) {
-    https.get(sh.frontend.url + '/hello', function(res) {
-      assert.equal(sh.backend.requests, 1);
-      assert.equal(res.statusCode, 200);
-
-      var chunks = '';
-      res.on('readable', function() {
-        chunks += res.read() || '';
-      });
-      res.on('end', function() {
-        assert.equal(chunks, 'hello world');
+    it('should support basic termination', function(cb) {
+      request(sh, '/hello', function(res, body) {
+        assert.equal(sh.backends[0].requests, 1);
+        assert.equal(res.statusCode, 200);
+        assert.equal(res.headers['x-backend-id'], 0);
+        assert.equal(body, 'hello world');
         cb();
+      });
+    });
+  });
+
+  describe('multi-backend', function() {
+    var sh = fixtures.getServers({ backends: 2 });
+
+    it('should support round-robin balancing', function(cb) {
+      request(sh, '/hello', function(res, body) {
+        assert.equal(sh.backends[0].requests, 1);
+        assert.equal(res.headers['x-backend-id'], 0);
+        request(sh, '/hello', function(res, body) {
+          assert.equal(sh.backends[1].requests, 1);
+          assert.equal(res.headers['x-backend-id'], 1);
+          request(sh, '/hello', function(res, body) {
+            assert.equal(sh.backends[0].requests, 2);
+            assert.equal(res.headers['x-backend-id'], 0);
+            cb();
+          });
+        });
       });
     });
   });
