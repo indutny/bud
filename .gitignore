@@ -7,3 +7,4 @@ out/
 npm/bud
 npm/bud.exe
 npm-debug.log
+node_modules/

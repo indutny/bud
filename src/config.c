@@ -69,6 +69,7 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   struct option long_options[] = {
     { "version", 0, NULL, 'v' },
     { "config", 1, NULL, 'c' },
+    { "inline-config", 1, NULL, 'i' },
 #ifndef _WIN32
     { "daemonize", 0, NULL, 'd' },
 #endif  /* !_WIN32 */
@@ -83,14 +84,15 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   is_worker = 0;
   do {
     index = 0;
-    c = getopt_long(argc, argv, "vc:d", long_options, &index);
+    c = getopt_long(argc, argv, "vi:c:d", long_options, &index);
     switch (c) {
       case 'v':
         bud_print_version();
         c = -1;
         break;
+      case 'i':
       case 'c':
-        config = bud_config_load(optarg, err);
+        config = bud_config_load(optarg, c == 'i', err);
         if (config == NULL) {
           ASSERT(!bud_is_ok(*err), "Config load failed without error");
           c = -1;
@@ -160,6 +162,7 @@ void bud_config_copy(bud_config_t* dst, bud_config_t* src) {
   dst->json = src->json;
   dst->logger = src->logger;
   dst->path = src->path;
+  dst->inlined = src->inlined;
   dst->contexts = src->contexts;
   dst->restart_timeout = src->restart_timeout;
   dst->balance = src->balance;
@@ -178,7 +181,7 @@ bud_error_t bud_config_reload(bud_config_t* config) {
   bud_config_t* loaded;
   bud_config_t restore;
 
-  loaded = bud_config_load(config->path, &err);
+  loaded = bud_config_load(config->path, config->inlined, &err);
   if (!bud_is_ok(err))
     return err;
 
@@ -220,7 +223,7 @@ bud_error_t bud_config_verify_npn(const JSON_Array* npn) {
 }
 
 
-bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
+bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
   int i;
   JSON_Value* json;
   JSON_Value* val;
@@ -233,7 +236,11 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
   bud_config_t* config;
   bud_context_t* ctx;
 
-  json = json_parse_file(path);
+  if (inlined)
+    json = json_parse_string(path);
+  else
+    json = json_parse_file(path);
+
   if (json == NULL) {
     *err = bud_error_str(kBudErrJSONParse, path);
     goto end;
@@ -251,12 +258,14 @@ bud_config_t* bud_config_load(const char* path, bud_error_t* err) {
     goto failed_get_object;
   }
 
-  /* Copy path */
+  /* Copy path or inlined config value */
   config->path = strdup(path);
   if (config->path == NULL) {
     *err = bud_error_str(kBudErrNoMem, "bud_config_t strcpy(path)");
     goto failed_alloc_path;
   }
+
+  config->inlined = inlined;
 
   /* Allocate contexts and backends */
   contexts = json_object_get_array(obj, "contexts");

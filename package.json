@@ -5,8 +5,10 @@
   "bin": {
     "bud": "./npm/bud"
   },
+  "main": "./lib/bud.js",
   "scripts": {
-    "preinstall": "node-gyp configure && node-gyp rebuild && node npm/locate.js"
+    "preinstall": "node-gyp configure && node-gyp rebuild && node npm/locate.js",
+    "test": "mocha --reporter spec test/*-test.js"
   },
   "repository": {
     "type": "git",
@@ -23,5 +25,8 @@
   "bugs": {
     "url": "https://github.com/indutny/bud/issues"
   },
-  "homepage": "https://github.com/indutny/bud"
+  "homepage": "https://github.com/indutny/bud",
+  "devDependencies": {
+    "mocha": "~1.18.2"
+  }
 }
