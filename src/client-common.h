@@ -63,6 +63,7 @@ void bud_client_read_cb(uv_stream_t* stream,
 bud_client_error_t bud_client_read_start(struct bud_client_s* client,
                                          bud_client_side_t* side);
 bud_client_error_t bud_client_cycle(struct bud_client_s* client);
+bud_client_error_t bud_client_prepend_proxyline(struct bud_client_s* client);
 void bud_client_log(struct bud_client_s* client,
                     bud_log_level_t level,
                     const char* fmt,

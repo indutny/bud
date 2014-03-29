@@ -37,7 +37,7 @@ static void bud_client_send_cb(uv_write_t* req, int status);
 static bud_client_error_t bud_client_shutdown(bud_client_t* client,
                                               bud_client_side_t* side);
 static void bud_client_shutdown_cb(uv_shutdown_t* req, int status);
-static bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client);
+static bud_client_error_t bud_client_prepare_strings(bud_client_t* client);
 static void bud_client_handshake_start_cb(const SSL* ssl);
 static void bud_client_handshake_done_cb(const SSL* ssl);
 static void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret);
@@ -84,6 +84,10 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->retry_count = 0;
   client->retry_timer.data = client;
   client->selected_backend = NULL;
+
+  /* Proxyline */
+  client->proxyline = NULL;
+  client->proxyline_len = 0;
 
   r = uv_timer_init(config->loop, &client->retry_timer);
   if (r != 0)
@@ -170,7 +174,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
 
   SSL_set_accept_state(client->ssl);
 
-  cerr = bud_client_prepend_proxyline(client);
+  cerr = bud_client_prepare_strings(client);
   if (!bud_is_ok(cerr.err))
     goto failed_connect;
 
@@ -317,6 +321,10 @@ void bud_client_close_cb(uv_handle_t* handle) {
   client->stapling_cache_req = NULL;
   client->stapling_req = NULL;
   client->stapling_ocsp_resp = NULL;
+
+  free(client->proxyline);
+  client->proxyline = NULL;
+
   free(client);
 }
 
@@ -708,10 +716,29 @@ bud_client_error_t bud_client_send(bud_client_t* client,
   if (side == &client->backend && client->connect != kBudProgressDone)
     goto done;
 
-  count = ARRAY_SIZE(out);
-  side->write_size = ringbuffer_read_nextv(&side->output, out, size, &count);
-  if (side->write_size == 0)
-    goto done;
+  /* Pending proxyline */
+  if (side == &client->backend && client->proxyline != NULL) {
+    count = 1;
+    out[0] = client->proxyline;
+    size[0] = client->proxyline_len;
+    side->write_size = size[0];
+
+    /* Send some cleartext data as well */
+    count = ARRAY_SIZE(out) - 1;
+    ASSERT(count > 0, "Negative write buf count");
+    side->write_size +=
+        ringbuffer_read_nextv(&side->output, out + 1, size + 1, &count);
+    if (side->write_size != size[0])
+      count++;
+
+  /* Passthrough incoming data */
+  } else {
+    count = ARRAY_SIZE(out);
+    side->write_size = ringbuffer_read_nextv(&side->output, out, size, &count);
+
+    if (side->write_size == 0)
+      goto done;
+  }
 
   DBG(side, "uv_write(%ld) iovcnt: %ld", side->write_size, count);
 
@@ -799,6 +826,15 @@ void bud_client_send_cb(uv_write_t* req, int status) {
         client,
         bud_client_error(bud_error_num(kBudErrClientWriteCb, status), side));
     return;
+  }
+
+  /* Proxyline was just written, free it! */
+  if (side == &client->backend && client->proxyline != NULL) {
+    DBG_LN(side, "proxyline written");
+    side->write_size -= client->proxyline_len;
+    free(client->proxyline);
+    client->proxyline = NULL;
+    client->proxyline_len = 0;
   }
 
   /* Consume written data */
@@ -938,14 +974,12 @@ void bud_client_shutdown_cb(uv_shutdown_t* req, int status) {
 }
 
 
-bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
+bud_client_error_t bud_client_prepare_strings(bud_client_t* client) {
   int r;
   struct sockaddr_storage storage;
   int storage_size;
   struct sockaddr_in* addr;
   struct sockaddr_in6* addr6;
-  const char* family;
-  char proxyline[256];
 
   storage_size = sizeof(storage);
   r = uv_tcp_getpeername(&client->frontend.tcp,
@@ -956,15 +990,14 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
 
   addr = (struct sockaddr_in*) &storage;
   addr6 = (struct sockaddr_in6*) &storage;
+  client->family = storage.ss_family;
   if (storage.ss_family == AF_INET) {
-    family = "TCP4";
     client->port = addr->sin_port;
     r = uv_inet_ntop(AF_INET,
                      &addr->sin_addr,
                      client->host,
                      sizeof(client->host));
   } else if (storage.ss_family == AF_INET6) {
-    family = "TCP6";
     client->port = addr6->sin6_port;
     r = uv_inet_ntop(AF_INET6,
                      &addr6->sin6_addr,
@@ -978,8 +1011,31 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
   if (r != 0)
     goto fatal;
 
-  if (!client->config->frontend.proxyline)
-    return bud_client_ok(&client->backend);
+  return bud_client_ok(&client->backend);
+
+fatal:
+  return bud_client_error(bud_error_num(kBudErrClientProxyline, r),
+                          &client->backend);
+}
+
+
+bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
+  int r;
+  const char* family;
+  char proxyline[256];
+
+  ASSERT(client->selected_backend != NULL, "Expected backend");
+  if (!client->selected_backend->proxyline)
+    goto done;
+
+  if (client->family == AF_INET) {
+    family = "TCP4";
+  } else if (client->family == AF_INET6) {
+    family = "TCP6";
+  } else {
+    r = -1;
+    goto fatal;
+  }
 
   r = snprintf(proxyline,
                sizeof(proxyline),
@@ -987,11 +1043,18 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
                family,
                client->host,
                ntohs(client->port));
-  ASSERT(r < (int) sizeof(proxyline), "Client proxyline overflow");
+  ASSERT(0 <= r && r < (int) sizeof(proxyline), "Client proxyline overflow");
 
-  r = ringbuffer_write_into(&client->backend.output, proxyline, r);
-  if (r < 0)
-    goto fatal;
+  client->proxyline = malloc(r);
+  if (client->proxyline == NULL) {
+    return bud_client_error(bud_error_str(kBudErrNoMem, "proxyline"),
+                            &client->backend);
+  }
+
+  memcpy(client->proxyline, proxyline, r);
+  client->proxyline_len = (size_t) r;
+
+done:
   return bud_client_ok(&client->backend);
 
 fatal:

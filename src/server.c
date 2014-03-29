@@ -10,7 +10,6 @@
 
 static void bud_server_close_cb(uv_handle_t* handle);
 static void bud_server_connection_cb(uv_stream_t* stream, int status);
-static bud_error_t bud_server_format_proxyline(bud_server_t* server);
 
 bud_error_t bud_server_new(bud_config_t* config) {
   int r;
@@ -40,13 +39,8 @@ bud_error_t bud_server_new(bud_config_t* config) {
     goto failed_bind;
   }
 
-  if (config->frontend.proxyline)
-    err = bud_server_format_proxyline(server);
-  else
-    err = bud_ok();
-
   config->server = server;
-  return err;
+  return bud_ok();
 
 failed_bind:
   uv_close((uv_handle_t*) &server->tcp, bud_server_close_cb);
@@ -81,34 +75,4 @@ void bud_server_connection_cb(uv_stream_t* stream, int status) {
 
   /* Create client and let it go */
   bud_master_balance(server);
-}
-
-
-bud_error_t bud_server_format_proxyline(bud_server_t* server) {
-  int r;
-  char host[INET6_ADDRSTRLEN];
-  struct sockaddr_in* addr4;
-  struct sockaddr_in6* addr6;
-  bud_config_t* config;
-
-  config = server->config;
-  addr4 = (struct sockaddr_in*) &config->frontend.addr;
-  addr6 = (struct sockaddr_in6*) &config->frontend.addr;
-
-  if (config->frontend.addr.ss_family == AF_INET)
-    r = uv_inet_ntop(AF_INET, &addr4->sin_addr, host, sizeof(host));
-  else
-    r = uv_inet_ntop(AF_INET6, &addr6->sin6_addr, host, sizeof(host));
-  if (r != 0)
-    return bud_error(kBudErrNtop);
-
-  r = snprintf(config->proxyline_fmt,
-               sizeof(config->proxyline_fmt),
-               "PROXY %%s %%s %s %%hu %hu\r\n",
-               host,
-               config->frontend.port);
-  ASSERT(r < (int) sizeof(config->proxyline_fmt),
-         "Proxyline format overflowed");
-
-  return bud_ok();
 }

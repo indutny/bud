@@ -50,6 +50,7 @@ static int bud_config_advertise_next_proto(SSL* s,
                                            void* arg);
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 static bud_error_t bud_config_verify_npn(const JSON_Array* npn);
+static bud_error_t bud_config_format_proxyline(bud_config_t* config);
 
 
 int kBudSSLClientIndex = -1;
@@ -429,7 +430,6 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
 
   bud_config_load_addr(obj, (bud_config_addr_t*) frontend);
 
-  frontend->proxyline = -1;
   frontend->server_preference = -1;
   frontend->ssl3 = -1;
   frontend->max_send_fragment = -1;
@@ -452,9 +452,6 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   if (!bud_is_ok(err))
     goto fatal;
 
-  val = json_object_get_value(obj, "proxyline");
-  if (val != NULL)
-    frontend->proxyline = json_value_get_boolean(val);
   val = json_object_get_value(obj, "server_preference");
   if (val != NULL)
     frontend->server_preference = json_value_get_boolean(val);
@@ -476,8 +473,15 @@ fatal:
 bud_error_t bud_config_load_backend(bud_config_t* config,
                                     JSON_Object* obj,
                                     bud_config_backend_t* backend) {
+  JSON_Value* val;
+
   bud_config_load_addr(obj, (bud_config_addr_t*) backend);
   backend->config = config;
+  backend->proxyline = -1;
+
+  val = json_object_get_value(obj, "proxyline");
+  if (val != NULL)
+    backend->proxyline = json_value_get_boolean(val);
 
   return bud_ok();
 }
@@ -657,7 +661,6 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"port\": %d,\n", config.frontend.port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.frontend.host);
   fprintf(stdout, "    \"keepalive\": %d,\n", config.frontend.keepalive);
-  fprintf(stdout, "    \"proxyline\": false,\n");
   fprintf(stdout, "    \"security\": \"%s\",\n", config.frontend.security);
   fprintf(stdout, "    \"server_preference\": true,\n");
   if (config.frontend.ssl3)
@@ -693,7 +696,8 @@ void bud_config_print_default() {
   fprintf(stdout, "  \"backend\": [{\n");
   fprintf(stdout, "    \"port\": %d,\n", config.backend[0].port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.backend[0].host);
-  fprintf(stdout, "    \"keepalive\": %d\n", config.backend[0].keepalive);
+  fprintf(stdout, "    \"keepalive\": %d\n,", config.backend[0].keepalive);
+  fprintf(stdout, "    \"proxyline\": false\n");
   fprintf(stdout, "  }],\n");
   fprintf(stdout, "  \"sni\": {\n");
   fprintf(stdout, "    \"enabled\": false,\n");
@@ -733,7 +737,6 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->availability.max_retries, -1, 5);
   DEFAULT(config->frontend.port, 0, 1443);
   DEFAULT(config->frontend.host, NULL, "0.0.0.0");
-  DEFAULT(config->frontend.proxyline, -1, 0);
   DEFAULT(config->frontend.security, NULL, "ssl23");
   DEFAULT(config->frontend.ecdh, NULL, "prime256v1");
   DEFAULT(config->frontend.keepalive, -1, kBudDefaultKeepalive);
@@ -750,6 +753,7 @@ void bud_config_set_defaults(bud_config_t* config) {
     DEFAULT(config->backend[i].port, 0, 8000);
     DEFAULT(config->backend[i].host, NULL, "127.0.0.1");
     DEFAULT(config->backend[i].keepalive, -1, kBudDefaultKeepalive);
+    DEFAULT(config->backend[i].proxyline, -1, 0);
   }
 
   DEFAULT(config->sni.port, 0, 9000);
@@ -1096,6 +1100,10 @@ bud_error_t bud_config_init(bud_config_t* config) {
       return bud_error_num(kBudErrPton, r);
   }
 
+  err = bud_config_format_proxyline(config);
+  if (!bud_is_ok(err))
+    return err;
+
   /* Balance str to enum */
   if (strcmp(config->balance, "sni") == 0)
     config->balance_e = kBudBalanceSNI;
@@ -1425,4 +1433,32 @@ fatal:
     X509_free(x);
 
   return ret;
+}
+
+
+bud_error_t bud_config_format_proxyline(bud_config_t* config) {
+  int r;
+  char host[INET6_ADDRSTRLEN];
+  struct sockaddr_in* addr4;
+  struct sockaddr_in6* addr6;
+
+  addr4 = (struct sockaddr_in*) &config->frontend.addr;
+  addr6 = (struct sockaddr_in6*) &config->frontend.addr;
+
+  if (config->frontend.addr.ss_family == AF_INET)
+    r = uv_inet_ntop(AF_INET, &addr4->sin_addr, host, sizeof(host));
+  else
+    r = uv_inet_ntop(AF_INET6, &addr6->sin6_addr, host, sizeof(host));
+  if (r != 0)
+    return bud_error(kBudErrNtop);
+
+  r = snprintf(config->proxyline_fmt,
+               sizeof(config->proxyline_fmt),
+               "PROXY %%s %%s %s %%hu %hu\r\n",
+               host,
+               config->frontend.port);
+  ASSERT(r < (int) sizeof(config->proxyline_fmt),
+         "Proxyline format overflowed");
+
+  return bud_ok();
 }

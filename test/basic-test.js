@@ -38,4 +38,27 @@ describe('Bud TLS Terminator', function() {
       });
     });
   });
+
+  describe('proxyline', function() {
+    var sh = fixtures.getServers({
+      backends: [{
+        proxyline: true
+      }]
+    });
+
+    it('should support round-robin balancing', function(cb) {
+      var gotProxyline = false;
+
+      request(sh, '/hello', function(res, body) {
+        assert.equal(sh.backends[0].requests, 1);
+        assert(gotProxyline);
+        cb();
+      });
+
+      sh.backends[0].server.on('proxyline', function(obj) {
+        assert.equal(obj.inbound.port, sh.frontend.port);
+        gotProxyline = true;
+      });
+    });
+  });
 });

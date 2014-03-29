@@ -69,7 +69,6 @@ struct bud_config_frontend_s {
   BUD_CONFIG_ADDR_FIELDS
 
   /* Public */
-  int proxyline;
   const char* security;
   int server_preference;
   BUD_COMMON_SSL_FIELDS
@@ -86,6 +85,9 @@ struct bud_config_frontend_s {
 struct bud_config_backend_s {
   /* Inheritance */
   BUD_CONFIG_ADDR_FIELDS
+
+  /* Public */
+  int proxyline;
 
   /* Internal */
   bud_config_t* config;

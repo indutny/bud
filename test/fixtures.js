@@ -19,7 +19,8 @@ fixtures.getServers = function getServers(options) {
 
   var sh = {
     frontend: {
-      url: 'https://127.0.0.1:' + FRONT_PORT
+      url: 'https://127.0.0.1:' + FRONT_PORT,
+      port: FRONT_PORT
     },
     backends: []
   };
@@ -29,12 +30,12 @@ fixtures.getServers = function getServers(options) {
                 options.backends ||
                 1;
     for (var i = 0; i < count; i++) {
-      var backend = {
+      var backend = utile.mixin({
         index: i,
         requests: 0,
         server: null,
         port: BACK_PORT + i
-      };
+      }, options.backends && options.backends[i] || {});
 
       !function(backend) {
         backend.server = http.createServer(function(req, res) {
@@ -45,14 +46,23 @@ fixtures.getServers = function getServers(options) {
           else
             res.end('nay');
         });
+
+        if (backend.proxyline)
+          expectProxyline(backend.server);
       }(backend);
       sh.backends.push(backend);
     }
 
     sh.frontend.server = bud.createServer({
-      backend: sh.backends.map(function(backend, i) {
-        return utile.mixin({ port: backend.port },
-                           options.backends && options.backends[i] || {});
+      backend: sh.backends.map(function(backend) {
+        var res = {};
+        Object.keys(backend).forEach(function(key) {
+          if (/^(server|requests|index)$/.test(key))
+            return;
+
+          res[key] = backend[key];
+        });
+        return res;
       })
     });
 
@@ -85,3 +95,36 @@ fixtures.request = function request(sh, uri, cb) {
     });
   });
 };
+
+function expectProxyline(server) {
+  server.on('connection', function(s) {
+    var ondata = s.ondata;
+    var chunks = '';
+    s.ondata = function _ondata(c, start, end) {
+      chunks += c.slice(start, end);
+      assert(chunks.length < 1024);
+      var match = chunks.match(
+        /^PROXY (TCP\d) ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)\r\n/
+      );
+      if (!match)
+        return;
+
+      server.emit('proxyline', {
+        protocol: match[1],
+        outbound: {
+          host: match[2],
+          port: match[4]
+        },
+        inbound: {
+          host: match[3],
+          port: match[5]
+        }
+      });
+      s.ondata = ondata;
+
+      var rest = new Buffer(chunks.slice(match[0].length));
+      if (rest.length !== 0)
+        ondata.call(this, rest, 0, rest.length);
+    };
+  });
+}
