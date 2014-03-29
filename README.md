@@ -83,10 +83,6 @@ to get default configuration options (with comments and description below):
     // tcp keepalive value (in seconds)
     "keepalive": 3600,
 
-    // if true - HAProxy compatible proxyline will be sent:
-    // "PROXY TCP4 ... ... ... ..."
-    "proxyline": false,
-
     // if true - server listed ciphers will be preferenced
     "server_preference": true,
 
@@ -140,7 +136,11 @@ to get default configuration options (with comments and description below):
   "backend": [{
     "port": 8000,
     "host": "127.0.0.1",
-    "keepalive": 3600
+    "keepalive": 3600,
+
+    // if true - HAProxy compatible proxyline will be sent:
+    // "PROXY TCP4 ... ... ... ..."
+    "proxyline": false
   }],
 
   // SNI context loading
