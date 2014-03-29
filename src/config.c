@@ -1227,7 +1227,7 @@ bud_context_t* bud_config_select_context(bud_config_t* config,
       continue;
 
     if (strncasecmp(servername, ctx->servername, ctx->servername_len) != 0)
-      break;
+      continue;
 
     return ctx;
   }
