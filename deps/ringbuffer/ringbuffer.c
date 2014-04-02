@@ -23,6 +23,9 @@
 #include <assert.h>  /* assert */
 #include <stdlib.h>  /* malloc/free */
 #include <string.h>  /* memcpy */
+#include <stdio.h>  /* memcpy */
+
+#define RB_BUF_SIZE(b) ((b)->write_pos - (b)->read_pos)
 
 void ringbuffer_bufent_init(bufent* b) {
   b->read_pos = 0;
@@ -121,7 +124,7 @@ size_t ringbuffer_read_into(ringbuffer* rb, char* out, size_t length) {
   while (bytes_read < expected) {
     read_head = rb->read_head;
     assert(read_head->read_pos <= read_head->write_pos);
-    avail = read_head->write_pos - read_head->read_pos;
+    avail = RB_BUF_SIZE(read_head);
     if (avail > left)
       avail = left;
 
@@ -149,7 +152,7 @@ size_t ringbuffer_read_into(ringbuffer* rb, char* out, size_t length) {
 
 
 char* ringbuffer_read_next(ringbuffer* rb, size_t* length) {
-  *length = rb->read_head->write_pos - rb->read_head->read_pos;
+  *length = RB_BUF_SIZE(rb->read_head);
   return rb->read_head->data + rb->read_head->read_pos;
 }
 
@@ -167,7 +170,7 @@ size_t ringbuffer_read_nextv(ringbuffer* rb,
   max = *count;
   total = 0;
   for (i = 0; i < max; i++) {
-    size[i] = pos->write_pos - pos->read_pos;
+    size[i] = RB_BUF_SIZE(pos);
     total += size[i];
     out[i] = pos->data + pos->read_pos;
 
@@ -195,7 +198,7 @@ void ringbuffer_read_skip(ringbuffer* rb, size_t length) {
 void ringbuffer_read_pop(ringbuffer* rb) {
   size_t avail;
 
-  avail = rb->read_head->write_pos - rb->read_head->read_pos;
+  avail = RB_BUF_SIZE(rb->read_head);
   ringbuffer_read_skip(rb, avail);
 }
 
@@ -309,9 +312,23 @@ int ringbuffer_insert(ringbuffer* rb,
                       size_t length) {
   bufent* b;
   bufent* next;
+  bufent* start;
   size_t left;
-  char* out;
+  size_t offset;
   int r;
+
+  assert(length < RING_BUFFER_LEN);
+
+  /* Find owner of `off` */
+  left = ringbuffer_size(rb);
+  start = rb->read_head;
+  while (off != 0) {
+    if (off < RB_BUF_SIZE(start))
+      break;
+    off -= RB_BUF_SIZE(start);
+    left -= RB_BUF_SIZE(start);
+    start = start->next;
+  }
 
   /* Shift everything after `off` forward by `length` */
   b = rb->write_head;
@@ -322,40 +339,44 @@ int ringbuffer_insert(ringbuffer* rb,
     return r;
 
   next = rb->write_head;
-  left = ringbuffer_size(rb);
-
-  for (; left > 0; left -= b->write_pos - b->read_pos) {
-    /* Copy part of the data to next buffer */
-    if (b->write_pos + length > RING_BUFFER_LEN) {
-      size_t delta;
-
-      delta = b->write_pos + length - RING_BUFFER_LEN;
-      memcpy(next->data, b->data + RING_BUFFER_LEN - delta, delta);
-    }
+  while (left > 0) {
+    /* Copy part of the data from the end of current to the next buffer */
+    if (next != b)
+      memcpy(next->data, b->data + RING_BUFFER_LEN - length, length);
 
     /* Move rest inside current buffer */
-    if (b == rb->read_head) {
-      assert(b->write_pos >= b->read_pos + off);
+    offset = b->read_pos;
+    if (b == start)
+      offset += off;
 
-      memmove(b->data + b->read_pos + off + length,
-              b->data + b->read_pos + off,
-              b->write_pos - b->read_pos - off);
-      out = b->data + b->read_pos + off;
-    } else {
-      memmove(b->data + b->read_pos + length,
-              b->data + b->read_pos,
-              b->write_pos - b->read_pos);
+    if (offset + length < RING_BUFFER_LEN) {
+      memmove(b->data + offset + length,
+              b->data + offset,
+              RING_BUFFER_LEN - offset - length);
     }
 
-    /* Select previous buffer: O(N) */
+    if (b == start)
+      break;
+
+    left -= RB_BUF_SIZE(b);
+
+    /* Select previous buffer, O(N) */
     next = b;
-    b = rb->read_head;
+    b = start;
     while (b->next != next)
       b = b->next;
   }
 
   /* Copy input data into the free space */
-  memcpy(out, data, length);
+  if (off + length > RING_BUFFER_LEN) {
+    size_t delta;
+
+    delta = off + length - RING_BUFFER_LEN;
+    memcpy(start->data + off, data, length - delta);
+    memcpy(next->data, data + length - delta, delta);
+  } else {
+    memcpy(start->data + off, data, length);
+  }
 
   return 0;
 }

@@ -8,3 +8,7 @@ npm/bud
 npm/bud.exe
 npm-debug.log
 node_modules/
+
+# ringbuffer
+deps/ringbuffer/tools/gyp
+deps/ringbuffer/out

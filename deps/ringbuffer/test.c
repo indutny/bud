@@ -6,6 +6,8 @@
 #include <string.h>  /* memcpy */
 
 #define TEST_DATA_SIZE 256 * 1024 * 1024
+#define TEST_INSERT_OFF RING_BUFFER_LEN * 2 - 8
+#define TEST_INSERT_LEN 16
 #define ASSERT(e) \
     if (!(e)) {\
       fprintf(stderr, "ASSERT: " #e " failed on %d\n", __LINE__); \
@@ -19,6 +21,7 @@ int main() {
   int i;
   int j;
   int r;
+  int after;
   ssize_t len;
   char* ptr;
 
@@ -32,20 +35,38 @@ int main() {
 
   /* Fill ringbuffer */
   i = 0;
-  while (i < TEST_DATA_SIZE) {
-    len = TEST_DATA_SIZE - i;
+  after = 0;
+  while (i < TEST_DATA_SIZE - TEST_INSERT_LEN) {
+    if (after)
+      len = TEST_DATA_SIZE - i - TEST_INSERT_LEN;
+    else
+      len = TEST_INSERT_OFF - i;
+
     ptr = ringbuffer_write_ptr(&rb, &len);
     ASSERT(ptr != NULL);
 
     /* Always make progress */
     ASSERT(len > 0);
 
-    memcpy(ptr, data + i, len);
+    if (after)
+      memcpy(ptr, data + i + TEST_INSERT_LEN, len);
+    else
+      memcpy(ptr, data + i, len);
+
     i += len;
     r = ringbuffer_write_append(&rb, len);
     ASSERT(r == 0);
+
+    if (i == TEST_INSERT_OFF)
+      after = 1;
   }
-  ASSERT(ringbuffer_size(&rb) == TEST_DATA_SIZE);
+  ASSERT(ringbuffer_size(&rb) == TEST_DATA_SIZE - TEST_INSERT_LEN);
+
+  /* Insert stuff */
+  ringbuffer_insert(&rb,
+                    TEST_INSERT_OFF,
+                    data + TEST_INSERT_OFF,
+                    TEST_INSERT_LEN);
 
   /* Read from it */
   i = 0;
