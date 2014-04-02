@@ -57,8 +57,6 @@ struct bud_client_s {
   int retry_count;
 
   /* Tracing and proxyline */
-  char* proxyline;
-  size_t proxyline_len;
   char host[INET6_ADDRSTRLEN];
   unsigned char family;
   uint16_t port;

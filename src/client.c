@@ -86,10 +86,6 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->retry_timer.data = client;
   client->selected_backend = NULL;
 
-  /* Proxyline */
-  client->proxyline = NULL;
-  client->proxyline_len = 0;
-
   /* X-Forward */
   client->xforward.skip = 0;
   client->xforward.crlf = 0;
@@ -326,9 +322,6 @@ void bud_client_close_cb(uv_handle_t* handle) {
   client->stapling_cache_req = NULL;
   client->stapling_req = NULL;
   client->stapling_ocsp_resp = NULL;
-
-  free(client->proxyline);
-  client->proxyline = NULL;
 
   free(client);
 }
@@ -731,29 +724,10 @@ bud_client_error_t bud_client_send(bud_client_t* client,
   if (side == &client->backend && client->connect != kBudProgressDone)
     goto done;
 
-  /* Pending proxyline */
-  if (side == &client->backend && client->proxyline != NULL) {
-    count = 1;
-    out[0] = client->proxyline;
-    size[0] = client->proxyline_len;
-    side->write_size = size[0];
-
-    /* Send some cleartext data as well */
-    count = ARRAY_SIZE(out) - 1;
-    ASSERT(count > 0, "Negative write buf count");
-    side->write_size +=
-        ringbuffer_read_nextv(&side->output, out + 1, size + 1, &count);
-    if (side->write_size != size[0])
-      count++;
-
-  /* Passthrough incoming data */
-  } else {
-    count = ARRAY_SIZE(out);
-    side->write_size = ringbuffer_read_nextv(&side->output, out, size, &count);
-
-    if (side->write_size == 0)
-      goto done;
-  }
+  count = ARRAY_SIZE(out);
+  side->write_size = ringbuffer_read_nextv(&side->output, out, size, &count);
+  if (side->write_size == 0)
+    goto done;
 
   DBG(side, "uv_write(%ld) iovcnt: %ld", side->write_size, count);
 
@@ -841,15 +815,6 @@ void bud_client_send_cb(uv_write_t* req, int status) {
         client,
         bud_client_error(bud_error_num(kBudErrClientWriteCb, status), side));
     return;
-  }
-
-  /* Proxyline was just written, free it! */
-  if (side == &client->backend && client->proxyline != NULL) {
-    DBG_LN(side, "proxyline written");
-    side->write_size -= client->proxyline_len;
-    free(client->proxyline);
-    client->proxyline = NULL;
-    client->proxyline_len = 0;
   }
 
   /* Consume written data */
@@ -1060,14 +1025,12 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
                ntohs(client->port));
   ASSERT(0 <= r && r < (int) sizeof(proxyline), "Client proxyline overflow");
 
-  client->proxyline = malloc(r);
-  if (client->proxyline == NULL) {
-    return bud_client_error(bud_error_str(kBudErrNoMem, "proxyline"),
-                            &client->backend);
-  }
-
-  memcpy(client->proxyline, proxyline, r);
-  client->proxyline_len = (size_t) r;
+  r = ringbuffer_insert(&client->backend.output,
+                        0,
+                        proxyline,
+                        (size_t) r);
+  if (r != 0)
+    goto fatal;
 
   return bud_client_ok(&client->backend);
 
