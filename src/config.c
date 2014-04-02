@@ -478,10 +478,15 @@ bud_error_t bud_config_load_backend(bud_config_t* config,
   bud_config_load_addr(obj, (bud_config_addr_t*) backend);
   backend->config = config;
   backend->proxyline = -1;
+  backend->xforward = -1;
 
   val = json_object_get_value(obj, "proxyline");
   if (val != NULL)
     backend->proxyline = json_value_get_boolean(val);
+
+  val = json_object_get_value(obj, "x-forward");
+  if (val != NULL)
+    backend->xforward = json_value_get_boolean(val);
 
   return bud_ok();
 }
@@ -697,7 +702,8 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"port\": %d,\n", config.backend[0].port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.backend[0].host);
   fprintf(stdout, "    \"keepalive\": %d\n,", config.backend[0].keepalive);
-  fprintf(stdout, "    \"proxyline\": false\n");
+  fprintf(stdout, "    \"proxyline\": false,\n");
+  fprintf(stdout, "    \"x-forward\": false\n");
   fprintf(stdout, "  }],\n");
   fprintf(stdout, "  \"sni\": {\n");
   fprintf(stdout, "    \"enabled\": false,\n");
@@ -754,6 +760,7 @@ void bud_config_set_defaults(bud_config_t* config) {
     DEFAULT(config->backend[i].host, NULL, "127.0.0.1");
     DEFAULT(config->backend[i].keepalive, -1, kBudDefaultKeepalive);
     DEFAULT(config->backend[i].proxyline, -1, 0);
+    DEFAULT(config->backend[i].xforward, -1, 0);
   }
 
   DEFAULT(config->sni.port, 0, 9000);

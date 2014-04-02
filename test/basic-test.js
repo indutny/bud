@@ -46,7 +46,7 @@ describe('Bud TLS Terminator', function() {
       }]
     });
 
-    it('should support round-robin balancing', function(cb) {
+    it('should work', function(cb) {
       var gotProxyline = false;
 
       request(sh, '/hello', function(res, body) {
@@ -58,6 +58,22 @@ describe('Bud TLS Terminator', function() {
       sh.backends[0].server.on('proxyline', function(obj) {
         assert.equal(obj.inbound.port, sh.frontend.port);
         gotProxyline = true;
+      });
+    });
+  });
+
+  describe('x-forward', function() {
+    var sh = fixtures.getServers({
+      backends: [{
+        'x-forward': true
+      }]
+    });
+
+    it('should work', function(cb) {
+      request(sh, '/hello', function(res, body) {
+        assert.equal(sh.backends[0].requests, 1);
+        assert.equal(res.headers['x-got-forwarded-for'], '127.0.0.1');
+        cb();
       });
     });
   });

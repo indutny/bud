@@ -62,6 +62,12 @@ size_t ringbuffer_write_into(ringbuffer* rb, const char* data, size_t length);
 char* ringbuffer_write_ptr(ringbuffer* rb, size_t* length);
 int ringbuffer_write_append(ringbuffer* rb, size_t length);
 
+/* NOTE: `off` is offset after read head */
+int ringbuffer_insert(ringbuffer* rb,
+                      size_t off,
+                      const char* data,
+                      size_t length);
+
 size_t ringbuffer_size(ringbuffer* rb);
 int ringbuffer_is_empty(ringbuffer* rb);
 int ringbuffer_is_full(ringbuffer* rb);

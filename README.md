@@ -140,7 +140,11 @@ to get default configuration options (with comments and description below):
 
     // if true - HAProxy compatible proxyline will be sent:
     // "PROXY TCP4 ... ... ... ..."
-    "proxyline": false
+    "proxyline": false,
+
+    // if true - adds `X-Forwarded-For: <address>` right after the first
+    // line in the incoming data (regardless of selected NPN protocol)
+    "x-forward": false
   }],
 
   // SNI context loading

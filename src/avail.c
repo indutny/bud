@@ -211,9 +211,11 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
   }
 
   /* Prepend proxyline if configured any */
-  cerr = bud_client_prepend_proxyline(client);
-  if (!bud_is_ok(cerr.err))
-    goto fatal;
+  if (client->selected_backend->proxyline) {
+    cerr = bud_client_prepend_proxyline(client);
+    if (!bud_is_ok(cerr.err))
+      goto fatal;
+  }
 
   /* Cycle data anyway */
   cerr = bud_client_cycle(client);

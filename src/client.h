@@ -62,6 +62,12 @@ struct bud_client_s {
   char host[INET6_ADDRSTRLEN];
   unsigned char family;
   uint16_t port;
+
+  /* XForward */
+  struct {
+    size_t skip;
+    unsigned char crlf;
+  } xforward;
 };
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream);

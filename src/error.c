@@ -183,6 +183,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("append proxyline")                                           \
     case kBudErrClientNoBackendInSNI:                                         \
       BUD_ERROR("no backend provided in SNI context")                         \
+    case kBudErrClientXForwardInsert:                                         \
+      BUD_ERROR("failed to prepend x-forwarded-for header")                   \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }

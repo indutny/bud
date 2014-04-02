@@ -41,6 +41,10 @@ fixtures.getServers = function getServers(options) {
         backend.server = http.createServer(function(req, res) {
           backend.requests++;
           res.setHeader('X-Backend-Id', backend.index);
+          if (req.headers['x-forwarded-for']) {
+            res.setHeader('X-Got-Forwarded-For',
+                          req.headers['x-forwarded-for']);
+          }
           if (req.url === '/hello')
             res.end('hello world');
           else

@@ -88,6 +88,7 @@ struct bud_config_backend_s {
 
   /* Public */
   int proxyline;
+  int xforward;
 
   /* Internal */
   bud_config_t* config;

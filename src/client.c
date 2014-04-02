@@ -17,6 +17,7 @@
 #include "sni.h"
 #include "ocsp.h"
 #include "tracing.h"
+#include "xforward.h"
 
 static void bud_client_side_init(bud_client_side_t* side,
                                  bud_client_side_type_t type,
@@ -88,6 +89,10 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   /* Proxyline */
   client->proxyline = NULL;
   client->proxyline_len = 0;
+
+  /* X-Forward */
+  client->xforward.skip = 0;
+  client->xforward.crlf = 0;
 
   r = uv_timer_init(config->loop, &client->retry_timer);
   if (r != 0)
@@ -637,6 +642,13 @@ bud_client_error_t bud_client_backend_out(bud_client_t* client) {
     DBG(&client->frontend, "SSL_read() => %d", read);
     if (read > 0) {
       ringbuffer_write_append(&client->backend.output, read);
+      if (client->selected_backend->xforward &&
+          !bud_client_xforward_done(client)) {
+        cerr = bud_client_prepend_xforward(client);
+        if (!bud_is_ok(cerr.err))
+          return cerr;
+      }
+
       cerr = bud_client_send(client, &client->backend);
       if (!bud_is_ok(cerr.err))
         return cerr;
@@ -648,11 +660,11 @@ bud_client_error_t bud_client_backend_out(bud_client_t* client) {
   } while (read > 0);
 
   if (read > 0)
-    return bud_client_ok(&client->frontend);
+    goto success;
 
   err = SSL_get_error(client->ssl, read);
   if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
-    return bud_client_ok(&client->backend);
+    goto success;
 
   /* Close-notify, most likely */
   if (err == SSL_ERROR_ZERO_RETURN)
@@ -660,6 +672,9 @@ bud_client_error_t bud_client_backend_out(bud_client_t* client) {
 
   return bud_client_error(bud_error_num(kBudErrClientSSLRead, err),
                           &client->frontend);
+
+success:
+  return bud_client_ok(&client->backend);
 }
 
 
@@ -840,6 +855,10 @@ void bud_client_send_cb(uv_write_t* req, int status) {
   /* Consume written data */
   DBG(side, "write_cb => %d", side->write_size);
   ringbuffer_read_skip(&side->output, side->write_size);
+
+  /* Skip data in xforward parser */
+  if (side == &client->backend)
+    bud_client_xforward_skip(client, side->write_size);
 
   side->write = kBudProgressNone;
   side->write_size = 0;
@@ -1024,10 +1043,6 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
   const char* family;
   char proxyline[256];
 
-  ASSERT(client->selected_backend != NULL, "Expected backend");
-  if (!client->selected_backend->proxyline)
-    goto done;
-
   if (client->family == AF_INET) {
     family = "TCP4";
   } else if (client->family == AF_INET6) {
@@ -1054,7 +1069,6 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
   memcpy(client->proxyline, proxyline, r);
   client->proxyline_len = (size_t) r;
 
-done:
   return bud_client_ok(&client->backend);
 
 fatal:

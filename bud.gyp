@@ -31,6 +31,7 @@
       "src/sni.c",
       "src/tracing.c",
       "src/worker.c",
+      "src/xforward.c",
     ],
     "conditions": [
       ["OS in ('freebsd', 'mac', 'solaris')", {

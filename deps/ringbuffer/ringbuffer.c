@@ -303,6 +303,64 @@ int ringbuffer_write_append(ringbuffer* rb, size_t length) {
 }
 
 
+int ringbuffer_insert(ringbuffer* rb,
+                      size_t off,
+                      const char* data,
+                      size_t length) {
+  bufent* b;
+  bufent* next;
+  size_t left;
+  char* out;
+  int r;
+
+  /* Shift everything after `off` forward by `length` */
+  b = rb->write_head;
+
+  /* Ensure that we have enough space for shift */
+  r = ringbuffer_write_append(rb, length);
+  if (r != 0)
+    return r;
+
+  next = rb->write_head;
+  left = ringbuffer_size(rb);
+
+  for (; left > 0; left -= b->write_pos - b->read_pos) {
+    /* Copy part of the data to next buffer */
+    if (b->write_pos + length > RING_BUFFER_LEN) {
+      size_t delta;
+
+      delta = b->write_pos + length - RING_BUFFER_LEN;
+      memcpy(next->data, b->data + RING_BUFFER_LEN - delta, delta);
+    }
+
+    /* Move rest inside current buffer */
+    if (b == rb->read_head) {
+      assert(b->write_pos >= b->read_pos + off);
+
+      memmove(b->data + b->read_pos + off + length,
+              b->data + b->read_pos + off,
+              b->write_pos - b->read_pos - off);
+      out = b->data + b->read_pos + off;
+    } else {
+      memmove(b->data + b->read_pos + length,
+              b->data + b->read_pos,
+              b->write_pos - b->read_pos);
+    }
+
+    /* Select previous buffer: O(N) */
+    next = b;
+    b = rb->read_head;
+    while (b->next != next)
+      b = b->next;
+  }
+
+  /* Copy input data into the free space */
+  memcpy(out, data, length);
+
+  return 0;
+}
+
+
 size_t ringbuffer_size(ringbuffer* rb) {
   return rb->length;
 }
