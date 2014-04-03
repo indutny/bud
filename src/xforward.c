@@ -42,18 +42,13 @@ bud_client_error_t bud_client_prepend_xforward(bud_client_t* client) {
                                  (const unsigned char**) &protocol,
                                  &proto_len);
 
-  if (proto_len >= 5 && memcmp(protocol, "http/", 5) == 0) {
-    return bud_client_http_xforward(client);
-  } else if (proto_len >= 5 && memcmp(protocol, "spdy/", 5) == 0) {
+  if (proto_len >= 5 && memcmp(protocol, "spdy/", 5) == 0) {
     return bud_client_spdy_xforward(client, protocol + 5, proto_len - 5);
-  } else {
-    return bud_client_ok(&client->backend);
   }
-
-#else  /* !OPENSSL_NPN_NEGOTIATED */
-  /* No NPN */
-  return bud_client_http_xforward(client);
 #endif  /* OPENSSL_NPN_NEGOTIATED */
+
+  /* No NPN or not SPDY */
+  return bud_client_http_xforward(client);
 }
 
 
