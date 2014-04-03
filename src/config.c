@@ -701,7 +701,7 @@ void bud_config_print_default() {
   fprintf(stdout, "  \"backend\": [{\n");
   fprintf(stdout, "    \"port\": %d,\n", config.backend[0].port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.backend[0].host);
-  fprintf(stdout, "    \"keepalive\": %d\n,", config.backend[0].keepalive);
+  fprintf(stdout, "    \"keepalive\": %d,\n", config.backend[0].keepalive);
   fprintf(stdout, "    \"proxyline\": false,\n");
   fprintf(stdout, "    \"x-forward\": false\n");
   fprintf(stdout, "  }],\n");
