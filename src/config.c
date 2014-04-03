@@ -29,6 +29,7 @@ static bud_error_t bud_config_load_frontend(JSON_Object* obj,
 static void bud_config_copy(bud_config_t* dst, bud_config_t* src);
 static void bud_config_destroy(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
+static void bud_config_set_backend_defaults(bud_config_backend_t* backend);
 static void bud_print_help(int argc, char** argv);
 static void bud_print_version();
 static void bud_config_print_default();
@@ -489,6 +490,9 @@ bud_error_t bud_config_load_backend(bud_config_t* config,
   if (val != NULL)
     backend->xforward = json_value_get_boolean(val);
 
+  /* Set defaults here to use them in sni.c */
+  bud_config_set_backend_defaults(backend);
+
   return bud_ok();
 }
 
@@ -756,13 +760,9 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.reneg_window, 0, 600);
   DEFAULT(config->frontend.reneg_limit, 0, 3);
   DEFAULT(config->balance, NULL, "roundrobin");
-  for (i = 0; i < config->backend_count; i++) {
-    DEFAULT(config->backend[i].port, 0, 8000);
-    DEFAULT(config->backend[i].host, NULL, "127.0.0.1");
-    DEFAULT(config->backend[i].keepalive, -1, kBudDefaultKeepalive);
-    DEFAULT(config->backend[i].proxyline, -1, 0);
-    DEFAULT(config->backend[i].xforward, -1, 0);
-  }
+
+  for (i = 0; i < config->backend_count; i++)
+    bud_config_set_backend_defaults(&config->backend[i]);
 
   DEFAULT(config->sni.port, 0, 9000);
   DEFAULT(config->sni.host, NULL, "127.0.0.1");
@@ -770,6 +770,15 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->stapling.port, 0, 9000);
   DEFAULT(config->stapling.host, NULL, "127.0.0.1");
   DEFAULT(config->stapling.url, NULL, "/bud/stapling/%s");
+}
+
+
+void bud_config_set_backend_defaults(bud_config_backend_t* backend) {
+  DEFAULT(backend->port, 0, 8000);
+  DEFAULT(backend->host, NULL, "127.0.0.1");
+  DEFAULT(backend->keepalive, -1, kBudDefaultKeepalive);
+  DEFAULT(backend->proxyline, -1, 0);
+  DEFAULT(backend->xforward, -1, 0);
 }
 
 #undef DEFAULT
