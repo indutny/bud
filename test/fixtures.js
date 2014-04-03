@@ -1,6 +1,6 @@
 var assert = require('assert');
-var http = require('http');
 var https = require('https');
+var spdy = require('spdy');
 var utile = require('utile');
 
 var bud = require('../');
@@ -10,6 +10,8 @@ var fixtures = exports;
 var FRONT_PORT = 18001;
 var BACK_PORT = 18002;
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 fixtures.getServers = function getServers(options) {
   if (!options)
     options = {};
@@ -18,10 +20,11 @@ fixtures.getServers = function getServers(options) {
   assert.equal(typeof afterEach, 'function');
 
   var sh = {
-    frontend: {
+    frontend: utile.mixin(utile.clone(options.frontend || {}), {
+      host: '127.0.0.1',
       url: 'https://127.0.0.1:' + FRONT_PORT,
       port: FRONT_PORT
-    },
+    }),
     backends: []
   };
 
@@ -29,6 +32,8 @@ fixtures.getServers = function getServers(options) {
     var count = options.backends && options.backends.length ||
                 options.backends ||
                 1;
+
+    sh.backends = [];
     for (var i = 0; i < count; i++) {
       var backend = utile.mixin({
         index: i,
@@ -38,7 +43,10 @@ fixtures.getServers = function getServers(options) {
       }, options.backends && options.backends[i] || {});
 
       !function(backend) {
-        backend.server = http.createServer(function(req, res) {
+        backend.server = spdy.createServer({
+          plain: true,
+          ssl: false
+        }, function(req, res) {
           backend.requests++;
           res.setHeader('X-Backend-Id', backend.index);
           if (req.headers['x-forwarded-for']) {
@@ -58,15 +66,13 @@ fixtures.getServers = function getServers(options) {
     }
 
     sh.frontend.server = bud.createServer({
+      frontend: utile.filter(sh.frontend, function(val, key) {
+        return !/^(server|url|host|port)$/.test(key);
+      }),
       backend: sh.backends.map(function(backend) {
-        var res = {};
-        Object.keys(backend).forEach(function(key) {
-          if (/^(server|requests|index)$/.test(key))
-            return;
-
-          res[key] = backend[key];
+        return utile.filter(backend, function(val, key) {
+          return !/^(server|requests|index)$/.test(key);
         });
-        return res;
       })
     });
 
@@ -98,6 +104,26 @@ fixtures.request = function request(sh, uri, cb) {
       cb(res, chunks);
     });
   });
+};
+
+fixtures.spdyRequest = function spdyRequest(sh, uri, cb) {
+  var agent = spdy.createAgent(sh.frontend);
+
+  var req = https.request({
+    agent: agent,
+    path: uri
+  }, function(res) {
+    var chunks = '';
+    res.on('readable', function() {
+      chunks += res.read() || '';
+    });
+    res.on('end', function() {
+      agent.close(function() {
+        cb(res, chunks);
+      });
+    });
+  });
+  req.end();
 };
 
 function expectProxyline(server) {

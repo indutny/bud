@@ -50,7 +50,9 @@ struct bud_config_http_pool_s {
     const char* ecdh;                                                         \
     const char* ticket_key;                                                   \
     /* internal */                                                            \
-    char ticket_key_storage[48];
+    char ticket_key_storage[48];                                              \
+    char* npn_line;                                                           \
+    size_t npn_line_len;                                                      \
 
 
 #define BUD_CONFIG_ADDR_FIELDS                                                \
@@ -112,8 +114,6 @@ struct bud_context_s {
   SSL_CTX* ctx;
   X509* cert;
   X509* issuer;
-  char* npn_line;
-  size_t npn_line_len;
   OCSP_CERTID* ocsp_id;
   char* ocsp_der_id;
   size_t ocsp_der_id_len;

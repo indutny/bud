@@ -1,8 +1,7 @@
 var assert = require('assert');
 var fixtures = require('./fixtures');
 var request = fixtures.request;
-
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+var spdyRequest = fixtures.spdyRequest;
 
 describe('Bud TLS Terminator', function() {
   describe('single backend', function() {
@@ -64,13 +63,24 @@ describe('Bud TLS Terminator', function() {
 
   describe('x-forward', function() {
     var sh = fixtures.getServers({
+      frontend: {
+        npn: [ 'spdy/3.1' , 'spdy/3' , 'spdy/2' , 'http/1.1' ]
+      },
       backends: [{
         'x-forward': true
       }]
     });
 
-    it('should work', function(cb) {
+    it('should work with http', function(cb) {
       request(sh, '/hello', function(res, body) {
+        assert.equal(sh.backends[0].requests, 1);
+        assert.equal(res.headers['x-got-forwarded-for'], '127.0.0.1');
+        cb();
+      });
+    });
+
+    it('should work with spdy', function(cb) {
+      spdyRequest(sh, '/hello', function(res, body) {
         assert.equal(sh.backends[0].requests, 1);
         assert.equal(res.headers['x-got-forwarded-for'], '127.0.0.1');
         cb();

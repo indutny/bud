@@ -58,6 +58,7 @@ struct bud_client_s {
 
   /* Tracing and proxyline */
   char host[INET6_ADDRSTRLEN];
+  unsigned int host_len;
   unsigned char family;
   uint16_t port;
 

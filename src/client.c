@@ -1,5 +1,6 @@
 #include <arpa/inet.h>  /* ntohs */
 #include <stdlib.h>
+#include <string.h>  /* strlen */
 
 #include "uv.h"
 #include "bio.h"
@@ -994,6 +995,8 @@ bud_client_error_t bud_client_prepare_strings(bud_client_t* client) {
 
   if (r != 0)
     goto fatal;
+
+  client->host_len = strlen(client->host);
 
   return bud_client_ok(&client->backend);
 
