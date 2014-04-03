@@ -142,8 +142,14 @@ to get default configuration options (with comments and description below):
     // "PROXY TCP4 ... ... ... ..."
     "proxyline": false,
 
-    // if true - adds `X-Forwarded-For: <address>` right after the first
-    // line in the incoming data (regardless of selected NPN protocol)
+    // if true:
+    // - if NPN is enabled and either `spdy/3.1`, `spdy/3` or `spdy/2` is
+    //   negotiated - custom `X_FORWARDED` frame will be sent on connection.
+    //   see: https://groups.google.com/forum/#!topic/spdy-dev/XkdtuShtVCEadds
+    //
+    // - in all other cases `X-Forwarded-For: <address>` will be added right
+    //   after the first line in the incoming data.
+
     "x-forward": false
   }],
 
