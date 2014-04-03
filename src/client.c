@@ -570,7 +570,6 @@ fatal:
 
 
 bud_client_error_t bud_client_backend_in(bud_client_t* client) {
-  char* data;
   size_t size;
   int written;
   int err;
@@ -578,6 +577,8 @@ bud_client_error_t bud_client_backend_in(bud_client_t* client) {
 
   written = 0;
   while (!ringbuffer_is_empty(&client->backend.input)) {
+    char* data;
+
     data = ringbuffer_read_next(&client->backend.input, &size);
     written = SSL_write(client->ssl, data, size);
     DBG(&client->frontend, "SSL_write() => %d", written);

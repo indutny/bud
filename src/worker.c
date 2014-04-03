@@ -122,7 +122,6 @@ void bud_worker_read_cb(uv_stream_t* stream,
                         const uv_buf_t* buf) {
   uv_pipe_t* pipe;
   bud_config_t* config;
-  uv_handle_type pending;
 
   pipe = (uv_pipe_t*) stream;
   config = pipe->data;
@@ -130,6 +129,8 @@ void bud_worker_read_cb(uv_stream_t* stream,
   ASSERT(nread >= 0 || nread == UV_EOF, "worker ipc read failure");
 
   while (uv_pipe_pending_count(pipe) > 0) {
+    uv_handle_type pending;
+
     pending = uv_pipe_pending_type(pipe);
 
     /* Ignore reads without handles */

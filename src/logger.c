@@ -106,11 +106,6 @@ void bud_logva(bud_config_t* config,
   va_list stdio_ap;
   va_list syslog_ap;
   bud_logger_t* logger;
-  int r;
-  static char buf[1024];
-#ifndef _WIN32
-  int priority;
-#endif  /* !_WIN32 */
 
   logger = config->logger;
   ASSERT(logger != NULL, "Logger not initalized");
@@ -120,6 +115,9 @@ void bud_logva(bud_config_t* config,
     return;
 
   if (logger->stdio_enabled) {
+    int r;
+    static char buf[1024];
+
     va_copy(stdio_ap, ap);
     r = vsnprintf(buf, sizeof(buf), fmt, stdio_ap);
     ASSERT(r < (int) sizeof(buf), "Log line overflow");
@@ -138,6 +136,8 @@ void bud_logva(bud_config_t* config,
 
 #ifndef _WIN32
   if (logger->syslog_enabled) {
+    int priority;
+
     va_copy(syslog_ap, ap);
     switch (level) {
       case kBudLogDebug:

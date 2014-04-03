@@ -340,7 +340,6 @@ bud_error_t bud_http_request_send(bud_http_request_t* req) {
   int r;
   uv_buf_t get_buf[3];
   uv_buf_t post_buf[6];
-  char body_length[128];
 
   ASSERT(req->state == kBudHttpConnected, "Writing to not connected socket");
 
@@ -357,6 +356,8 @@ bud_error_t bud_http_request_send(bud_http_request_t* req) {
                  ARRAY_SIZE(get_buf),
                  bud_http_request_write_cb);
   } else {
+    char body_length[128];
+
     post_buf[0] = UV_STR_BUF("POST ");
     post_buf[1] = uv_buf_init(req->url, req->url_len);
     post_buf[2] = UV_STR_BUF(" HTTP/1.1\r\n"
@@ -452,8 +453,6 @@ void bud_http_request_read_cb(uv_stream_t* stream,
                               const uv_buf_t* buf) {
   bud_http_request_t* req;
   size_t parsed;
-  char* out;
-  size_t len;
 
   req = container_of(stream, bud_http_request_t, tcp);
   if (nread < 0 && nread != UV_EOF) {
@@ -480,6 +479,9 @@ void bud_http_request_read_cb(uv_stream_t* stream,
   }
 
   if (req->complete) {
+    char* out;
+    size_t len;
+
     len = ringbuffer_size(&req->response_buf);
     out = malloc(len + 1);
     if (out == NULL) {

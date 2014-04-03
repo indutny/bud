@@ -46,8 +46,6 @@ bud_error_t bud_master(bud_config_t* config) {
   int i;
   bud_error_t err;
 
-  err = bud_ok();
-
   bud_log(config, kBudLogDebug, "master starting");
 
 #ifndef _WIN32
@@ -375,7 +373,6 @@ void bud_master_respawn_worker(uv_process_t* proc,
 void bud_master_kill_worker(bud_worker_t* worker,
                             uint64_t delay,
                             bud_worker_kill_cb cb) {
-  int r;
   ASSERT(worker->active, "Tried to kill inactive worker");
 
   uv_process_kill(&worker->proc, SIGKILL);
@@ -390,6 +387,8 @@ void bud_master_kill_worker(bud_worker_t* worker,
   if (delay == 0) {
     uv_close((uv_handle_t*) &worker->restart_timer, bud_worker_close_cb);
   } else {
+    int r;
+
     r = uv_timer_start(&worker->restart_timer, bud_worker_timer_cb, delay, 0);
     if (r != 0)
       uv_close((uv_handle_t*) &worker->restart_timer, bud_worker_close_cb);

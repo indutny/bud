@@ -60,7 +60,6 @@ static const int kBudDefaultKeepalive = 3600;
 
 bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   int c;
-  int r;
   int index;
   int is_daemon;
   int is_worker;
@@ -129,6 +128,8 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   } while (c != -1);
 
   if (config != NULL) {
+    int r;
+
     /* CLI options */
     config->argc = argc;
     config->argv = argv;
@@ -1232,10 +1233,11 @@ bud_context_t* bud_config_select_context(bud_config_t* config,
                                          const char* servername,
                                          size_t servername_len) {
   int i;
-  bud_context_t* ctx;
 
   /* TODO(indutny): Binary search */
   for (i = 0; i < config->context_count; i++) {
+    bud_context_t* ctx;
+
     ctx = &config->contexts[i + 1];
 
     if (servername_len != ctx->servername_len)
