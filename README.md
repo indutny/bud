@@ -276,6 +276,10 @@ data received from OCSP server.
 
 Example OCSP+SNI backend implementation in node.js could be found [here][1].
 
+#### Community
+
+Join #bud-tls on freenode IRC to discuss things with me or others!
+
 #### LICENSE
 
 This software is licensed under the MIT License.
