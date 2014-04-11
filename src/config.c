@@ -946,11 +946,9 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   SSL_CTX_set_options(ctx, options);
 
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
-  if (config->context_count != 0) {
-    SSL_CTX_set_tlsext_servername_callback(ctx,
-                                           bud_config_select_sni_context);
-    SSL_CTX_set_tlsext_servername_arg(ctx, config);
-  }
+  SSL_CTX_set_tlsext_servername_callback(ctx,
+                                         bud_config_select_sni_context);
+  SSL_CTX_set_tlsext_servername_arg(ctx, config);
 #endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
 
 #ifdef OPENSSL_NPN_NEGOTIATED
