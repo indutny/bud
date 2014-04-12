@@ -33,9 +33,6 @@ to get default configuration options (with comments and description below):
 
 ```javascript
 {
-  // Spawn detached "daemon" process
-  "daemon": false,
-
   // Number of workers to use, if 0 - only one process will be spawned.
   "workers": 1,
 
