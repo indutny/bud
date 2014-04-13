@@ -2,6 +2,12 @@
 
 A TLS terminator for superheroes.
 
+## What is bud?
+
+Bud is a TLS terminating proxy, a babel fish decoding incoming TLS traffic and
+sending it in a plain text to your backend servers. Not only it does it, but
+does it good and with a lot of useful features!
+
 ## Build
 
 Preparing:
