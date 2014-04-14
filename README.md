@@ -8,6 +8,17 @@ Bud is a TLS terminating proxy, a babel fish decoding incoming TLS traffic and
 sending it in a plain text to your backend servers. Not only it does it, but
 does it good and with a lot of useful features!
 
+## Install
+
+Bud can easily be installed using [npm](http://npmjs.org)
+
+``` bash
+[sudo] npm install bud-tls
+```
+
+This will install the command line tool `bud`.  Optionally, you can build
+Bud from source with the steps below.
+
 ## Build
 
 Preparing:
