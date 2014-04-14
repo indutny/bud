@@ -1439,12 +1439,14 @@ end:
         goto fatal;
       }
     }
-  } else {
-    if (ctx->issuer != NULL)
-      X509_free(ctx->issuer);
   }
 
 fatal:
+  if (!ret && ctx->issuer != NULL) {
+    X509_free(ctx->issuer);
+    ctx->issuer = NULL;
+  }
+
   if (ctx->cert != x && x != NULL)
     X509_free(x);
 
