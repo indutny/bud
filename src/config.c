@@ -1434,10 +1434,8 @@ end:
     if (ctx->issuer != NULL) {
       /* Get ocsp_id */
       ctx->ocsp_id = OCSP_cert_to_id(NULL, ctx->cert, ctx->issuer);
-      if (ctx->ocsp_id == NULL) {
-        ctx->issuer = NULL;
+      if (ctx->ocsp_id == NULL)
         goto fatal;
-      }
     }
   }
 
