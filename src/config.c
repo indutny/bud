@@ -1346,8 +1346,6 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
   int ret;
   X509* x;
   X509* ca;
-  X509_STORE* store;
-  X509_STORE_CTX store_ctx;
   int r;
   unsigned long err;
 
@@ -1416,6 +1414,9 @@ end:
   if (ret) {
     /* Try getting issuer from cert store */
     if (ctx->issuer == NULL) {
+      X509_STORE* store;
+      X509_STORE_CTX store_ctx;
+
       store = SSL_CTX_get_cert_store(ctx->ctx);
       ret = X509_STORE_CTX_init(&store_ctx, store, NULL, NULL);
       if (!ret)
