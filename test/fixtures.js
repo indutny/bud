@@ -95,10 +95,10 @@ fixtures.getServers = function getServers(options) {
   });
 
   afterEach(function(cb) {
-    utile.async.each(sh.backends, function(backend, cb) {
-      backend.server.close(cb);
-    }, function() {
-      sh.frontend.server.close(cb);
+    sh.frontend.server.close(function() {
+      utile.async.each(sh.backends, function(backend, cb) {
+        backend.server.close(cb);
+      }, cb);
     });
   });
 
@@ -158,55 +158,57 @@ function expectProxyline(server, type) {
   server.on('connection', function(s) {
     var ondata = s.ondata;
     var chunks = '';
-    s.ondata = function _ondata(c, start, end) {
-      chunks += c.slice(start, end);
-      assert(chunks.length < 1024);
-      if (type === true || type === 'haproxy') {
-        var match = chunks.match(
-          /^PROXY (TCP\d) ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)\r\n/
-        );
-        if (!match)
-          return;
-        var line = {
-          protocol: match[1],
-          outbound: {
-            host: match[2],
-            port: match[4],
-            cn: ''
-          },
-          inbound: {
-            host: match[3],
-            port: match[5],
-          }
-        };
-      } else {
-        var match = chunks.match(
-          /^BUD ([^\r\n]+)\r\n/
-        );
-        if (!match)
-          return;
+    process.nextTick(function() {
+      s.ondata = function _ondata(c, start, end) {
+        chunks += c.slice(start, end);
+        assert(chunks.length < 1024);
+        if (type === true || type === 'haproxy') {
+          var match = chunks.match(
+            /^PROXY (TCP\d) ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)\r\n/
+          );
+          if (!match)
+            return;
+          var line = {
+            protocol: match[1],
+            outbound: {
+              host: match[2],
+              port: match[4],
+              cn: ''
+            },
+            inbound: {
+              host: match[3],
+              port: match[5],
+            }
+          };
+        } else {
+          var match = chunks.match(
+            /^BUD ([^\r\n]+)\r\n/
+          );
+          if (!match)
+            return;
 
-        var j = JSON.parse(match[1]);
-        var line = {
-          protocol: j.family,
-          outbound: {
-            host: j.peer.host,
-            port: j.peer.port,
-            cn: j.peer.cn
-          },
-          inbound: {
-            host: j.bud.host,
-            port: j.bud.port
-          }
-        };
-      }
+          var j = JSON.parse(match[1]);
+          var line = {
+            protocol: j.family,
+            outbound: {
+              host: j.peer.host,
+              port: j.peer.port,
+              cn: j.peer.cn
+            },
+            inbound: {
+              host: j.bud.host,
+              port: j.bud.port
+            }
+          };
+        }
 
-      server.emit('proxyline', line);
-      s.ondata = ondata;
+        server.emit('proxyline', line);
+        s.ondata = ondata;
 
-      var rest = new Buffer(chunks.slice(match[0].length));
-      if (rest.length !== 0)
-        s.ondata(rest, 0, rest.length);
-    };
+        var rest = new Buffer(chunks.slice(match[0].length));
+        if (rest.length !== 0)
+          s.ondata(rest, 0, rest.length);
+      };
+    });
   });
 }
