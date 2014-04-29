@@ -49,7 +49,6 @@ struct bud_config_http_pool_s {
     const char* ciphers;                                                      \
     const char* ecdh;                                                         \
     const char* ticket_key;                                                   \
-    int request_cert;                                                         \
     /* internal */                                                            \
     char ticket_key_storage[48];                                              \
     char* npn_line;                                                           \
@@ -81,6 +80,7 @@ struct bud_config_frontend_s {
   int ssl3;
   int max_send_fragment;
   int allow_half_open;
+  int request_cert;
 
   /* Internal */
   const SSL_METHOD* method;

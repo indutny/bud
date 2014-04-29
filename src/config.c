@@ -380,11 +380,6 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
     ctx->ciphers = json_object_get_string(obj, "ciphers");
     ctx->ecdh = json_object_get_string(obj, "ecdh");
     ctx->ticket_key = json_object_get_string(obj, "ticket_key");
-    val = json_object_get_value(obj, "request_cert");
-    if (val != NULL)
-      ctx->request_cert = json_value_get_boolean(val);
-    else
-      ctx->request_cert = 0;
     val = json_object_get_value(obj, "ca");
     if (json_value_get_type(val) == JSONString)
       ctx->ca_file = json_value_get_string(val);
@@ -1037,20 +1032,23 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
       return err;
   }
 
-  if (context->request_cert || config->frontend.request_cert) {
+  if (config->frontend.request_cert) {
     SSL_CTX_set_verify(ctx,
                        SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
                        NULL);
+  } else if (context->ca_store != NULL | config->frontend.ca_store != NULL) {
+    /* Just verify anything */
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+  }
 
-    /* Because of how OpenSSL is managing X509_STORE associated with ctx,
-     * there is no way to swap them without reallocating them again.
-     * Perform client cert validation manually.
-     */
-    if (context->ca_store != NULL || config->frontend.ca_store != NULL) {
-      SSL_CTX_set_cert_verify_callback(ctx,
-                                       bud_config_verify_cert,
-                                       config);
-    }
+  /* Because of how OpenSSL is managing X509_STORE associated with ctx,
+   * there is no way to swap them without reallocating them again.
+   * Perform client cert validation manually.
+   */
+  if (context->ca_store != NULL || config->frontend.ca_store != NULL) {
+    SSL_CTX_set_cert_verify_callback(ctx,
+                                     bud_config_verify_cert,
+                                     config);
   }
 
   /* ECDH curve selection */
@@ -1512,7 +1510,6 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
   ret = SSL_CTX_use_certificate(ctx->ctx, x);
   ctx->cert = x;
   ctx->issuer = NULL;
-  ctx->ca_store = NULL;
 
   if (ERR_peek_error() != 0) {
     /* Key/certificate mismatch doesn't imply ret==0 ... */
@@ -1654,6 +1651,9 @@ int bud_config_verify_cert(X509_STORE_CTX* s, void* arg) {
     store = config->frontend.ca_store;
   else
     store = NULL;
+
+  if (store == NULL)
+    return 1;
 
   if (!X509_STORE_CTX_init(&store_ctx, store, cert, NULL))
     return 0;
