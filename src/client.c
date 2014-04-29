@@ -1047,13 +1047,18 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
                  client->host,
                  ntohs(client->port));
   } else {
+    const char* cn;
+
+    cn = bud_client_get_peer_name(client);
     r = snprintf(proxyline,
                  sizeof(proxyline),
                  client->config->proxyline_fmt.json,
                  family,
                  client->host,
                  ntohs(client->port),
-                 bud_client_get_peer_name(client));
+                 cn != NULL ? '"' : 'f',
+                 cn != NULL ? cn : "als",
+                 cn != NULL ? '"' : 'e');
   }
   ASSERT(0 <= r && r < (int) sizeof(proxyline), "Client proxyline overflow");
 
@@ -1155,11 +1160,11 @@ const char* bud_client_get_peer_name(bud_client_t* client) {
 
   cert = SSL_get_peer_certificate(client->ssl);
   if (cert == NULL || cert->name == NULL)
-    return "";
+    return NULL;
 
   /* TODO(indutny): escape them */
   if (strchr(cert->name, '"') != NULL || strchr(cert->name, '\\') != NULL)
-    return "<invalid>";
+    return NULL;
 
   ASSERT(cert->references > 1, "Certificate couldn't be live for enough time");
   X509_free(cert);

@@ -115,4 +115,29 @@ describe('Bud TLS Terminator', function() {
       });
     });
   });
+
+  describe('JSON proxyline', function() {
+    var sh = fixtures.getServers({
+      frontend: {
+      },
+      backends: [{
+        proxyline: 'json'
+      }]
+    });
+
+    it('should return empty cn cert', function(cb) {
+      request(sh, '/hello', function(res, body) {
+        assert.equal(sh.backends[0].requests, 1);
+        assert(gotProxyline);
+        cb();
+      });
+      var gotProxyline = false;
+
+      sh.backends[0].server.on('proxyline', function(obj) {
+        assert.equal(obj.inbound.port, sh.frontend.port);
+        assert.equal(false, obj.outbound.cn);
+        gotProxyline = true;
+      });
+    });
+  });
 });

@@ -1655,7 +1655,7 @@ bud_error_t bud_config_format_proxyline(bud_config_t* config) {
                    "\"peer\":{"
                      "\"host\":\"%%s\","
                      "\"port\":%%hu,"
-                     "\"cn\":\"%%s\"}"
+                     "\"cn\":%%c%%s%%c}"
                    "}\r\n",
                host,
                config->frontend.port);
