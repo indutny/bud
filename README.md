@@ -162,6 +162,8 @@ to get default configuration options (with comments and description below):
 
     // if true - HAProxy compatible proxyline will be sent:
     // "PROXY TCP4 ... ... ... ..."
+    // if "json":
+    // 'BUD {"family":"TCP4","bud":{"host":"...","port":...},"peer":{...}'
     "proxyline": false,
 
     // if true:
@@ -225,6 +227,9 @@ to get default configuration options (with comments and description below):
       "host": "127.0.0.1",
       "keepalive": 3600
     },
+
+    // **Optional** If true - the clients will be requested to provide the cert
+    "request_cert": true,
 
     // **Optional**: Either filename or array of PEM certificate chain that
     // should be used for validating client certs
