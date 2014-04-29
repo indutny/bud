@@ -106,6 +106,18 @@ fixtures.request = function request(sh, uri, cb) {
   });
 };
 
+fixtures.caRequest = function caRequest(sh, uri, cb) {
+  https.get(sh.frontend.url + uri, function(res) {
+    var chunks = '';
+    res.on('readable', function() {
+      chunks += res.read() || '';
+    });
+    res.on('end', function() {
+      cb(res, chunks);
+    });
+  });
+};
+
 fixtures.spdyRequest = function spdyRequest(sh, uri, cb) {
   var agent = spdy.createAgent(sh.frontend);
 

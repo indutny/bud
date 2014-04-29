@@ -36,6 +36,7 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   ctx->ecdh = json_object_get_string(obj, "ecdh");
   ctx->ticket_key = json_object_get_string(obj, "ticket_key");
   ctx->npn = json_object_get_array(obj, "npn");
+  ctx->ca_array = json_object_get_array(obj, "ca");
   tmp = json_object_get_object(obj, "backend");
   if (tmp != NULL) {
     ctx->backend = &ctx->backend_st;

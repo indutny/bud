@@ -49,6 +49,7 @@ struct bud_config_http_pool_s {
     const char* ciphers;                                                      \
     const char* ecdh;                                                         \
     const char* ticket_key;                                                   \
+    int request_cert;                                                         \
     /* internal */                                                            \
     char ticket_key_storage[48];                                              \
     char* npn_line;                                                           \
@@ -74,6 +75,7 @@ struct bud_config_frontend_s {
   const char* security;
   int server_preference;
   BUD_COMMON_SSL_FIELDS
+  const char* ca_file;
   int reneg_window;
   int reneg_limit;
   int ssl3;
@@ -82,6 +84,7 @@ struct bud_config_frontend_s {
 
   /* Internal */
   const SSL_METHOD* method;
+  X509_STORE* ca_store;
 };
 
 struct bud_config_backend_s {
@@ -108,12 +111,15 @@ struct bud_context_s {
   size_t servername_len;
 
   BUD_COMMON_SSL_FIELDS
+  const char* ca_file;
+  const JSON_Array* ca_array;
   bud_config_backend_t* backend;
 
   /* Various */
   SSL_CTX* ctx;
   X509* cert;
   X509* issuer;
+  X509_STORE* ca_store;
   OCSP_CERTID* ocsp_id;
   char* ocsp_der_id;
   size_t ocsp_der_id_len;

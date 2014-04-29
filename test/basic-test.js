@@ -1,6 +1,7 @@
 var assert = require('assert');
 var fixtures = require('./fixtures');
 var request = fixtures.request;
+var caRequest = fixtures.caRequest;
 var spdyRequest = fixtures.spdyRequest;
 
 describe('Bud TLS Terminator', function() {
@@ -83,6 +84,21 @@ describe('Bud TLS Terminator', function() {
       spdyRequest(sh, '/hello', function(res, body) {
         assert.equal(sh.backends[0].requests, 1);
         assert.equal(res.headers['x-got-forwarded-for'], '127.0.0.1');
+        cb();
+      });
+    });
+  });
+
+  describe('request cert', function() {
+    var sh = fixtures.getServers({
+      frontend: {
+        request_cert: true
+      }
+    });
+
+    it('should request and validate cert', function(cb) {
+      caRequest(sh, '/hello', function(res, body) {
+        assert.equal(sh.backends[0].requests, 1);
         cb();
       });
     });

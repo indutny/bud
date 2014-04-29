@@ -69,8 +69,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
                 ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrSNINotSupported:                                              \
       BUD_ERROR("SNI not supported, but multiple contexts were given")        \
-    case kBudErrNPNNonString:                                                 \
-      BUD_ERROR("\"npn\" array should contain only strings")                  \
+    case kBudErrNonString:                                                    \
+      BUD_ERROR("%s array should contain only strings", err.str)              \
     case kBudErrNPNNotSupported:                                              \
       BUD_ERROR("NPN not supported, but present in config")                   \
     case kBudErrExePath:                                                      \
@@ -83,6 +83,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("SSL_get_ex_new_index failed")                                \
     case kBudErrSmallTicketKey:                                               \
       BUD_ERROR("ticket_key should decode into 48 byte sequence")             \
+    case kBudErrAddCert:                                                      \
+      BUD_ERROR("X509_STORE_add_cert() failure")                              \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \
