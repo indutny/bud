@@ -139,7 +139,15 @@ to get default configuration options (with comments and description below):
     "max_send_fragment": 1400,
 
     // **Optional** If false - close frontend connection on backend EOF
-    "allow_half_open": false
+    "allow_half_open": false,
+
+    // **Optional** If true - the clients will be requested to provide the cert
+    "request_cert": true,
+
+    // **Optional**: Either filename or array of PEM certificate chain that
+    // should be used for validating client certs
+    "ca": "filename"
+    // "ca": [ "-----BEGIN CERTIFICATE----\n..." ]
   },
 
   // Balance tactic
@@ -216,7 +224,12 @@ to get default configuration options (with comments and description below):
       "port": 8000,
       "host": "127.0.0.1",
       "keepalive": 3600
-    }
+    },
+
+    // **Optional**: Either filename or array of PEM certificate chain that
+    // should be used for validating client certs
+    "ca": "filename"
+    // "ca": [ "-----BEGIN CERTIFICATE----\n..." ]
   }]
 }
 ```
