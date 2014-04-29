@@ -2,6 +2,9 @@ var assert = require('assert');
 var https = require('https');
 var spdy = require('spdy');
 var utile = require('utile');
+var fs = require('fs');
+var path = require('path');
+var url = require('url');
 
 var bud = require('../');
 
@@ -9,6 +12,14 @@ var fixtures = exports;
 
 var FRONT_PORT = 18001;
 var BACK_PORT = 18002;
+
+function getKey(name) {
+  return fs.readFileSync(path.resolve(__dirname, 'keys', name + '.pem')) + '';
+}
+
+fixtures.key = getKey('agent1-key');
+fixtures.cert = getKey('agent1-cert');
+fixtures.ca = getKey('ca1-cert');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -60,7 +71,7 @@ fixtures.getServers = function getServers(options) {
         });
 
         if (backend.proxyline)
-          expectProxyline(backend.server);
+          expectProxyline(backend.server, backend.proxyline);
       }(backend);
       sh.backends.push(backend);
     }
@@ -106,8 +117,13 @@ fixtures.request = function request(sh, uri, cb) {
   });
 };
 
-fixtures.caRequest = function caRequest(sh, uri, cb) {
-  https.get(sh.frontend.url + uri, function(res) {
+fixtures.caRequest = function caRequest(sh, uri, fake, cb) {
+  var o = url.parse(sh.frontend.url + uri);
+  o.agent = new https.Agent({
+    key: fixtures.key,
+    cert: fixtures.cert
+  });
+  https.get(o, function(res) {
     var chunks = '';
     res.on('readable', function() {
       chunks += res.read() || '';
@@ -138,35 +154,59 @@ fixtures.spdyRequest = function spdyRequest(sh, uri, cb) {
   req.end();
 };
 
-function expectProxyline(server) {
+function expectProxyline(server, type) {
   server.on('connection', function(s) {
     var ondata = s.ondata;
     var chunks = '';
     s.ondata = function _ondata(c, start, end) {
       chunks += c.slice(start, end);
       assert(chunks.length < 1024);
-      var match = chunks.match(
-        /^PROXY (TCP\d) ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)\r\n/
-      );
-      if (!match)
-        return;
+      if (type === true || type === 'haproxy') {
+        var match = chunks.match(
+          /^PROXY (TCP\d) ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)\r\n/
+        );
+        if (!match)
+          return;
+        var line = {
+          protocol: match[1],
+          outbound: {
+            host: match[2],
+            port: match[4],
+            cn: ''
+          },
+          inbound: {
+            host: match[3],
+            port: match[5],
+          }
+        };
+      } else {
+        var match = chunks.match(
+          /^BUD ([^\r\n]+)\r\n/
+        );
+        if (!match)
+          return;
 
-      server.emit('proxyline', {
-        protocol: match[1],
-        outbound: {
-          host: match[2],
-          port: match[4]
-        },
-        inbound: {
-          host: match[3],
-          port: match[5]
-        }
-      });
+        var j = JSON.parse(match[1]);
+        var line = {
+          protocol: j.family,
+          outbound: {
+            host: j.peer.host,
+            port: j.peer.port,
+            cn: j.peer.cn
+          },
+          inbound: {
+            host: j.bud.host,
+            port: j.bud.port
+          }
+        };
+      }
+
+      server.emit('proxyline', line);
       s.ondata = ondata;
 
       var rest = new Buffer(chunks.slice(match[0].length));
       if (rest.length !== 0)
-        ondata.call(this, rest, 0, rest.length);
+        s.ondata(rest, 0, rest.length);
     };
   });
 }

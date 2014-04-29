@@ -61,6 +61,7 @@ struct bud_client_s {
   unsigned int host_len;
   unsigned char family;
   uint16_t port;
+  unsigned int proxyline_waiting;
 
   /* XForward */
   struct {

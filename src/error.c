@@ -85,6 +85,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("ticket_key should decode into 48 byte sequence")             \
     case kBudErrAddCert:                                                      \
       BUD_ERROR("X509_STORE_add_cert() failure")                              \
+    case kBudErrProxyline:                                                    \
+      BUD_ERROR("Invalid proxyline value: %s", err.str)                       \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \

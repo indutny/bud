@@ -16,6 +16,7 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   int r;
   JSON_Object* obj;
   JSON_Object* tmp;
+  JSON_Value* val;
   const char* cert_str;
   const char* key_str;
   bud_error_t err;
@@ -37,6 +38,9 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   ctx->ticket_key = json_object_get_string(obj, "ticket_key");
   ctx->npn = json_object_get_array(obj, "npn");
   ctx->ca_array = json_object_get_array(obj, "ca");
+  val = json_object_get_value(obj, "request_cert");
+  if (val != NULL)
+    ctx->request_cert = json_value_get_boolean(val);
   tmp = json_object_get_object(obj, "backend");
   if (tmp != NULL) {
     ctx->backend = &ctx->backend_st;

@@ -6,6 +6,7 @@
 #include "bio.h"
 #include "ringbuffer.h"
 #include "openssl/bio.h"
+#include "openssl/x509.h"
 #include "parson.h"
 
 #include "avail.h"
@@ -43,6 +44,7 @@ static bud_client_error_t bud_client_prepare_strings(bud_client_t* client);
 static void bud_client_handshake_start_cb(const SSL* ssl);
 static void bud_client_handshake_done_cb(const SSL* ssl);
 static void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret);
+static const char* bud_client_get_peer_name(bud_client_t* client);
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   int r;
@@ -86,6 +88,9 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->retry_count = 0;
   client->retry_timer.data = client;
   client->selected_backend = NULL;
+
+  /* Proxyline */
+  client->proxyline_waiting = 2;
 
   /* X-Forward */
   client->xforward.skip = 0;
@@ -1010,7 +1015,20 @@ fatal:
 bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
   int r;
   const char* family;
-  char proxyline[256];
+  char proxyline[1024];
+  bud_config_proxyline_t type;
+
+  /*
+   * Client should both handshake and connect to backend in order to
+   * be able to send proper proxyline
+   */
+  if (--client->proxyline_waiting != 0)
+    return bud_client_ok();
+
+  type = client->selected_backend->proxyline;
+
+  if (type == kBudProxylineNone)
+    return bud_client_ok();
 
   if (client->family == AF_INET) {
     family = "TCP4";
@@ -1021,12 +1039,22 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
     goto fatal;
   }
 
-  r = snprintf(proxyline,
-               sizeof(proxyline),
-               client->config->proxyline_fmt,
-               family,
-               client->host,
-               ntohs(client->port));
+  if (type == kBudProxylineHAProxy) {
+    r = snprintf(proxyline,
+                 sizeof(proxyline),
+                 client->config->proxyline_fmt.haproxy,
+                 family,
+                 client->host,
+                 ntohs(client->port));
+  } else {
+    r = snprintf(proxyline,
+                 sizeof(proxyline),
+                 client->config->proxyline_fmt.json,
+                 family,
+                 client->host,
+                 ntohs(client->port),
+                 bud_client_get_peer_name(client));
+  }
   ASSERT(0 <= r && r < (int) sizeof(proxyline), "Client proxyline overflow");
 
   r = ringbuffer_insert(&client->backend.output,
@@ -1086,11 +1114,12 @@ void bud_client_handshake_done_cb(const SSL* ssl) {
 
   bud_trace_handshake(client);
 
+  cerr = bud_client_ok();
   if (client->selected_backend != NULL)
-    return;
+    goto fatal;
 
   if (client->config->balance_e != kBudBalanceSNI)
-    return;
+    goto fatal;
 
   if (context != NULL)
     client->selected_backend = context->backend;
@@ -1103,6 +1132,10 @@ void bud_client_handshake_done_cb(const SSL* ssl) {
                             &client->frontend);
   }
 
+fatal:
+  /* Prepend proxyline if configured any */
+  if (bud_is_ok(cerr.err))
+    cerr = bud_client_prepend_proxyline(client);
   if (!bud_is_ok(cerr.err))
     bud_client_close(client, cerr);
 }
@@ -1114,6 +1147,23 @@ void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret) {
 
   if ((where & SSL_CB_HANDSHAKE_DONE) != 0)
     bud_client_handshake_done_cb(ssl);
+}
+
+
+const char* bud_client_get_peer_name(bud_client_t* client) {
+  X509* cert;
+
+  cert = SSL_get_peer_certificate(client->ssl);
+  if (cert == NULL || cert->name == NULL)
+    return "";
+
+  /* TODO(indutny): escape them */
+  if (strchr(cert->name, '"') != NULL || strchr(cert->name, '\\') != NULL)
+    return "<invalid>";
+
+  ASSERT(cert->references > 1, "Certificate couldn't be live for enough time");
+  X509_free(cert);
+  return cert->name;
 }
 
 

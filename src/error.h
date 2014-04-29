@@ -31,6 +31,7 @@ enum bud_error_code_e {
   kBudErrNoSSLIndex = 0x10c,
   kBudErrSmallTicketKey = 0x10d,
   kBudErrAddCert = 0x10e,
+  kBudErrProxyline = 0x10f,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,

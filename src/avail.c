@@ -207,15 +207,13 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
   if (client->backend.reading == kBudProgressRunning) {
     cerr = bud_client_read_start(client, &client->backend);
     if (!bud_is_ok(cerr.err))
-      return bud_client_close(client, cerr);
+      goto fatal;
   }
 
   /* Prepend proxyline if configured any */
-  if (client->selected_backend->proxyline) {
-    cerr = bud_client_prepend_proxyline(client);
-    if (!bud_is_ok(cerr.err))
-      goto fatal;
-  }
+  cerr = bud_client_prepend_proxyline(client);
+  if (!bud_is_ok(cerr.err))
+    goto fatal;
 
   /* Cycle data anyway */
   cerr = bud_client_cycle(client);
