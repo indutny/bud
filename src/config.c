@@ -1068,7 +1068,7 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
                        bud_config_verify_cert);
   } else {
     /* Just verify anything */
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, bud_config_verify_cert);
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, bud_config_verify_cert);
   }
 
   /* ECDH curve selection */
