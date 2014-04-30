@@ -24,9 +24,11 @@ typedef struct bud_config_http_pool_s bud_config_http_pool_t;
 typedef enum bud_config_balance_e bud_config_balance_t;
 typedef struct bud_config_s bud_config_t;
 typedef struct bud_config_addr_s bud_config_addr_t;
+typedef enum bud_config_proxyline_s bud_config_proxyline_t;
 typedef struct bud_config_backend_s bud_config_backend_t;
 typedef struct bud_config_frontend_s bud_config_frontend_t;
 
+int kBudSSLConfigIndex;
 int kBudSSLClientIndex;
 int kBudSSLSNIIndex;
 int kBudSSLTicketKeyIndex;
@@ -49,6 +51,9 @@ struct bud_config_http_pool_s {
     const char* ciphers;                                                      \
     const char* ecdh;                                                         \
     const char* ticket_key;                                                   \
+    int request_cert;                                                         \
+    const char* ca_file;                                                      \
+    const JSON_Array* ca_array;                                               \
     /* internal */                                                            \
     char ticket_key_storage[48];                                              \
     char* npn_line;                                                           \
@@ -82,6 +87,13 @@ struct bud_config_frontend_s {
 
   /* Internal */
   const SSL_METHOD* method;
+  X509_STORE* ca_store;
+};
+
+enum bud_config_proxyline_s {
+  kBudProxylineNone,
+  kBudProxylineHAProxy,
+  kBudProxylineJSON
 };
 
 struct bud_config_backend_s {
@@ -89,7 +101,7 @@ struct bud_config_backend_s {
   BUD_CONFIG_ADDR_FIELDS
 
   /* Public */
-  int proxyline;
+  bud_config_proxyline_t proxyline;
   int xforward;
 
   /* Internal */
@@ -114,6 +126,7 @@ struct bud_context_s {
   SSL_CTX* ctx;
   X509* cert;
   X509* issuer;
+  X509_STORE* ca_store;
   OCSP_CERTID* ocsp_id;
   char* ocsp_der_id;
   size_t ocsp_der_id_len;
@@ -158,7 +171,10 @@ struct bud_config_s {
   uv_pipe_t* ipc;
 
   /* Used by client.c */
-  char proxyline_fmt[256];
+  struct {
+    char haproxy[256];
+    char json[256];
+  } proxyline_fmt;
   bud_config_balance_t balance_e;
 
   /* Options from config file */

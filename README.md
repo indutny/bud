@@ -2,6 +2,23 @@
 
 A TLS terminator for superheroes.
 
+## What is bud?
+
+Bud is a TLS terminating proxy, a babel fish decoding incoming TLS traffic and
+sending it in a plain text to your backend servers. Not only it does it, but
+does it good and with a lot of useful features!
+
+## Install
+
+Bud can easily be installed using [npm](http://npmjs.org)
+
+``` bash
+[sudo] npm install bud-tls
+```
+
+This will install the command line tool `bud`.  Optionally, you can build
+Bud from source with the steps below.
+
 ## Build
 
 Preparing:
@@ -33,9 +50,6 @@ to get default configuration options (with comments and description below):
 
 ```javascript
 {
-  // Spawn detached "daemon" process
-  "daemon": false,
-
   // Number of workers to use, if 0 - only one process will be spawned.
   "workers": 1,
 
@@ -125,7 +139,15 @@ to get default configuration options (with comments and description below):
     "max_send_fragment": 1400,
 
     // **Optional** If false - close frontend connection on backend EOF
-    "allow_half_open": false
+    "allow_half_open": false,
+
+    // **Optional** If true - the clients will be requested to provide the cert
+    "request_cert": true,
+
+    // **Optional**: Either filename or array of PEM certificate chain that
+    // should be used for validating client certs
+    "ca": "filename"
+    // "ca": [ "-----BEGIN CERTIFICATE----\n..." ]
   },
 
   // Balance tactic
@@ -140,6 +162,8 @@ to get default configuration options (with comments and description below):
 
     // if true - HAProxy compatible proxyline will be sent:
     // "PROXY TCP4 ... ... ... ..."
+    // if "json":
+    // 'BUD {"family":"TCP4","bud":{"host":"...","port":...},"peer":{...}'
     "proxyline": false,
 
     // if true:
@@ -202,7 +226,15 @@ to get default configuration options (with comments and description below):
       "port": 8000,
       "host": "127.0.0.1",
       "keepalive": 3600
-    }
+    },
+
+    // **Optional** If true - the clients will be requested to provide the cert
+    "request_cert": true,
+
+    // **Optional**: Either filename or array of PEM certificate chain that
+    // should be used for validating client certs
+    "ca": "filename"
+    // "ca": [ "-----BEGIN CERTIFICATE----\n..." ]
   }]
 }
 ```

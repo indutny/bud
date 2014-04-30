@@ -23,13 +23,15 @@ enum bud_error_code_e {
   kBudErrParseCert = 0x104,
   kBudErrParseKey = 0x105,
   kBudErrSNINotSupported = 0x106,
-  kBudErrNPNNonString = 0x107,
+  kBudErrNonString = 0x107,
   kBudErrNPNNotSupported = 0x108,
   kBudErrExePath = 0x109,
   kBudErrECDHNotFound = 0x10a,
   kBudErrNoBackend = 0x10b,
   kBudErrNoSSLIndex = 0x10c,
   kBudErrSmallTicketKey = 0x10d,
+  kBudErrAddCert = 0x10e,
+  kBudErrProxyline = 0x10f,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,

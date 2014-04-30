@@ -9,6 +9,7 @@ npm/bud
 npm/bud.exe
 npm-debug.log
 node_modules/
+test/keys/
 
 # ringbuffer
 deps/ringbuffer/tools/gyp

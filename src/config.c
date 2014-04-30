@@ -27,6 +27,10 @@
 static bud_error_t bud_config_init(bud_config_t* config);
 static void bud_config_load_addr(JSON_Object* obj,
                                  bud_config_addr_t* addr);
+static bud_error_t bud_config_load_ca_arr(X509_STORE** store,
+                                          const JSON_Array* ca);
+static bud_error_t bud_config_load_ca_file(X509_STORE** store,
+                                           const char* filename);
 static bud_error_t bud_config_load_frontend(JSON_Object* obj,
                                             bud_config_frontend_t* frontend);
 static void bud_config_copy(bud_config_t* dst, bud_config_t* src);
@@ -53,10 +57,13 @@ static int bud_config_advertise_next_proto(SSL* s,
                                            unsigned int* len,
                                            void* arg);
 #endif  /* OPENSSL_NPN_NEGOTIATED */
-static bud_error_t bud_config_verify_npn(const JSON_Array* npn);
+static bud_error_t bud_config_verify_all_strings(const JSON_Array* npn,
+                                                 const char* name);
 static bud_error_t bud_config_format_proxyline(bud_config_t* config);
+static int bud_config_verify_cert(int status, X509_STORE_CTX* s);
 
 
+int kBudSSLConfigIndex = -1;
 int kBudSSLClientIndex = -1;
 int kBudSSLSNIIndex = -1;
 static const int kBudDefaultKeepalive = 3600;
@@ -213,18 +220,19 @@ bud_error_t bud_config_reload(bud_config_t* config) {
 }
 
 
-bud_error_t bud_config_verify_npn(const JSON_Array* npn) {
+bud_error_t bud_config_verify_all_strings(const JSON_Array* arr,
+                                          const char* name) {
   int i;
-  int npn_count;
+  int count;
 
-  if (npn == NULL)
+  if (arr == NULL)
     return bud_ok();
 
-  npn_count = json_array_get_count(npn);
-  for (i = 0; i < npn_count; i++) {
-    if (json_value_get_type(json_array_get_value(npn, i)) == JSONString)
+  count = json_array_get_count(arr);
+  for (i = 0; i < count; i++) {
+    if (json_value_get_type(json_array_get_value(arr, i)) == JSONString)
       continue;
-    return bud_error(kBudErrNPNNonString);
+    return bud_error_str(kBudErrNonString, name);
   }
 
   return bud_ok();
@@ -389,6 +397,14 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
     ctx->ciphers = json_object_get_string(obj, "ciphers");
     ctx->ecdh = json_object_get_string(obj, "ecdh");
     ctx->ticket_key = json_object_get_string(obj, "ticket_key");
+    val = json_object_get_value(obj, "ca");
+    if (json_value_get_type(val) == JSONString)
+      ctx->ca_file = json_value_get_string(val);
+    else
+      ctx->ca_array = json_value_get_array(val);
+    val = json_object_get_value(obj, "request_cert");
+    if (val != NULL)
+      ctx->request_cert = json_value_get_boolean(val);
 
     tmp = json_object_get_object(obj, "backend");
     if (tmp != NULL) {
@@ -396,7 +412,7 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
       bud_config_load_backend(config, tmp, ctx->backend);
     }
 
-    *err = bud_config_verify_npn(ctx->npn);
+    *err = bud_config_verify_all_strings(ctx->npn, "npn");
     if (!bud_is_ok(*err))
       goto failed_get_index;
   }
@@ -440,6 +456,45 @@ void bud_config_load_addr(JSON_Object* obj, bud_config_addr_t* addr) {
     addr->keepalive = json_value_get_number(val);
 }
 
+bud_error_t bud_config_load_ca_file(X509_STORE** store, const char* filename) {
+  BIO* b;
+  X509* x509;
+  bud_error_t err;
+
+  b = BIO_new_file(filename, "r");
+  if (b == NULL)
+    return bud_error_str(kBudErrLoadCert, filename);
+
+  x509 = NULL;
+  *store = X509_STORE_new();
+  if (*store == NULL) {
+    err = bud_error_str(kBudErrNoMem, "CA store");
+    goto fatal;
+  }
+
+  while ((x509 = PEM_read_bio_X509(b, NULL, NULL, NULL)) != NULL) {
+    if (x509 == NULL) {
+      err = bud_error_str(kBudErrParseCert, filename);
+      goto fatal;
+    }
+
+    if (X509_STORE_add_cert(*store, x509) != 1) {
+      err = bud_error(kBudErrAddCert);
+      goto fatal;
+    }
+    X509_free(x509);
+    x509 = NULL;
+  }
+
+  err = bud_ok();
+
+fatal:
+  if (x509 != NULL)
+    X509_free(x509);
+  BIO_free_all(b);
+  return bud_ok();
+}
+
 
 bud_error_t bud_config_load_frontend(JSON_Object* obj,
                                      bud_config_frontend_t* frontend) {
@@ -452,6 +507,8 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   frontend->ssl3 = -1;
   frontend->max_send_fragment = -1;
   frontend->allow_half_open = -1;
+  frontend->request_cert = -1;
+  frontend->ca_store = NULL;
   if (obj == NULL)
     return bud_ok();
 
@@ -463,10 +520,15 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   frontend->reneg_window = json_object_get_number(obj, "reneg_window");
   frontend->reneg_limit = json_object_get_number(obj, "reneg_limit");
   frontend->ticket_key = json_object_get_string(obj, "ticket_key");
+  val = json_object_get_value(obj, "ca");
+  if (json_value_get_type(val) == JSONString)
+    frontend->ca_file = json_value_get_string(val);
+  else
+    frontend->ca_array = json_value_get_array(val);
 
   /* Get and verify NPN */
   frontend->npn = json_object_get_array(obj, "npn");
-  err = bud_config_verify_npn(frontend->npn);
+  err = bud_config_verify_all_strings(frontend->npn, "npn");
   if (!bud_is_ok(err))
     goto fatal;
 
@@ -482,6 +544,14 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   val = json_object_get_value(obj, "allow_half_open");
   if (val != NULL)
     frontend->allow_half_open = json_value_get_boolean(val);
+  val = json_object_get_value(obj, "request_cert");
+  if (val != NULL)
+    frontend->request_cert = json_value_get_boolean(val);
+
+  if (frontend->ca_array != NULL)
+    err = bud_config_load_ca_arr(&frontend->ca_store, frontend->ca_array);
+  else if (frontend->ca_file != NULL)
+    err = bud_config_load_ca_file(&frontend->ca_store, frontend->ca_file);
 
 fatal:
   return err;
@@ -495,12 +565,24 @@ bud_error_t bud_config_load_backend(bud_config_t* config,
 
   bud_config_load_addr(obj, (bud_config_addr_t*) backend);
   backend->config = config;
-  backend->proxyline = -1;
   backend->xforward = -1;
 
   val = json_object_get_value(obj, "proxyline");
-  if (val != NULL)
-    backend->proxyline = json_value_get_boolean(val);
+  if (json_value_get_type(val) == JSONString) {
+    const char* pline;
+
+    pline = json_value_get_string(val);
+    if (strcmp(pline, "haproxy") == 0)
+      backend->proxyline = kBudProxylineHAProxy;
+    else if (strcmp(pline, "json") == 0)
+      backend->proxyline = kBudProxylineJSON;
+    else
+      return bud_error_str(kBudErrProxyline, pline);
+  } else {
+    backend->proxyline = val != NULL && json_value_get_boolean(val) ?
+        kBudProxylineHAProxy :
+        kBudProxylineNone;
+  }
 
   val = json_object_get_value(obj, "x-forward");
   if (val != NULL)
@@ -559,6 +641,10 @@ void bud_config_destroy(bud_config_t* config) {
   free(config->path);
   config->path = NULL;
 
+  if (config->frontend.ca_store != NULL)
+    X509_STORE_free(config->frontend.ca_store);
+  config->frontend.ca_store = NULL;
+
   for (i = 0; i < config->backend_count; i++) {
     if (config->backend[i].revive_timer != NULL) {
       uv_close((uv_handle_t*) config->backend[i].revive_timer,
@@ -592,6 +678,8 @@ void bud_context_free(bud_context_t* context) {
     X509_free(context->cert);
   if (context->issuer != NULL)
     X509_free(context->issuer);
+  if (context->ca_store != NULL)
+    X509_STORE_free(context->ca_store);
   if (context->ocsp_id != NULL)
     OCSP_CERTID_free(context->ocsp_id);
   if (context->ocsp_der_id != NULL)
@@ -600,6 +688,7 @@ void bud_context_free(bud_context_t* context) {
   context->ctx = NULL;
   context->cert = NULL;
   context->issuer = NULL;
+  context->ca_store = NULL;
   context->npn_line = NULL;
   context->ocsp_id = NULL;
   context->ocsp_der_id = NULL;
@@ -644,6 +733,7 @@ void bud_config_print_default() {
   config.frontend.ssl3 = -1;
   config.frontend.max_send_fragment = -1;
   config.frontend.allow_half_open = -1;
+  config.frontend.request_cert = -1;
   config.backend_count = 1;
   config.backend = &backend;
   config.backend[0].keepalive = -1;
@@ -715,6 +805,8 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"cert\": \"%s\",\n", config.frontend.cert_file);
   fprintf(stdout, "    \"key\": \"%s\",\n", config.frontend.key_file);
   fprintf(stdout, "    \"ticket_key\": null,\n");
+  fprintf(stdout, "    \"request_cert\": false,\n");
+  fprintf(stdout, "    \"ca\": null,\n");
   fprintf(stdout, "    \"reneg_window\": %d,\n", config.frontend.reneg_window);
   fprintf(stdout, "    \"reneg_limit\": %d\n", config.frontend.reneg_limit);
   fprintf(stdout, "  },\n");
@@ -771,6 +863,7 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.ssl3, -1, 0);
   DEFAULT(config->frontend.max_send_fragment, -1, 1400);
   DEFAULT(config->frontend.allow_half_open, -1, 0);
+  DEFAULT(config->frontend.request_cert, -1, 0);
   DEFAULT(config->frontend.cert_file, NULL, "keys/cert.pem");
   DEFAULT(config->frontend.key_file, NULL, "keys/key.pem");
   DEFAULT(config->frontend.reneg_window, 0, 600);
@@ -793,7 +886,6 @@ void bud_config_set_backend_defaults(bud_config_backend_t* backend) {
   DEFAULT(backend->port, 0, 8000);
   DEFAULT(backend->host, NULL, "127.0.0.1");
   DEFAULT(backend->keepalive, -1, kBudDefaultKeepalive);
-  DEFAULT(backend->proxyline, -1, 0);
   DEFAULT(backend->xforward, -1, 0);
 }
 
@@ -855,6 +947,53 @@ char* bud_config_encode_npn(bud_config_t* config,
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 
 
+bud_error_t bud_config_load_ca_arr(X509_STORE** store,
+                                   const JSON_Array* ca) {
+  int i;
+  int count;
+  bud_error_t err;
+
+  err = bud_config_verify_all_strings(ca, "ca");
+  if (!bud_is_ok(err))
+    return err;
+
+  *store = X509_STORE_new();
+  if (*store == NULL)
+    return bud_error_str(kBudErrNoMem, "CA store");
+
+  count = json_array_get_count(ca);
+  for (i = 0; i < count; i++) {
+    const char* cert;
+    BIO* b;
+    X509* x509;
+
+    cert = json_array_get_string(ca, i);
+    b = BIO_new_mem_buf((void*) cert, -1);
+    if (b == NULL)
+      return bud_error_str(kBudErrNoMem, "CA store bio");
+
+    while ((x509 = PEM_read_bio_X509(b, NULL, NULL, NULL)) != NULL) {
+      if (x509 == NULL) {
+        err = bud_error_str(kBudErrParseCert, cert);
+        break;
+      }
+
+      if (X509_STORE_add_cert(*store, x509) != 1) {
+        err = bud_error(kBudErrAddCert);
+        break;
+      }
+      X509_free(x509);
+      x509 = NULL;
+    }
+    BIO_free_all(b);
+    if (x509 != NULL)
+      X509_free(x509);
+  }
+
+  return err;
+}
+
+
 bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
                                    bud_context_t* context) {
   SSL_CTX* ctx;
@@ -907,6 +1046,12 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   if (ctx == NULL)
     return bud_error_str(kBudErrNoMem, "SSL_CTX");
 
+  ecdh = NULL;
+  if (!SSL_CTX_set_ex_data(ctx, kBudSSLConfigIndex, config)) {
+    err = bud_error_str(kBudErrNoMem, "SSL_CTX");
+    goto fatal;
+  }
+
   /* Disable sessions, they won't work with cluster anyway */
   SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
 
@@ -917,6 +1062,29 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
     SSL_CTX_set_tlsext_ticket_keys(ctx,
                                    context->ticket_key_storage,
                                    sizeof(context->ticket_key_storage));
+  }
+
+  /* Load CA chain */
+  if (context->ca_array != NULL)
+    err = bud_config_load_ca_arr(&context->ca_store, context->ca_array);
+  else if (context->ca_file != NULL)
+    err = bud_config_load_ca_file(&context->ca_store, context->ca_file);
+  else
+    err = bud_ok();
+  if (!bud_is_ok(err))
+    goto fatal;
+
+  /* Because of how OpenSSL is managing X509_STORE associated with ctx,
+   * there is no way to swap them without reallocating them again.
+   * Perform client cert validation manually.
+   */
+  if (config->frontend.request_cert || context->request_cert) {
+    SSL_CTX_set_verify(ctx,
+                       SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
+                       bud_config_verify_cert);
+  } else {
+    /* Just verify anything */
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, bud_config_verify_cert);
   }
 
   /* ECDH curve selection */
@@ -962,11 +1130,9 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
   SSL_CTX_set_options(ctx, options);
 
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
-  if (config->context_count != 0) {
-    SSL_CTX_set_tlsext_servername_callback(ctx,
-                                           bud_config_select_sni_context);
-    SSL_CTX_set_tlsext_servername_arg(ctx, config);
-  }
+  SSL_CTX_set_tlsext_servername_callback(ctx,
+                                         bud_config_select_sni_context);
+  SSL_CTX_set_tlsext_servername_arg(ctx, config);
 #endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
 
 #ifdef OPENSSL_NPN_NEGOTIATED
@@ -1150,10 +1316,12 @@ bud_error_t bud_config_init(bud_config_t* config) {
 
   /* Get indexes for SSL_set_ex_data()/SSL_get_ex_data() */
   if (kBudSSLClientIndex == -1) {
+    kBudSSLConfigIndex = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
     kBudSSLClientIndex = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
     kBudSSLSNIIndex = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
     kBudSSLTicketKeyIndex = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
-    if (kBudSSLClientIndex == -1 ||
+    if (kBudSSLConfigIndex == -1 ||
+        kBudSSLClientIndex == -1 ||
         kBudSSLSNIIndex == -1 ||
         kBudSSLTicketKeyIndex == -1) {
       err = bud_error(kBudErrNoSSLIndex);
@@ -1300,6 +1468,7 @@ int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
 
   if (ctx != NULL) {
     SSL_set_SSL_CTX(s, ctx->ctx);
+    s->verify_mode = ctx->ctx->verify_mode;
     if (!SSL_set_ex_data(s, kBudSSLSNIIndex, ctx))
       return SSL_TLSEXT_ERR_ALERT_FATAL;
   }
@@ -1364,8 +1533,6 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
   int ret;
   X509* x;
   X509* ca;
-  X509_STORE* store;
-  X509_STORE_CTX store_ctx;
   int r;
   unsigned long err;
 
@@ -1434,6 +1601,9 @@ end:
   if (ret) {
     /* Try getting issuer from cert store */
     if (ctx->issuer == NULL) {
+      X509_STORE* store;
+      X509_STORE_CTX store_ctx;
+
       store = SSL_CTX_get_cert_store(ctx->ctx);
       ret = X509_STORE_CTX_init(&store_ctx, store, NULL, NULL);
       if (!ret)
@@ -1452,17 +1622,17 @@ end:
     if (ctx->issuer != NULL) {
       /* Get ocsp_id */
       ctx->ocsp_id = OCSP_cert_to_id(NULL, ctx->cert, ctx->issuer);
-      if (ctx->ocsp_id == NULL) {
-        ctx->issuer = NULL;
+      if (ctx->ocsp_id == NULL)
         goto fatal;
-      }
     }
-  } else {
-    if (ctx->issuer != NULL)
-      X509_free(ctx->issuer);
   }
 
 fatal:
+  if (!ret && ctx->issuer != NULL) {
+    X509_free(ctx->issuer);
+    ctx->issuer = NULL;
+  }
+
   if (ctx->cert != x && x != NULL)
     X509_free(x);
 
@@ -1486,15 +1656,70 @@ bud_error_t bud_config_format_proxyline(bud_config_t* config) {
   if (r != 0)
     return bud_error(kBudErrNtop);
 
-  r = snprintf(config->proxyline_fmt,
-               sizeof(config->proxyline_fmt),
+  r = snprintf(config->proxyline_fmt.haproxy,
+               sizeof(config->proxyline_fmt.haproxy),
                "PROXY %%s %%s %s %%hu %hu\r\n",
                host,
                config->frontend.port);
-  ASSERT(r < (int) sizeof(config->proxyline_fmt),
+  ASSERT(r < (int) sizeof(config->proxyline_fmt.haproxy),
+         "Proxyline format overflowed");
+
+  r = snprintf(config->proxyline_fmt.json,
+               sizeof(config->proxyline_fmt.json),
+               "BUD {\"family\":\"%%s\","
+                   "\"bud\":{\"host\":\"%s\",\"port\":%hu},"
+                   "\"peer\":{"
+                     "\"host\":\"%%s\","
+                     "\"port\":%%hu,"
+                     "\"cn\":%%c%%s%%c}"
+                   "}\r\n",
+               host,
+               config->frontend.port);
+  ASSERT(r < (int) sizeof(config->proxyline_fmt.json),
          "Proxyline format overflowed");
 
   return bud_ok();
+}
+
+int bud_config_verify_cert(int status, X509_STORE_CTX* s) {
+  bud_config_t* config;
+  bud_context_t* ctx;
+  X509_STORE_CTX store_ctx;
+  X509* cert;
+  X509_STORE* store;
+  SSL* ssl;
+  int r;
+
+  ssl = X509_STORE_CTX_get_ex_data(s, SSL_get_ex_data_X509_STORE_CTX_idx());
+  ASSERT(ssl != NULL, "STORE_CTX without associated ssl");
+
+  cert = s->cert;
+  ctx = SSL_get_ex_data(ssl, kBudSSLSNIIndex);
+  config = SSL_CTX_get_ex_data(ssl->ctx, kBudSSLConfigIndex);
+  ASSERT(config != NULL, "Config not present in SSL");
+
+  if (ctx != NULL && ctx->ca_store != NULL)
+    store = ctx->ca_store;
+  else if (config->frontend.ca_store != NULL)
+    store = config->frontend.ca_store;
+  else
+    store = NULL;
+
+  /* No certificate store, validate cert if present */
+  if (store == NULL) {
+    if (cert != NULL)
+      return SSL_get_verify_result(ssl) == X509_V_OK ? 1 : 0;
+    else
+      return config->frontend.request_cert ? 1 : 0;
+  }
+
+  if (!X509_STORE_CTX_init(&store_ctx, store, cert, NULL))
+    return 0;
+
+  r = X509_verify_cert(&store_ctx);
+  X509_STORE_CTX_cleanup(&store_ctx);
+
+  return r;
 }
 
 #ifndef _WIN32
