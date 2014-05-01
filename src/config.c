@@ -64,7 +64,6 @@ static bud_error_t bud_config_verify_all_strings(const JSON_Array* npn,
                                                  const char* name);
 static bud_error_t bud_config_format_proxyline(bud_config_t* config);
 static int bud_config_verify_cert(int status, X509_STORE_CTX* s);
-static bud_error_t bud_config_drop_privileges(bud_config_t* config);
 
 
 int kBudSSLConfigIndex = -1;
@@ -1406,11 +1405,6 @@ bud_error_t bud_config_init(bud_config_t* config) {
       goto fatal;
     }
   }
-
-  /* Drop privileges */
-  err = bud_config_drop_privileges(config);
-  if (!bud_is_ok(err))
-    goto fatal;
 
   return bud_ok();
 
