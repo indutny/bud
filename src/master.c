@@ -94,10 +94,8 @@ bud_error_t bud_master(bud_config_t* config) {
     }
   }
 
-#ifndef _WIN32
   /* Drop privileges */
-  bud_config_drop_privileges(config->user, config->group);
-#endif
+  bud_config_drop_privileges(config);
 
 fatal:
   return err;

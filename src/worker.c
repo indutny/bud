@@ -59,7 +59,7 @@ bud_error_t bud_worker(bud_config_t* config) {
 
 #ifndef _WIN32
   /* Drop privileges */
-  bud_config_drop_privileges(config->user, config->group);
+  bud_config_drop_privileges(config);
 
   r = uv_signal_init(config->loop, config->signal.sighup);
   if (r != 0) {

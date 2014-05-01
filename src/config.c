@@ -3,9 +3,12 @@
 #include <stdlib.h>  /* NULL */
 #include <string.h>  /* memset, strlen, strncmp */
 #include <strings.h>  /* strcasecmp */
-#include <sys/types.h> /* uid_t, gid_t */
-#include <pwd.h> /* getpwnam */
-#include <grp.h> /* getgrnam */
+
+#ifndef _WIN32
+#include <sys/types.h>  /* uid_t, gid_t */
+#include <pwd.h>  /* getpwnam */
+#include <grp.h>  /* getgrnam */
+#endif
 
 #include "uv.h"
 #include "openssl/bio.h"
@@ -360,16 +363,16 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
                             &config->backend[i]);
   }
   
+#ifndef _WIN32
   /* User and group configuration */
   val = json_object_get_value(obj, "user");
-  if (val != NULL) {
+  if (val != NULL)
     config->user = getpwnam(json_value_get_string(val))->pw_uid;
-  }
     
   val = json_object_get_value(obj, "group");
-  if (val != NULL) {
+  if (val != NULL)
     config->group = getgrnam(json_value_get_string(val))->gr_gid;
-  }
+#endif
   
   /* SNI configuration */
   bud_config_read_pool_conf(obj, "sni", &config->sni);
@@ -1681,6 +1684,7 @@ bud_error_t bud_config_format_proxyline(bud_config_t* config) {
   return bud_ok();
 }
 
+
 int bud_config_verify_cert(int status, X509_STORE_CTX* s) {
   bud_config_t* config;
   bud_context_t* ctx;
@@ -1722,11 +1726,11 @@ int bud_config_verify_cert(int status, X509_STORE_CTX* s) {
   return r;
 }
 
+void bud_config_drop_privileges(bud_config_t* config) {
 #ifndef _WIN32
-void bud_config_drop_privileges(uid_t user, gid_t group) {
-    
-    setuid(user);   
-    setgid(group);
-    
-}
+    if(config->user != NULL)
+      setuid(config->user);
+    if(config->group != NULL)
+      setgid(config->group);
 #endif
+}
