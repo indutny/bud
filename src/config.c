@@ -4,6 +4,12 @@
 #include <string.h>  /* memset, strlen, strncmp */
 #include <strings.h>  /* strcasecmp */
 
+#ifndef _WIN32
+#include <sys/types.h>  /* uid_t, gid_t */
+#include <pwd.h>  /* getpwnam */
+#include <grp.h>  /* getgrnam */
+#endif
+
 #include "uv.h"
 #include "openssl/bio.h"
 #include "openssl/err.h"
@@ -177,6 +183,8 @@ void bud_config_copy(bud_config_t* dst, bud_config_t* src) {
   dst->restart_timeout = src->restart_timeout;
   dst->balance = src->balance;
   dst->backend = src->backend;
+  dst->user = src->user;
+  dst->group = src->group;
   src->backend = NULL;
   memcpy(&dst->log, &src->log, sizeof(src->log));
   memcpy(&dst->availability, &src->availability, sizeof(src->availability));
@@ -354,7 +362,18 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
                             json_array_get_object(backend, i),
                             &config->backend[i]);
   }
-
+  
+#ifndef _WIN32
+  /* User and group configuration */
+  val = json_object_get_value(obj, "user");
+  if (val != NULL)
+    config->user = getpwnam(json_value_get_string(val))->pw_uid;
+    
+  val = json_object_get_value(obj, "group");
+  if (val != NULL)
+    config->group = getgrnam(json_value_get_string(val))->gr_gid;
+#endif
+  
   /* SNI configuration */
   bud_config_read_pool_conf(obj, "sni", &config->sni);
 
@@ -1705,4 +1724,13 @@ int bud_config_verify_cert(int status, X509_STORE_CTX* s) {
   X509_STORE_CTX_cleanup(&store_ctx);
 
   return r;
+}
+
+void bud_config_drop_privileges(bud_config_t* config) {
+#ifndef _WIN32
+    if(config->user != NULL)
+      setuid(config->user);
+    if(config->group != NULL)
+      setgid(config->group);
+#endif
 }

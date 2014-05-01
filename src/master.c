@@ -94,6 +94,9 @@ bud_error_t bud_master(bud_config_t* config) {
     }
   }
 
+  /* Drop privileges */
+  bud_config_drop_privileges(config);
+
 fatal:
   return err;
 }

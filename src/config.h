@@ -204,7 +204,10 @@ struct bud_config_s {
   const char* balance;
   int backend_count;
   int last_backend;
-
+#ifndef _WIN32
+  uid_t user;
+  gid_t group;
+#endif
   bud_config_http_pool_t sni;
   bud_config_http_pool_t stapling;
 
@@ -243,5 +246,7 @@ int bud_config_str_to_addr(const char* host,
 
 /* Helper for SNI and stapling */
 int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in);
+
+void bud_config_drop_privileges(bud_config_t* config);
 
 #endif  /* SRC_CONFIG_H_ */
