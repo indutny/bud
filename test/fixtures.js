@@ -209,8 +209,12 @@ function expectProxyline(server, type) {
       listeners[0].call(server, this);
 
       var rest = new Buffer(chunks.slice(match[0].length));
-      if (rest.length !== 0)
-        s.ondata(rest, 0, rest.length);
+      if (rest.length !== 0) {
+        if (s.ondata)
+          s.ondata(rest, 0, rest.length);
+        else
+          s.unshift(rest);
+      }
     };
   });
 }
