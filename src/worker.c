@@ -58,6 +58,11 @@ bud_error_t bud_worker(bud_config_t* config) {
   }
 
 #ifndef _WIN32
+  /* Drop privileges */
+  err = bud_config_drop_privileges(config);
+  if (!bud_is_ok(err))
+    goto failed_pipe_open;
+
   r = uv_signal_init(config->loop, config->signal.sighup);
   if (r != 0) {
     err = bud_error_num(kBudErrSignalInit, r);

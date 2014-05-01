@@ -4,6 +4,12 @@
 #include <string.h>  /* memset, strlen, strncmp */
 #include <strings.h>  /* strcasecmp */
 
+#ifndef _WIN32
+#include <sys/types.h>  /* uid_t, gid_t */
+#include <pwd.h>  /* getpwnam */
+#include <grp.h>  /* getgrnam */
+#endif
+
 #include "uv.h"
 #include "openssl/bio.h"
 #include "openssl/err.h"
@@ -177,6 +183,8 @@ void bud_config_copy(bud_config_t* dst, bud_config_t* src) {
   dst->restart_timeout = src->restart_timeout;
   dst->balance = src->balance;
   dst->backend = src->backend;
+  dst->user = src->user;
+  dst->group = src->group;
   src->backend = NULL;
   memcpy(&dst->log, &src->log, sizeof(src->log));
   memcpy(&dst->availability, &src->availability, sizeof(src->availability));
@@ -354,6 +362,10 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
                             json_array_get_object(backend, i),
                             &config->backend[i]);
   }
+
+  /* User and group configuration */
+  config->user = json_object_get_string(obj, "user");
+  config->group = json_object_get_string(obj, "group");
 
   /* SNI configuration */
   bud_config_read_pool_conf(obj, "sni", &config->sni);
@@ -1705,4 +1717,33 @@ int bud_config_verify_cert(int status, X509_STORE_CTX* s) {
   X509_STORE_CTX_cleanup(&store_ctx);
 
   return r;
+}
+
+
+bud_error_t bud_config_drop_privileges(bud_config_t* config) {
+#ifndef _WIN32
+  if (config->user != NULL) {
+    struct passwd* p;
+
+    p = getpwnam(config->user);
+    if (p == NULL)
+      return bud_error_str(kBudErrInvalidUser, config->user);
+
+    if (setgid(p->pw_gid) != 0)
+      return bud_error_num(kBudErrSetgid, errno);
+    if (setuid(p->pw_uid) != 0)
+      return bud_error_num(kBudErrSetuid, errno);
+  } else if (config->group != NULL) {
+    struct group* g;
+
+    g = getgrnam(config->group);
+    if (g == NULL)
+      return bud_error_str(kBudErrInvalidGroup, config->group);
+
+    if (setgid(g->gr_gid) != 0)
+      return bud_error_num(kBudErrSetgid, errno);
+  }
+#endif  /* !_WIN32 */
+
+  return bud_ok();
 }

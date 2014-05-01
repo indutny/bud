@@ -87,6 +87,14 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("X509_STORE_add_cert() failure")                              \
     case kBudErrProxyline:                                                    \
       BUD_ERROR("Invalid proxyline value: %s", err.str)                       \
+    case kBudErrInvalidUser:                                                  \
+      BUD_ERROR("Invalid user name supplied: %s", err.str)                    \
+    case kBudErrInvalidGroup:                                                 \
+      BUD_ERROR("Invalid group name supplied: %s", err.str)                   \
+    case kBudErrSetuid:                                                       \
+      BUD_ERROR("setuid() failed: %d", err.ret)                               \
+    case kBudErrSetgid:                                                       \
+      BUD_ERROR("setgid() failed: %d", err.ret)                               \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \

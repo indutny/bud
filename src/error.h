@@ -32,6 +32,10 @@ enum bud_error_code_e {
   kBudErrSmallTicketKey = 0x10d,
   kBudErrAddCert = 0x10e,
   kBudErrProxyline = 0x10f,
+  kBudErrInvalidUser = 0x110,
+  kBudErrInvalidGroup = 0x111,
+  kBudErrSetuid = 0x112,
+  kBudErrSetgid = 0x113,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,
