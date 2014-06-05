@@ -13,13 +13,22 @@ var fixtures = exports;
 var FRONT_PORT = 18001;
 var BACK_PORT = 18002;
 
+function keyPath(name) {
+  return path.resolve(__dirname, 'keys', name + '.pem');
+}
+
 function getKey(name) {
-  return fs.readFileSync(path.resolve(__dirname, 'keys', name + '.pem')) + '';
+  return fs.readFileSync(keyPath(name)) + '';
 }
 
 fixtures.key = getKey('agent1-key');
 fixtures.cert = getKey('agent1-cert');
 fixtures.ca = getKey('ca1-cert');
+
+fixtures.keys = {
+  caCert: keyPath('ca1-cert'),
+  caKey: keyPath('ca1-key')
+};
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -77,6 +86,7 @@ fixtures.getServers = function getServers(options) {
     }
 
     sh.frontend.server = bud.createServer({
+      log: options.log,
       frontend: utile.filter(sh.frontend, function(val, key) {
         return !/^(server|url|host|port)$/.test(key);
       }),

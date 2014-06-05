@@ -19,6 +19,29 @@ describe('Bud TLS Terminator', function() {
     });
   });
 
+  describe('single backend with passphrase', function() {
+    var sh = fixtures.getServers({
+      log: {
+        level: 'debug'
+      },
+      frontend: {
+        key: fixtures.keys.caKey,
+        cert: fixtures.keys.caCert,
+        passphrase: 'password'
+      }
+    });
+
+    it('should support basic termination', function(cb) {
+      request(sh, '/hello', function(res, body) {
+        assert.equal(sh.backends[0].requests, 1);
+        assert.equal(res.statusCode, 200);
+        assert.equal(res.headers['x-backend-id'], 0);
+        assert.equal(body, 'hello world');
+        cb();
+      });
+    });
+  });
+
   describe('multi-backend', function() {
     var sh = fixtures.getServers({ backends: 2 });
 
@@ -111,6 +134,31 @@ describe('Bud TLS Terminator', function() {
       sh.backends[0].server.on('proxyline', function(obj) {
         assert.equal(obj.inbound.port, sh.frontend.port);
         assert(/agent1/.test(obj.outbound.cn));
+        gotProxyline = true;
+      });
+    });
+  });
+
+  describe('JSON proxyline', function() {
+    var sh = fixtures.getServers({
+      frontend: {
+      },
+      backends: [{
+        proxyline: 'json'
+      }]
+    });
+
+    it('should return empty cn cert', function(cb) {
+      request(sh, '/hello', function(res, body) {
+        assert.equal(sh.backends[0].requests, 1);
+        assert(gotProxyline);
+        cb();
+      });
+      var gotProxyline = false;
+
+      sh.backends[0].server.on('proxyline', function(obj) {
+        assert.equal(obj.inbound.port, sh.frontend.port);
+        assert.equal(false, obj.outbound.cn);
         gotProxyline = true;
       });
     });
