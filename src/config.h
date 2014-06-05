@@ -47,6 +47,7 @@ struct bud_config_http_pool_s {
 #define BUD_COMMON_SSL_FIELDS                                                 \
     const char* cert_file;                                                    \
     const char* key_file;                                                     \
+    const char* key_pass;                                                     \
     const JSON_Array* npn;                                                    \
     const char* ciphers;                                                      \
     const char* ecdh;                                                         \

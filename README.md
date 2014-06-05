@@ -111,6 +111,9 @@ to get default configuration options (with comments and description below):
     // Path to default TLS private key
     "key": "keys/key.pem",
 
+    // **Optional** Passphrase for the private key
+    "passphrase": null,
+
     // **Optional** Cipher suites to use
     "ciphers": null,
 
@@ -207,6 +210,9 @@ to get default configuration options (with comments and description below):
 
     // Path to TLS private key
     "key": "keys/key.pem",
+
+    // **Optional** Passphrase for the private key
+    "passphrase": null,
 
     // Cipherlist to use (overrides frontend.ciphers, if not null)
     "ciphers": null,

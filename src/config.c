@@ -389,6 +389,7 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
     ctx->servername_len = ctx->servername == NULL ? 0 : strlen(ctx->servername);
     ctx->cert_file = json_object_get_string(obj, "cert");
     ctx->key_file = json_object_get_string(obj, "key");
+    ctx->key_pass = json_object_get_string(obj, "passphrase");
     ctx->npn = json_object_get_array(obj, "npn");
     ctx->ciphers = json_object_get_string(obj, "ciphers");
     ctx->ecdh = json_object_get_string(obj, "ecdh");
@@ -513,6 +514,7 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   frontend->ecdh = json_object_get_string(obj, "ecdh");
   frontend->cert_file = json_object_get_string(obj, "cert");
   frontend->key_file = json_object_get_string(obj, "key");
+  frontend->key_pass = json_object_get_string(obj, "passphrase");
   frontend->reneg_window = json_object_get_number(obj, "reneg_window");
   frontend->reneg_limit = json_object_get_number(obj, "reneg_limit");
   frontend->ticket_key = json_object_get_string(obj, "ticket_key");
@@ -800,6 +802,7 @@ void bud_config_print_default() {
     fprintf(stdout, "    \"ecdh\": null,\n");
   fprintf(stdout, "    \"cert\": \"%s\",\n", config.frontend.cert_file);
   fprintf(stdout, "    \"key\": \"%s\",\n", config.frontend.key_file);
+  fprintf(stdout, "    \"passphrase\": null,\n");
   fprintf(stdout, "    \"ticket_key\": null,\n");
   fprintf(stdout, "    \"request_cert\": false,\n");
   fprintf(stdout, "    \"ca\": null,\n");
@@ -1276,9 +1279,6 @@ bud_error_t bud_config_init(bud_config_t* config) {
   int r;
   bud_context_t* ctx;
   bud_error_t err;
-  const char* cert_file;
-  const char* key_file;
-  BIO* cert_bio;
 
   /* Get addresses of frontend and backend */
   r = bud_config_str_to_addr(config->frontend.host,
@@ -1370,6 +1370,13 @@ bud_error_t bud_config_init(bud_config_t* config) {
 
   /* Load all contexts */
   for (i = 0; i < config->context_count + 1; i++) {
+    const char* cert_file;
+    const char* key_file;
+    const char* key_pass;
+    BIO* cert_bio;
+    BIO* key_bio;
+    EVP_PKEY* pkey;
+
     ctx = &config->contexts[i];
 
     err = bud_config_new_ssl_ctx(config, ctx);
@@ -1380,9 +1387,11 @@ bud_error_t bud_config_init(bud_config_t* config) {
     if (i == 0) {
       cert_file = config->frontend.cert_file;
       key_file = config->frontend.key_file;
+      key_pass = config->frontend.key_pass;
     } else {
       cert_file = ctx->cert_file;
       key_file = ctx->key_file;
+      key_pass = ctx->key_pass;
     }
 
     cert_bio = BIO_new_file(cert_file, "r");
@@ -1398,12 +1407,20 @@ bud_error_t bud_config_init(bud_config_t* config) {
       goto fatal;
     }
 
-    if (!SSL_CTX_use_PrivateKey_file(ctx->ctx,
-                                     key_file,
-                                     SSL_FILETYPE_PEM)) {
+    key_bio = BIO_new_file(key_file, "r");
+    if (key_bio == NULL) {
+      err = bud_error_str(kBudErrNoMem, "key_file BIO");
+      goto fatal;
+    }
+    pkey = PEM_read_bio_PrivateKey(key_bio, NULL, NULL, (void*) key_pass);
+    BIO_free_all(key_bio);
+    if (pkey == NULL) {
       err = bud_error_str(kBudErrParseKey, key_file);
       goto fatal;
     }
+
+    SSL_CTX_use_PrivateKey(ctx->ctx, pkey);
+    EVP_PKEY_free(pkey);
   }
 
   return bud_ok();
