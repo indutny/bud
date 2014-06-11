@@ -1409,7 +1409,7 @@ bud_error_t bud_config_init(bud_config_t* config) {
 
     key_bio = BIO_new_file(key_file, "r");
     if (key_bio == NULL) {
-      err = bud_error_str(kBudErrNoMem, "key_file BIO");
+      err = bud_error_str(kBudErrLoadKey, key_file);
       goto fatal;
     }
     pkey = PEM_read_bio_PrivateKey(key_bio, NULL, NULL, (void*) key_pass);

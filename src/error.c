@@ -56,11 +56,15 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
     case kBudErrJSONNonObjectCtx:                                             \
       BUD_ERROR("Invalid json, each context should be an object")             \
     case kBudErrLoadCert:                                                     \
-      BUD_ERROR("Failed to parse cert %s reason: %s",                         \
+      BUD_ERROR("Failed to load cert %s reason: %s",                          \
                 err.str,                                                      \
                 ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrParseCert:                                                    \
       BUD_ERROR("Failed to load/parse cert %s reason: %s",                    \
+                err.str,                                                      \
+                ERR_reason_error_string(ERR_get_error()))                     \
+    case kBudErrLoadKey:                                                      \
+      BUD_ERROR("Failed to load key %s, reason: %s",                          \
                 err.str,                                                      \
                 ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrParseKey:                                                     \
