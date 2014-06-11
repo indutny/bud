@@ -12,6 +12,7 @@
 /* Forward declaration */
 struct bud_config_s;
 struct bud_config_backend_s;
+struct bud_config_backend_list_s;
 
 typedef struct bud_client_s bud_client_t;
 
@@ -52,6 +53,7 @@ struct bud_client_s {
 
   /* Availability */
   bud_client_progress_t retry;
+  struct bud_config_backend_list_s* backend_list;
   struct bud_config_backend_s* selected_backend;
   uv_timer_t retry_timer;
   int retry_count;

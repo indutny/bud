@@ -87,6 +87,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->retry = kBudProgressNone;
   client->retry_count = 0;
   client->retry_timer.data = client;
+  client->backend_list = NULL;
   client->selected_backend = NULL;
 
   /* Proxyline */
@@ -126,7 +127,13 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
    * Select a backend and connect to it, or wait for a backend to become
    * alive again.
    */
-  client->selected_backend = bud_select_backend(config);
+  /* SNI backend comes from `backend` or sni callback */
+  if (config->balance_e == kBudBalanceSNI) {
+    client->selected_backend = NULL;
+  } else {
+    client->backend_list = &config->backend;
+    client->selected_backend = bud_select_backend(config, client->backend_list);
+  }
 
   /* No backend can be selected yet, wait for SNI */
   if (client->selected_backend == NULL) {
@@ -1126,8 +1133,11 @@ void bud_client_handshake_done_cb(const SSL* ssl) {
   if (client->config->balance_e != kBudBalanceSNI)
     goto fatal;
 
-  if (context != NULL)
-    client->selected_backend = context->backend;
+  if (context != NULL && context->backend.count != 0) {
+    client->backend_list = &context->backend;
+    client->selected_backend = bud_select_backend(client->config,
+                                                  client->backend_list);
+  }
   if (client->selected_backend != NULL) {
     /* Backend provided - connect */
     cerr = bud_client_connect(client);

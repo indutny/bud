@@ -49,40 +49,55 @@ fixtures.getServers = function getServers(options) {
   };
 
   beforeEach(function(cb) {
-    var count = options.backends && options.backends.length ||
-                options.backends ||
-                1;
+    var backends = [];
+
+    function addBackends(obj, out) {
+      var count = obj.backends && obj.backends.length ||
+                  obj.backends ||
+                  1;
+
+      for (var i = 0; i < count; i++) {
+        var backend = utile.mixin({
+          index: i,
+          requests: 0,
+          server: null,
+          port: BACK_PORT++
+        }, obj.backends && obj.backends[i] || {});
+
+        !function(backend) {
+          backend.server = spdy.createServer({
+            plain: true,
+            ssl: false
+          }, function(req, res) {
+            backend.requests++;
+            res.setHeader('X-Backend-Id', backend.index);
+            if (req.headers['x-forwarded-for']) {
+              res.setHeader('X-Got-Forwarded-For',
+                            req.headers['x-forwarded-for']);
+            }
+            if (req.url === '/hello')
+              res.end('hello world');
+            else
+              res.end('nay');
+          });
+
+          if (backend.proxyline)
+            expectProxyline(backend.server, backend.proxyline);
+        }(backend);
+        out.push(backend);
+        backends.push(backend);
+      }
+    }
 
     sh.backends = [];
-    for (var i = 0; i < count; i++) {
-      var backend = utile.mixin({
-        index: i,
-        requests: 0,
-        server: null,
-        port: BACK_PORT + i
-      }, options.backends && options.backends[i] || {});
-
-      !function(backend) {
-        backend.server = spdy.createServer({
-          plain: true,
-          ssl: false
-        }, function(req, res) {
-          backend.requests++;
-          res.setHeader('X-Backend-Id', backend.index);
-          if (req.headers['x-forwarded-for']) {
-            res.setHeader('X-Got-Forwarded-For',
-                          req.headers['x-forwarded-for']);
-          }
-          if (req.url === '/hello')
-            res.end('hello world');
-          else
-            res.end('nay');
-        });
-
-        if (backend.proxyline)
-          expectProxyline(backend.server, backend.proxyline);
-      }(backend);
-      sh.backends.push(backend);
+    addBackends(options, sh.backends);
+    if (options.contexts) {
+      sh.contexts = options.contexts.map(function(context) {
+        var out = [];
+        addBackends(context, out);
+        context.backends = out;
+        return context;
+      });
     }
 
     sh.frontend.server = bud.createServer({
@@ -94,11 +109,22 @@ fixtures.getServers = function getServers(options) {
         return utile.filter(backend, function(val, key) {
           return !/^(server|requests|index)$/.test(key);
         });
+      }),
+      balance: options.balance,
+      contexts: sh.contexts && sh.contexts.map(function(ctx) {
+        return {
+          servername: ctx.servername,
+          backend: ctx.backends.map(function(backend) {
+            return utile.filter(backend, function(val, key) {
+              return !/^(server|requests|index)$/.test(key);
+            });
+          })
+        };
       })
     });
 
     sh.frontend.server.listen(FRONT_PORT, function() {
-      utile.async.each(sh.backends, function(backend, cb) {
+      utile.async.each(backends, function(backend, cb) {
         backend.server.listen(backend.port, cb);
       }, cb);
     });
@@ -133,6 +159,26 @@ fixtures.caRequest = function caRequest(sh, uri, fake, cb) {
     key: fixtures.key,
     cert: fixtures.cert
   });
+  https.get(o, function(res) {
+    var chunks = '';
+    res.on('readable', function() {
+      chunks += res.read() || '';
+    });
+    res.on('end', function() {
+      cb(res, chunks);
+    });
+  });
+};
+
+fixtures.sniRequest = function sniRequest(sh, name, uri, cb) {
+  var o = url.parse(sh.frontend.url + uri);
+  o.agent = new https.Agent({
+  });
+  var createConn = o.agent.createConnection;
+  o.agent.createConnection = function createConnection(options) {
+    options.servername = name;
+    return createConn(options);
+  };
   https.get(o, function(res) {
     var chunks = '';
     res.on('readable', function() {

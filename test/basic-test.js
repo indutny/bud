@@ -2,6 +2,7 @@ var assert = require('assert');
 var fixtures = require('./fixtures');
 var request = fixtures.request;
 var caRequest = fixtures.caRequest;
+var sniRequest = fixtures.sniRequest;
 var spdyRequest = fixtures.spdyRequest;
 
 describe('Bud TLS Terminator', function() {
@@ -185,6 +186,33 @@ describe('Bud TLS Terminator', function() {
         assert.equal(obj.inbound.port, sh.frontend.port);
         assert.equal(false, obj.outbound.cn);
         gotProxyline = true;
+      });
+    });
+  });
+
+  describe('sni multi-backend', function() {
+    var sh = fixtures.getServers({
+      balance: 'sni',
+      contexts: [{
+        servername: 'local.host',
+        backends: 2
+      }]
+    });
+
+    it('should support round-robin balancing', function(cb) {
+      var ctx = sh.contexts[0];
+      sniRequest(sh, 'local.host', '/hello', function(res, body) {
+        assert.equal(ctx.backends[0].requests, 1);
+        assert.equal(res.headers['x-backend-id'], 0);
+        sniRequest(sh, 'local.host', '/hello', function(res, body) {
+          assert.equal(ctx.backends[1].requests, 1);
+          assert.equal(res.headers['x-backend-id'], 1);
+          sniRequest(sh, 'local.host', '/hello', function(res, body) {
+            assert.equal(ctx.backends[0].requests, 2);
+            assert.equal(res.headers['x-backend-id'], 0);
+            cb();
+          });
+        });
       });
     });
   });

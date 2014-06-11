@@ -85,12 +85,12 @@ bud_error_t bud_master(bud_config_t* config) {
             "bud listening on [%s]:%d and...",
             config->frontend.host,
             config->frontend.port);
-    for (i = 0; i < config->backend_count; i++) {
+    for (i = 0; i < config->backend.count; i++) {
       bud_log(config,
               kBudLogInfo,
               "...forwarding to: [%s]:%d",
-              config->backend[i].host,
-              config->backend[i].port);
+              config->backend.list[i].host,
+              config->backend.list[i].port);
     }
   }
 

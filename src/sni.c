@@ -15,7 +15,6 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
                               bud_context_t* ctx) {
   int r;
   JSON_Object* obj;
-  JSON_Object* tmp;
   JSON_Value* val;
   const char* cert_str;
   const char* key_str;
@@ -41,11 +40,9 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   val = json_object_get_value(obj, "request_cert");
   if (val != NULL)
     ctx->request_cert = json_value_get_boolean(val);
-  tmp = json_object_get_object(obj, "backend");
-  if (tmp != NULL) {
-    ctx->backend = &ctx->backend_st;
-    bud_config_load_backend(config, tmp, ctx->backend);
-  }
+  err = bud_config_load_backend_list(config, obj, &ctx->backend);
+  if (!bud_is_ok(err))
+    goto fatal;
 
   err = bud_config_new_ssl_ctx(config, ctx);
   if (!bud_is_ok(err))
@@ -91,5 +88,7 @@ fatal:
     SSL_CTX_free(ctx->ctx);
     ctx->ctx = NULL;
   }
+  free(ctx->backend.list);
+  ctx->backend.list = NULL;
   return err;
 }

@@ -26,6 +26,7 @@ typedef struct bud_config_s bud_config_t;
 typedef struct bud_config_addr_s bud_config_addr_t;
 typedef enum bud_config_proxyline_s bud_config_proxyline_t;
 typedef struct bud_config_backend_s bud_config_backend_t;
+typedef struct bud_config_backend_list_s bud_config_backend_list_t;
 typedef struct bud_config_frontend_s bud_config_frontend_t;
 
 int kBudSSLConfigIndex;
@@ -67,6 +68,8 @@ struct bud_config_http_pool_s {
     int keepalive;                                                            \
     /* internal */                                                            \
     struct sockaddr_storage addr;
+
+
 
 struct bud_config_addr_s {
   BUD_CONFIG_ADDR_FIELDS
@@ -113,15 +116,21 @@ struct bud_config_backend_s {
   uv_timer_t* revive_timer;
 };
 
+struct bud_config_backend_list_s {
+  bud_config_backend_t* list;
+  int count;
+  int last;
+};
+
 #undef BUD_CONFIG_ADDR_FIELDS
 
 struct bud_context_s {
   /* From config file */
   const char* servername;
   size_t servername_len;
+  bud_config_backend_list_t backend;
 
   BUD_COMMON_SSL_FIELDS
-  bud_config_backend_t* backend;
 
   /* Various */
   SSL_CTX* ctx;
@@ -133,7 +142,6 @@ struct bud_context_s {
   size_t ocsp_der_id_len;
   const char* ocsp_url;
   size_t ocsp_url_len;
-  bud_config_backend_t backend_st;
 };
 
 #undef BUD_COMMON_SSL_FIELDS
@@ -201,10 +209,8 @@ struct bud_config_s {
   } availability;
 
   bud_config_frontend_t frontend;
-  bud_config_backend_t* backend;
+  bud_config_backend_list_t backend;
   const char* balance;
-  int backend_count;
-  int last_backend;
 
   const char* user;
   const char* group;
@@ -225,9 +231,9 @@ void bud_context_free(bud_context_t* context);
 /* Helper for loading SNI */
 bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
                                    bud_context_t* context);
-bud_error_t bud_config_load_backend(bud_config_t* config,
-                                    JSON_Object* obj,
-                                    bud_config_backend_t* backend);
+bud_error_t bud_config_load_backend_list(bud_config_t* config,
+                                         JSON_Object* obj,
+                                         bud_config_backend_list_t* backend);
 
 /* Helper for stapling */
 bud_context_t* bud_config_select_context(bud_config_t* config,
