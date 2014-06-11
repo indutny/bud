@@ -49,12 +49,6 @@ bud_config_backend_t* bud_select_backend(bud_config_t* config,
     backend->last %= backend->count;
   }
 
-  bud_log(config,
-          kBudLogDebug,
-          "Selected backend %s:%d",
-          res->host,
-          res->port);
-
   return res;
 }
 
@@ -148,6 +142,8 @@ bud_client_error_t bud_client_connect(bud_client_t* client) {
     r = uv_tcp_keepalive(&client->backend.tcp, 1, backend->keepalive);
   if (r != 0)
     goto failed_connect;
+
+  DBG(&client->backend, "connecting to %s:%d", backend->host, backend->port);
 
   r = uv_tcp_connect(&client->connect_req,
                      &client->backend.tcp,
