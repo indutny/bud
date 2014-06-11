@@ -34,6 +34,23 @@ bud_error_t bud_error_str(bud_error_code_t code, const char* str) {
 }
 
 
+bud_error_t bud_error_dstr(bud_error_code_t code, const char* str) {
+  bud_error_t err;
+  static char st[1024];
+
+  if (str != NULL) {
+    strncpy(st, str, sizeof(st));
+    err.str = st;
+  } else {
+    err.str = NULL;
+  }
+
+  err.code = code;
+  err.ret = 0;
+  return err;
+}
+
+
 bud_error_t bud_error_num(bud_error_code_t code, int ret) {
   bud_error_t err;
 

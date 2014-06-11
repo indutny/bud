@@ -235,7 +235,7 @@ bud_error_t bud_config_verify_all_strings(const JSON_Array* arr,
   for (i = 0; i < count; i++) {
     if (json_value_get_type(json_array_get_value(arr, i)) == JSONString)
       continue;
-    return bud_error_str(kBudErrNonString, name);
+    return bud_error_dstr(kBudErrNonString, name);
   }
 
   return bud_ok();
@@ -261,7 +261,7 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
     json = json_parse_file(path);
 
   if (json == NULL) {
-    *err = bud_error_str(kBudErrJSONParse, path);
+    *err = bud_error_dstr(kBudErrJSONParse, path);
     goto end;
   }
 
@@ -460,18 +460,18 @@ bud_error_t bud_config_load_ca_file(X509_STORE** store, const char* filename) {
 
   b = BIO_new_file(filename, "r");
   if (b == NULL)
-    return bud_error_str(kBudErrLoadCert, filename);
+    return bud_error_dstr(kBudErrLoadCert, filename);
 
   x509 = NULL;
   *store = X509_STORE_new();
   if (*store == NULL) {
-    err = bud_error_str(kBudErrNoMem, "CA store");
+    err = bud_error_dstr(kBudErrNoMem, "CA store");
     goto fatal;
   }
 
   while ((x509 = PEM_read_bio_X509(b, NULL, NULL, NULL)) != NULL) {
     if (x509 == NULL) {
-      err = bud_error_str(kBudErrParseCert, filename);
+      err = bud_error_dstr(kBudErrParseCert, filename);
       goto fatal;
     }
 
@@ -575,7 +575,7 @@ bud_error_t bud_config_load_backend(bud_config_t* config,
     else if (strcmp(pline, "json") == 0)
       backend->proxyline = kBudProxylineJSON;
     else
-      return bud_error_str(kBudErrProxyline, pline);
+      return bud_error_dstr(kBudErrProxyline, pline);
   } else {
     backend->proxyline = val != NULL && json_value_get_boolean(val) ?
         kBudProxylineHAProxy :
@@ -973,7 +973,7 @@ bud_error_t bud_config_load_ca_arr(X509_STORE** store,
 
     while ((x509 = PEM_read_bio_X509(b, NULL, NULL, NULL)) != NULL) {
       if (x509 == NULL) {
-        err = bud_error_str(kBudErrParseCert, cert);
+        err = bud_error_dstr(kBudErrParseCert, cert);
         break;
       }
 
@@ -1095,9 +1095,9 @@ bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
 
     if (ecdh_nid == NID_undef) {
       ecdh = NULL;
-      err = bud_error_str(kBudErrECDHNotFound,
-                          context->ecdh == NULL ? config->frontend.ecdh :
-                                                  context->ecdh);
+      err = bud_error_dstr(kBudErrECDHNotFound,
+                           context->ecdh == NULL ? config->frontend.ecdh :
+                                                   context->ecdh);
       goto fatal;
     }
 
@@ -1396,26 +1396,26 @@ bud_error_t bud_config_init(bud_config_t* config) {
 
     cert_bio = BIO_new_file(cert_file, "r");
     if (cert_bio == NULL) {
-      err = bud_error_str(kBudErrLoadCert, cert_file);
+      err = bud_error_dstr(kBudErrLoadCert, cert_file);
       goto fatal;
     }
 
     r = bud_context_use_certificate_chain(ctx, cert_bio);
     BIO_free_all(cert_bio);
     if (!r) {
-      err = bud_error_str(kBudErrParseCert, cert_file);
+      err = bud_error_dstr(kBudErrParseCert, cert_file);
       goto fatal;
     }
 
     key_bio = BIO_new_file(key_file, "r");
     if (key_bio == NULL) {
-      err = bud_error_str(kBudErrLoadKey, key_file);
+      err = bud_error_dstr(kBudErrLoadKey, key_file);
       goto fatal;
     }
     pkey = PEM_read_bio_PrivateKey(key_bio, NULL, NULL, (void*) key_pass);
     BIO_free_all(key_bio);
     if (pkey == NULL) {
-      err = bud_error_str(kBudErrParseKey, key_file);
+      err = bud_error_dstr(kBudErrParseKey, key_file);
       goto fatal;
     }
 
@@ -1744,7 +1744,7 @@ bud_error_t bud_config_drop_privileges(bud_config_t* config) {
 
     p = getpwnam(config->user);
     if (p == NULL)
-      return bud_error_str(kBudErrInvalidUser, config->user);
+      return bud_error_dstr(kBudErrInvalidUser, config->user);
 
     if (setgid(p->pw_gid) != 0)
       return bud_error_num(kBudErrSetgid, errno);
@@ -1755,7 +1755,7 @@ bud_error_t bud_config_drop_privileges(bud_config_t* config) {
 
     g = getgrnam(config->group);
     if (g == NULL)
-      return bud_error_str(kBudErrInvalidGroup, config->group);
+      return bud_error_dstr(kBudErrInvalidGroup, config->group);
 
     if (setgid(g->gr_gid) != 0)
       return bud_error_num(kBudErrSetgid, errno);

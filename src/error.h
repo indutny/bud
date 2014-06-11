@@ -114,6 +114,7 @@ bud_error_t bud_ok();
 int bud_is_ok(bud_error_t err);
 bud_error_t bud_error(bud_error_code_t code);
 bud_error_t bud_error_str(bud_error_code_t code, const char* str);
+bud_error_t bud_error_dstr(bud_error_code_t code, const char* str);
 bud_error_t bud_error_num(bud_error_code_t code, int ret);
 void bud_error_log(struct bud_config_s* config,
                    int level,
