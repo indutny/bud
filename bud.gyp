@@ -34,6 +34,14 @@
       "src/xforward.c",
     ],
     "conditions": [
+      # FIPS
+      ["fips_dir != 0", {
+        "defines": [
+          "BUD_FIPS_ENABLED=1",
+        ],
+      }],
+
+      # Platform-specifics
       ["OS in ('freebsd', 'mac', 'solaris')", {
         "dependencies": [
           "bud-dtrace",

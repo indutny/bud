@@ -1,4 +1,13 @@
 {
+  "conditions": [
+    ['fips_dir != 0 and fips_lib != 0', {
+      "make_global_settings": [
+        ["CC", "<(fips_dir)/bin/fipsld"],
+        ["LINK", "<(fips_dir)/bin/fipsld"],
+      ],
+    }],
+  ],
+
   "variables": {
     "visibility%": "hidden",         # V8"s visibility setting
     "target_arch%": "ia32",          # set v8"s target architecture
@@ -8,6 +17,8 @@
     "component%": "static_library",  # NB. these names match with what V8 expects
     "msvs_multi_core_compile": "0",  # we do enable multicore compiles, but not using the V8 way
     "gcc_version%": "unknown",
+    "fips_dir%": 0,
+    "fips_lib%": "<(fips_dir)/lib/fipscanister.o",
     "clang%": 1,
     "conditions": [
       ["GENERATOR == 'ninja'", {

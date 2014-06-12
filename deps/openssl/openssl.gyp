@@ -664,6 +664,23 @@
         ['exclude', 'store/.*$']
       ],
       'conditions': [
+        # FIPS
+        ['fips_dir != 0 and fips_lib != 0', {
+          'defines': [
+            'OPENSSL_FIPS',
+          ],
+          'sources': [
+            '<(fips_lib)',
+          ],
+          'include_dirs': [
+            '<(fips_dir)/include',
+          ],
+
+          # Trick fipsld
+          'product_name': 'crypto',
+        }],
+
+        # Platform-specifics
         ['target_arch!="ia32" and target_arch!="x64"', {
           # Disable asm
           'defines': [

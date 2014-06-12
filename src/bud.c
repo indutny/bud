@@ -19,6 +19,15 @@ int main(int argc, char** argv) {
   bud_config_t* config;
   bud_error_t err;
 
+#ifdef BUD_FIPS_ENABLED
+  if (!FIPS_mode_set(1)) {
+    int r;
+    r = ERR_get_error();
+    fprintf(stderr, "openssl fips failed: %s\n", ERR_error_string(r, NULL));
+    return 1;
+  }
+#endif  /* BUD_FIPS_ENABLED */
+
 #ifndef _WIN32
   /* Ignore SIGPIPE */
   signal(SIGPIPE, SIG_IGN);
