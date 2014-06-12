@@ -93,7 +93,7 @@ if __name__ == '__main__':
     args.append('-Dtarget_arch=%s' % host_arch())
 
   if not any(a.startswith('-Dfips_dir=') for a in args):
-    args.append('-Dfips_dir=%s' % host_arch())
+    args.append('-Dfips_dir=0')
 
   gyp_args = list(args)
   print gyp_args

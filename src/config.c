@@ -750,9 +750,11 @@ void bud_print_version() {
 void bud_config_print_default() {
   bud_config_t config;
   bud_config_backend_t backend;
+  bud_context_t context;
 
   memset(&backend, 0, sizeof(backend));
   memset(&config, 0, sizeof(config));
+  memset(&context, 0, sizeof(context));
 
   /* Set zero-y values */
   config.worker_count = -1;
@@ -771,6 +773,8 @@ void bud_config_print_default() {
   config.availability.revive_interval = -1;
   config.availability.retry_interval = -1;
   config.availability.max_retries = -1;
+  config.context_count = 0;
+  config.contexts = &context;
 
   bud_config_set_defaults(&config);
 
