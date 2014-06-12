@@ -35,7 +35,7 @@
     ],
     "conditions": [
       # FIPS
-      ["fips_dir != 0", {
+      ["fips_dir != 'false'", {
         "defines": [
           "BUD_FIPS_ENABLED=1",
         ],

@@ -6,6 +6,14 @@
   'variables': {
     'is_clang': 0,
     'gcc_version': 0,
+    'fips_dir%': 'false',
+    'conditions': [
+      ['fips_dir == "false"', {
+        'fips_lib%': 'false',
+      }, {
+        'fips_lib%': '<(fips_dir)/lib/fipscanister.o',
+      }],
+    ],
   },
 
   'targets': [
@@ -665,7 +673,8 @@
       ],
       'conditions': [
         # FIPS
-        ['fips_dir != 0 and fips_lib != 0', {
+        # node-gyp - I am looking at you!
+        ['fips_dir != "false" and fips_dir != "../../false"', {
           'defines': [
             'OPENSSL_FIPS',
           ],
