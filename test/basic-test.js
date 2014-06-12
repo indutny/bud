@@ -210,7 +210,11 @@ describe('Bud TLS Terminator', function() {
           sniRequest(sh, 'local.host', '/hello', function(res, body) {
             assert.equal(ctx.backends[0].requests, 2);
             assert.equal(res.headers['x-backend-id'], 0);
-            cb();
+            sniRequest(sh, 'local.ghost', '/hello', function(res, body) {
+              assert.equal(sh.backends[0].requests, 1);
+              assert.equal(res.headers['x-backend-id'], 0);
+              cb();
+            });
           });
         });
       });

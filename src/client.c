@@ -128,11 +128,11 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
    * alive again.
    */
   /* SNI backend comes from `backend` or sni callback */
+  client->backend_list = &config->backend;
   if (config->balance_e == kBudBalanceSNI) {
     client->selected_backend = NULL;
     client->connect = kBudProgressRunning;
   } else {
-    client->backend_list = &config->backend;
     client->selected_backend = bud_select_backend(config, client->backend_list);
   }
 
@@ -1134,8 +1134,9 @@ void bud_client_handshake_done_cb(const SSL* ssl) {
   if (client->config->balance_e != kBudBalanceSNI)
     goto fatal;
 
-  if (context != NULL && context->backend.count != 0) {
+  if (context != NULL && context->backend.count != 0)
     client->backend_list = &context->backend;
+  if (client->backend_list != NULL) {
     client->selected_backend = bud_select_backend(client->config,
                                                   client->backend_list);
   }
