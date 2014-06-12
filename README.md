@@ -227,12 +227,12 @@ to get default configuration options (with comments and description below):
     // **optional** (overrides frontend.npn, if not null)
     "npn": ["http/1.1", "http/1.0"],
 
-    // Backend to use, works only when "balance" is set to "sni"
-    "backend": {
+    // Backends to use, works only when "balance" is set to "sni"
+    "backend": [{
       "port": 8000,
       "host": "127.0.0.1",
       "keepalive": 3600
-    },
+    }],
 
     // **Optional** If true - the clients will be requested to provide the cert
     "request_cert": true,
