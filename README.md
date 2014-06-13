@@ -176,6 +176,9 @@ to get default configuration options (with comments and description below):
     //
     // - in all other cases `X-Forwarded-For: <address>` will be added right
     //   after the first line in the incoming data.
+    // 
+    // - in order to avoid parsing each request, the `X-Forwarded-For` header
+    //   will only be sent on the first client request.
 
     "x-forward": false
   }],
