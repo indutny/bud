@@ -3,6 +3,7 @@
 #endif  /* !_WIN32 */
 #include <stdio.h>  /* stderr, remove */
 #include <stdlib.h>  /* NULL */
+#include <string.h> /* strerror */
 #include <unistd.h> /* getpid */
 
 #include "openssl/ssl.h"
@@ -47,21 +48,10 @@ int main(int argc, char** argv) {
   else
     err = bud_master(config);
 
-  if (bud_is_ok(err))
-    uv_run(config->loop, UV_RUN_DEFAULT);
-
-  /* Finalize server */
-  if (config->server != NULL) {
-    if (config->is_worker)
-      err = bud_worker_finalize(config);
-    else
-      err = bud_master_finalize(config);
-  }
-
   int pidfile_created = 0;
 #ifndef _WIN32
   /* Write pid file */
-  if (config->pidfile != NULL) {
+  if (!config->is_worker && config->pidfile != NULL) {
     FILE *pidfile = fopen(config->pidfile, "w");
     if (pidfile == NULL) {
       fprintf(stderr, "failed to open %s: %s\n", config->pidfile, strerror(errno));
@@ -72,6 +62,17 @@ int main(int argc, char** argv) {
     pidfile_created = 1;
   }
 #endif  /* !_WIN32 */
+
+  if (bud_is_ok(err))
+    uv_run(config->loop, UV_RUN_DEFAULT);
+
+  /* Finalize server */
+  if (config->server != NULL) {
+    if (config->is_worker)
+      err = bud_worker_finalize(config);
+    else
+      err = bud_master_finalize(config);
+  }
 
   uv_run(config->loop, UV_RUN_NOWAIT);
 
