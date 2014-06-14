@@ -2,6 +2,7 @@
   "daemon": false,
   "workers": 1,
   "restart_timeout": 250,
+  "pidfile": "/var/run/bud.pid",
   "log": {
     "level": "info",
     "facility": "user",

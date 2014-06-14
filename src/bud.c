@@ -1,8 +1,9 @@
 #ifndef _WIN32
 # include <signal.h>  /* signal */
 #endif  /* !_WIN32 */
-#include <stdio.h>  /* stderr */
+#include <stdio.h>  /* stderr, remove */
 #include <stdlib.h>  /* NULL */
+#include <unistd.h> /* getpid */
 
 #include "openssl/ssl.h"
 #include "openssl/err.h"
@@ -57,7 +58,26 @@ int main(int argc, char** argv) {
       err = bud_master_finalize(config);
   }
 
+  int pidfile_created = 0;
+#ifndef _WIN32
+  /* Write pid file */
+  if (config->pidfile != NULL) {
+    FILE *pidfile = fopen(config->pidfile, "w");
+    if (pidfile == NULL) {
+      fprintf(stderr, "failed to open %s: %s\n", config->pidfile, strerror(errno));
+      return 1;
+    }
+    fprintf(pidfile, "%d\n", getpid());
+    fclose(pidfile);
+    pidfile_created = 1;
+  }
+#endif  /* !_WIN32 */
+
   uv_run(config->loop, UV_RUN_NOWAIT);
+
+  /* Remove pid file if applicable */
+  if (pidfile_created)
+    remove(config->pidfile);
 
 fatal:
   if (config != NULL)
