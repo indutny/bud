@@ -279,7 +279,7 @@ function onrequest(req, res) {
   else if (req.headers['x-forwarded-for'])
     req.connection.xForward = req.headers['x-forwarded-for'];
 
-  // handle request normally now, knowing that the `X-Forwarded-For` header is present now
+  // handle request normally now knowing that the `X-Forwarded-For` header is present
 }
 ```
 
