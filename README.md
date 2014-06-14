@@ -176,7 +176,7 @@ to get default configuration options (with comments and description below):
     //
     // - in all other cases `X-Forwarded-For: <address>` will be added right
     //   after the first line in the incoming data.
-    // 
+    //
     // - in order to avoid parsing each request, the `X-Forwarded-For` header
     //   will only be sent on the first client request.
 
@@ -259,6 +259,28 @@ wish to reload configuration only in a single process):
 
 ```bash
 kill -SIGHUP <bud-master's-pid>
+```
+
+### X-Forwarded-For
+
+Setting `backend.*.x-forward` will cause an `X-Forwarded-For` header to be injected
+into the first request seen on a socket.  However, subsequent request using the
+same socket (via Keep-Alive), will not receieve this header from `bud`.  To remedy this,
+you should associate this header with the underlying socket or connection, and not expect
+it to be present with every HTTP request.  A possible implementation in Node.JS would look
+like:
+
+``` js
+var http = require('http');
+http.createServer(onrequest).listen(8080, 'localhost');
+function onrequest(req, res) {
+  if (req.connection.xForward)
+    req.headers['x-forwarded-for'] = req.connection.xForward;
+  else if (req.headers['x-forwarded-for'])
+    req.connection.xForward = req.headers['x-forwarded-for'];
+
+  // handle request normally now, knowing that the `X-Forwarded-For` header is present now
+}
 ```
 
 ### SNI Storage
