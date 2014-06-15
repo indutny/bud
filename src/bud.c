@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
 #ifndef _WIN32
   /* Write pid file */
   if (!config->is_worker && config->pidfile != NULL) {
-    pidfd = open(config->pidfile, O_WRONLY);
+    pidfd = open(config->pidfile, O_WRONLY | O_CREAT, 0644);
     if (pidfd == -1) {
       fprintf(stderr, "failed to open %s: %s\n", config->pidfile, strerror(errno));
       return 1;
@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
     snprintf(pid, sizeof(pid), "%d\n", getpid());
     int n;
     do
-      n = write(pidfd, pid, sizeof(pid));
+      n = write(pidfd, pid, strlen(pid));
     while (n == -1 && errno == EINTR);
 
     close(pidfd);
