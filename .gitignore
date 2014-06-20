@@ -1,7 +1,6 @@
 tools/gyp
 *.json
 !package.json
-*.sh
 build/
 out/
 npm/bud
