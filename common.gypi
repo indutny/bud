@@ -31,6 +31,7 @@
       },
       "Release": {
         "defines": [ "NDEBUG" ],
+        "cflags": [ "-g" ],
       }
     },
     "xcode_settings": {
@@ -39,6 +40,7 @@
       "PREBINDING": "NO",                       # No -Wl,-prebind
       "OTHER_CFLAGS": [
         "-fstrict-aliasing",
+        "-g",
       ],
       "WARNING_CFLAGS": [
         "-Wall",

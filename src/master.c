@@ -56,6 +56,10 @@ bud_error_t bud_master(bud_config_t* config) {
 
   /* Create loop after forking */
   config->loop = uv_default_loop();
+  if (config->loop == NULL) {
+    err = bud_error_str(kBudErrNoMem, "config->loop");
+    goto fatal;
+  }
 
 #ifndef _WIN32
   /* Initialize signal watchers */

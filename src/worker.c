@@ -27,6 +27,11 @@ bud_error_t bud_worker(bud_config_t* config) {
   bud_log(config, kBudLogDebug, "worker starting");
 
   config->loop = uv_default_loop();
+  if (config->loop == NULL) {
+    err = bud_error_str(kBudErrNoMem, "config->loop");
+    goto fatal;
+  }
+
   config->ipc = malloc(sizeof(*config->ipc));
   config->signal.sighup = malloc(sizeof(*config->signal.sighup));
   if (config->ipc == NULL || config->signal.sighup == NULL) {
