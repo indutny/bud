@@ -546,10 +546,6 @@ bud_error_t bud_context_load(JSON_Object* obj, bud_context_t* ctx) {
   else
     ctx->server_preference = 1;
 
-  /* Use default curve */
-  if (ctx->ecdh == NULL)
-    ctx->ecdh = "prime256v1";
-
   if (ctx->ca_array != NULL)
     err = bud_config_load_ca_arr(&ctx->ca_store, ctx->ca_array);
   else if (ctx->ca_file != NULL)
@@ -1225,26 +1221,28 @@ bud_error_t bud_context_init(bud_config_t* config,
     SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, bud_config_verify_cert);
   }
 
+  /* Use default curve */
+  if (ctx->ecdh == NULL)
+    ctx->ecdh = "prime256v1";
+
   /* ECDH curve selection */
-  if (context->ecdh != NULL) {
-    ecdh_nid = OBJ_sn2nid(context->ecdh);
+  ecdh_nid = OBJ_sn2nid(context->ecdh);
 
-    if (ecdh_nid == NID_undef) {
-      ecdh = NULL;
-      err = bud_error_dstr(kBudErrECDHNotFound, context->ecdh);
-      goto fatal;
-    }
-
-    ecdh = EC_KEY_new_by_curve_name(ecdh_nid);
-    if (ecdh == NULL) {
-      err = bud_error_str(kBudErrNoMem, "EC_KEY");
-      goto fatal;
-    }
-
-    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_ECDH_USE);
-    SSL_CTX_set_tmp_ecdh(ctx, ecdh);
-    EC_KEY_free(ecdh);
+  if (ecdh_nid == NID_undef) {
+    ecdh = NULL;
+    err = bud_error_dstr(kBudErrECDHNotFound, context->ecdh);
+    goto fatal;
   }
+
+  ecdh = EC_KEY_new_by_curve_name(ecdh_nid);
+  if (ecdh == NULL) {
+    err = bud_error_str(kBudErrNoMem, "EC_KEY");
+    goto fatal;
+  }
+
+  SSL_CTX_set_options(ctx, SSL_OP_SINGLE_ECDH_USE);
+  SSL_CTX_set_tmp_ecdh(ctx, ecdh);
+  EC_KEY_free(ecdh);
   ecdh = NULL;
 
   /* Cipher suites */
