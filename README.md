@@ -120,8 +120,11 @@ to get default configuration options (with comments and description below):
     // **Optional** Cipher suites to use
     "ciphers": null,
 
-    // **Optional** ECDH Curve to use
+    // **Optional** ECDH Curve to use, defaults to `prime256v1
     "ecdh": "prime256v1",
+
+    // **Optional** Path to DH parameters file
+    "dh": null,
 
     // **Optional** Base64 encoded TLS session ticket key,
     // should decode into 48 raw bytes
@@ -233,6 +236,9 @@ to get default configuration options (with comments and description below):
     // ECDH curve to use, overrides frontend.ecdh
     "ecdh": null,
 
+    // **Optional** Path to DH parameters file, overrides frontend.dh
+    "dh": null,
+
     // TLS session ticket key to use, overrides frontend.ticket_key
     "ticket_key": null,
 
@@ -313,6 +319,9 @@ of the following form:
 
   // Optional
   "ecdh": "..."
+
+  // **Optional** Path to DH parameters file, overrides frontend.dh
+  "dh": null
 }
 ```
 
