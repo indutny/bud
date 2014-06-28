@@ -206,7 +206,6 @@ struct bud_config_s {
   } availability;
 
   bud_config_frontend_t frontend;
-  bud_config_backend_list_t backend;
   const char* balance;
 
   const char* user;

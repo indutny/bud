@@ -128,7 +128,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
    * alive again.
    */
   /* SNI backend comes from `backend` or sni callback */
-  client->backend_list = &config->backend;
+  client->backend_list = &config->contexts[0].backend;
   if (config->balance_e == kBudBalanceSNI) {
     client->selected_backend = NULL;
     client->connect = kBudProgressRunning;

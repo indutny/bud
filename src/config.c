@@ -200,9 +200,6 @@ void bud_config_copy(bud_config_t* dst, bud_config_t* src) {
   memcpy(&dst->frontend, &src->frontend, sizeof(src->frontend));
   memcpy(&dst->sni, &src->sni, sizeof(src->sni));
   memcpy(&dst->stapling, &src->stapling, sizeof(src->stapling));
-  memcpy(&dst->backend, &src->backend, sizeof(src->backend));
-  src->backend.list = NULL;
-  src->backend.count = 0;
 }
 
 
@@ -264,7 +261,6 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
   JSON_Object* avail;
   JSON_Array* contexts;
   bud_config_t* config;
-  bud_context_t* ctx;
 
   if (inlined)
     json = json_parse_string(path);
@@ -369,7 +365,9 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
 
   /* Backend configuration */
   config->balance = json_object_get_string(obj, "balance");
-  *err = bud_config_load_backend_list(config, obj, &config->backend);
+  *err = bud_config_load_backend_list(config,
+                                      obj,
+                                      &config->contexts[0].backend);
   if (!bud_is_ok(*err))
     goto failed_get_index;
 
@@ -387,23 +385,25 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
 
   /* TODO(indutny): sort them and do binary search */
   for (i = 0; i < config->context_count; i++) {
+    bud_context_t* ctx;
+
     /* NOTE: contexts[0] - is a default context */
     ctx = &config->contexts[i + 1];
     obj = json_array_get_object(contexts, i);
     if (obj == NULL) {
       *err = bud_error(kBudErrJSONNonObjectCtx);
-      goto failed_get_index;
+      goto failed_load_context;
     }
 
     ctx->servername = json_object_get_string(obj, "servername");
     ctx->servername_len = ctx->servername == NULL ? 0 : strlen(ctx->servername);
     *err = bud_context_load(obj, ctx);
     if (!bud_is_ok(*err))
-      goto failed_get_index;
+      goto failed_load_context;
 
     *err = bud_config_load_backend_list(config, obj, &ctx->backend);
     if (!bud_is_ok(*err))
-      goto failed_get_index;
+      goto failed_load_context;
   }
 
   bud_config_set_defaults(config);
@@ -411,11 +411,19 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
   *err = bud_ok();
   return config;
 
+failed_load_context:
+  /* Deinitalize contexts */
+  for (i++; i >= 0; i--) {
+    bud_context_t* ctx;
+
+    ctx = &config->contexts[i];
+    free(ctx->backend.list);
+    ctx->backend.list = NULL;
+  }
+
 failed_get_index:
   free(config->contexts);
   config->contexts = NULL;
-  free(config->backend.list);
-  config->backend.list = NULL;
   free(config->path);
   config->path = NULL;
 
@@ -683,16 +691,6 @@ void bud_config_destroy(bud_config_t* config) {
 
   free(config->path);
   config->path = NULL;
-
-  for (i = 0; i < config->backend.count; i++) {
-    if (config->backend.list[i].revive_timer != NULL) {
-      uv_close((uv_handle_t*) config->backend.list[i].revive_timer,
-               (uv_close_cb) free);
-      config->backend.list[i].revive_timer = NULL;
-    }
-  }
-  free(config->backend.list);
-  config->backend.list = NULL;
 }
 
 
@@ -709,8 +707,18 @@ void bud_config_free(bud_config_t* config) {
 
 
 void bud_context_free(bud_context_t* context) {
+  int i;
+
   if (context == NULL)
     return;
+
+  for (i = 0; i < context->backend.count; i++) {
+    if (context->backend.list[i].revive_timer != NULL) {
+      uv_close((uv_handle_t*) context->backend.list[i].revive_timer,
+               (uv_close_cb) free);
+      context->backend.list[i].revive_timer = NULL;
+    }
+  }
 
   SSL_CTX_free(context->ctx);
   if (context->cert != NULL)
@@ -779,9 +787,6 @@ void bud_config_print_default() {
   config.frontend.ssl3 = -1;
   config.frontend.max_send_fragment = -1;
   config.frontend.allow_half_open = -1;
-  config.backend.count = 1;
-  config.backend.list = &backend;
-  config.backend.list[0].keepalive = -1;
   config.restart_timeout = -1;
   config.availability.death_timeout = -1;
   config.availability.revive_interval = -1;
@@ -789,6 +794,9 @@ void bud_config_print_default() {
   config.availability.max_retries = -1;
   config.context_count = 0;
   config.contexts = &context;
+  context.backend.list = &backend;
+  context.backend.list[0].keepalive = -1;
+  context.backend.count = 1;
 
   bud_config_set_defaults(&config);
 
@@ -841,20 +849,20 @@ void bud_config_print_default() {
   /* Sorry, hard-coded */
   fprintf(stdout, "    \"npn\": [\"http/1.1\", \"http/1.0\"],\n");
 #endif  /* OPENSSL_NPN_NEGOTIATED */
-  if (config.contexts[0].ciphers != NULL)
-    fprintf(stdout, "    \"ciphers\": \"%s\",\n", config.contexts[0].ciphers);
+  if (context.ciphers != NULL)
+    fprintf(stdout, "    \"ciphers\": \"%s\",\n", context.ciphers);
   else
     fprintf(stdout, "    \"ciphers\": null,\n");
-  if (config.contexts[0].ecdh != NULL)
-    fprintf(stdout, "    \"ecdh\": \"%s\",\n", config.contexts[0].ecdh);
+  if (context.ecdh != NULL)
+    fprintf(stdout, "    \"ecdh\": \"%s\",\n", context.ecdh);
   else
     fprintf(stdout, "    \"ecdh\": null,\n");
-  if (config.contexts[0].dh_file != NULL)
-    fprintf(stdout, "    \"dh\": \"%s\",\n", config.contexts[0].dh_file);
+  if (context.dh_file != NULL)
+    fprintf(stdout, "    \"dh\": \"%s\",\n", context.dh_file);
   else
     fprintf(stdout, "    \"dh\": null,\n");
-  fprintf(stdout, "    \"cert\": \"%s\",\n", config.contexts[0].cert_file);
-  fprintf(stdout, "    \"key\": \"%s\",\n", config.contexts[0].key_file);
+  fprintf(stdout, "    \"cert\": \"%s\",\n", context.cert_file);
+  fprintf(stdout, "    \"key\": \"%s\",\n", context.key_file);
   fprintf(stdout, "    \"passphrase\": null,\n");
   fprintf(stdout, "    \"ticket_key\": null,\n");
   fprintf(stdout, "    \"request_cert\": false,\n");
@@ -866,9 +874,11 @@ void bud_config_print_default() {
   fprintf(stdout, "  \"user\": null,\n");
   fprintf(stdout, "  \"group\": null,\n");
   fprintf(stdout, "  \"backend\": [{\n");
-  fprintf(stdout, "    \"port\": %d,\n", config.backend.list[0].port);
-  fprintf(stdout, "    \"host\": \"%s\",\n", config.backend.list[0].host);
-  fprintf(stdout, "    \"keepalive\": %d,\n", config.backend.list[0].keepalive);
+  fprintf(stdout, "    \"port\": %d,\n", context.backend.list[0].port);
+  fprintf(stdout, "    \"host\": \"%s\",\n", context.backend.list[0].host);
+  fprintf(stdout,
+          "    \"keepalive\": %d,\n",
+          context.backend.list[0].keepalive);
   fprintf(stdout, "    \"proxyline\": false,\n");
   fprintf(stdout, "    \"x-forward\": false\n");
   fprintf(stdout, "  }],\n");
@@ -919,14 +929,17 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.reneg_limit, -1, 3);
   DEFAULT(config->balance, NULL, "roundrobin");
 
-  for (i = 0; i < config->backend.count; i++)
-    bud_config_set_backend_defaults(&config->backend.list[i]);
-
   for (i = 0; i < config->context_count + 1; i++) {
-    if (config->contexts[i].cert_files == NULL)
-      DEFAULT(config->contexts[i].cert_file, NULL, "keys/cert.pem");
-    if (config->contexts[i].key_files == NULL)
-      DEFAULT(config->contexts[i].key_file, NULL, "keys/key.pem");
+    bud_context_t* ctx;
+    int j;
+
+    ctx = &config->contexts[i];
+    if (ctx->cert_files == NULL)
+      DEFAULT(ctx->cert_file, NULL, "keys/cert.pem");
+    if (ctx->key_files == NULL)
+      DEFAULT(ctx->key_file, NULL, "keys/key.pem");
+    for (j = 0; j < ctx->backend.count; j++)
+      bud_config_set_backend_defaults(&ctx->backend.list[j]);
   }
 
   DEFAULT(config->sni.port, 0, 9000);
@@ -1482,8 +1495,12 @@ bud_error_t bud_config_init(bud_config_t* config) {
     config->balance_e = kBudBalanceSNI;
   else
     config->balance_e = kBudBalanceRoundRobin;
-  if (config->backend.count == 0 && config->balance_e == kBudBalanceRoundRobin)
+
+  /* At least one backend should be present for non-SNI balancing */
+  if (config->contexts[0].backend.count == 0 &&
+      config->balance_e == kBudBalanceRoundRobin) {
     return bud_error(kBudErrNoBackend);
+  }
 
   /* Get indexes for SSL_set_ex_data()/SSL_get_ex_data() */
   if (kBudSSLClientIndex == -1) {
