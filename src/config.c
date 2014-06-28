@@ -1297,6 +1297,9 @@ bud_error_t bud_context_init(bud_config_t* config,
   if (!config->frontend.ssl3)
     options |= SSL_OP_NO_SSLv3;
 
+  /* Do not resume session on renegotiation */
+  options |= SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION;
+
   if (context->server_preference)
     options |= SSL_OP_CIPHER_SERVER_PREFERENCE;
   SSL_CTX_set_options(ctx, options);
