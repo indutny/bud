@@ -106,12 +106,15 @@ to get default configuration options (with comments and description below):
     "security": "ssl23",
 
     // Path to default TLS certificate
+    // NOTE: Could be an array of certs
     "cert": "keys/cert.pem",
 
     // Path to default TLS private key
+    // NOTE: Could be an array of keys
     "key": "keys/key.pem",
 
     // **Optional** Passphrase for the private key
+    // NOTE: Could be an array of passphrases
     "passphrase": null,
 
     // **Optional** Cipher suites to use
@@ -213,12 +216,15 @@ to get default configuration options (with comments and description below):
     "servername": "blog.indutny.com",
 
     // Path to TLS certificate
+    // Could be an array
     "cert": "keys/cert.pem",
 
     // Path to TLS private key
+    // Could be an array
     "key": "keys/key.pem",
 
     // **Optional** Passphrase for the private key
+    // Could be an array
     "passphrase": null,
 
     // Cipherlist to use (overrides frontend.ciphers, if not null)
