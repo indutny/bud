@@ -45,22 +45,6 @@ struct bud_config_http_pool_s {
   struct bud_http_pool_s* pool;
 };
 
-#define BUD_COMMON_SSL_FIELDS                                                 \
-    const char* cert_file;                                                    \
-    const char* key_file;                                                     \
-    const char* key_pass;                                                     \
-    const JSON_Array* npn;                                                    \
-    const char* ciphers;                                                      \
-    const char* ecdh;                                                         \
-    const char* ticket_key;                                                   \
-    int request_cert;                                                         \
-    const char* ca_file;                                                      \
-    const JSON_Array* ca_array;                                               \
-    /* internal */                                                            \
-    char ticket_key_storage[48];                                              \
-    char* npn_line;                                                           \
-    size_t npn_line_len;                                                      \
-
 
 #define BUD_CONFIG_ADDR_FIELDS                                                \
     uint16_t port;                                                            \
@@ -81,8 +65,6 @@ struct bud_config_frontend_s {
 
   /* Public */
   const char* security;
-  int server_preference;
-  BUD_COMMON_SSL_FIELDS
   int reneg_window;
   int reneg_limit;
   int ssl3;
@@ -91,7 +73,6 @@ struct bud_config_frontend_s {
 
   /* Internal */
   const SSL_METHOD* method;
-  X509_STORE* ca_store;
 };
 
 enum bud_config_proxyline_s {
@@ -130,7 +111,22 @@ struct bud_context_s {
   size_t servername_len;
   bud_config_backend_list_t backend;
 
-  BUD_COMMON_SSL_FIELDS
+  int server_preference;
+  const char* cert_str;
+  const char* key_str;
+  const char* cert_file;
+  const JSON_Array* cert_files;
+  const char* key_file;
+  const char* key_pass;
+  const JSON_Array* key_files;
+  const JSON_Array* key_passes;
+  const JSON_Array* npn;
+  const char* ciphers;
+  const char* ecdh;
+  const char* ticket_key;
+  int request_cert;
+  const char* ca_file;
+  const JSON_Array* ca_array;
 
   /* Various */
   SSL_CTX* ctx;
@@ -142,9 +138,10 @@ struct bud_context_s {
   size_t ocsp_der_id_len;
   const char* ocsp_url;
   size_t ocsp_url_len;
+  char ticket_key_storage[48];
+  char* npn_line;
+  size_t npn_line_len;
 };
-
-#undef BUD_COMMON_SSL_FIELDS
 
 enum bud_config_balance_e {
   kBudBalanceRoundRobin,
@@ -226,11 +223,14 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err);
 bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err);
 bud_error_t bud_config_reload(bud_config_t* config);
 void bud_config_free(bud_config_t* config);
-void bud_context_free(bud_context_t* context);
 
 /* Helper for loading SNI */
-bud_error_t bud_config_new_ssl_ctx(bud_config_t* config,
-                                   bud_context_t* context);
+bud_error_t bud_context_load(JSON_Object* obj,
+                             bud_context_t* ctx);
+bud_error_t bud_context_init(bud_config_t* config,
+                             bud_context_t* context);
+void bud_context_free(bud_context_t* context);
+
 bud_error_t bud_config_load_backend_list(bud_config_t* config,
                                          JSON_Object* obj,
                                          bud_config_backend_list_t* backend);
@@ -250,9 +250,6 @@ const char* bud_context_get_ocsp_req(bud_context_t* context,
 int bud_config_str_to_addr(const char* host,
                            uint16_t port,
                            struct sockaddr_storage* addr);
-
-/* Helper for SNI and stapling */
-int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in);
 
 bud_error_t bud_config_drop_privileges(bud_config_t* config);
 
