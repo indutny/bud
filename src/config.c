@@ -1222,8 +1222,8 @@ bud_error_t bud_context_init(bud_config_t* config,
   }
 
   /* Use default curve */
-  if (ctx->ecdh == NULL)
-    ctx->ecdh = "prime256v1";
+  if (context->ecdh == NULL)
+    context->ecdh = "prime256v1";
 
   /* ECDH curve selection */
   ecdh_nid = OBJ_sn2nid(context->ecdh);
