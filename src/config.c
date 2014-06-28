@@ -47,6 +47,12 @@ static void bud_config_finalize(bud_config_t* config);
 static void bud_config_read_pool_conf(JSON_Object* obj,
                                       const char* key,
                                       bud_config_http_pool_t* pool);
+static bud_error_t bud_context_load_cert(bud_context_t* context,
+                                         const char* cert_file);
+static bud_error_t bud_context_load_key(bud_context_t* context,
+                                        const char* key_file,
+                                        const char* key_pass);
+static bud_error_t bud_context_load_keys(bud_context_t* context);
 static int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in);
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
 static int bud_config_select_sni_context(SSL* s, int* ad, void* arg);
@@ -1031,126 +1037,99 @@ bud_error_t bud_config_load_ca_arr(X509_STORE** store,
 }
 
 
-bud_error_t bud_context_load_keys(bud_context_t* context) {
-  bud_error_t err;
-  int r;
-  int i;
-  int count;
+bud_error_t bud_context_load_cert(bud_context_t* context,
+                                  const char* cert_file) {
   BIO* cert_bio;
+  int r;
+
+  cert_bio = BIO_new_file(cert_file, "r");
+  if (cert_bio == NULL) {
+    /* Hm... not a file, let's try parsing it as a raw string */
+    cert_bio = BIO_new_mem_buf((void*) cert_file, strlen(cert_file));
+    if (cert_bio == NULL)
+      return bud_error_str(kBudErrNoMem, "BIO_new_mem_buf:cert");
+  }
+
+  r = bud_context_use_certificate_chain(context, cert_bio);
+  BIO_free_all(cert_bio);
+  if (!r)
+    return bud_error_dstr(kBudErrParseCert, cert_file);
+
+  return bud_ok();
+}
+
+
+bud_error_t bud_context_load_key(bud_context_t* context,
+                                 const char* key_file,
+                                 const char* key_pass) {
   BIO* key_bio;
   EVP_PKEY* pkey;
-  const char* cert_file;
-  const char* key_file;
-  const char* key_pass;
+
+  key_bio = BIO_new_file(key_file, "r");
+  if (key_bio == NULL) {
+    /* Hm... not a file, let's try parsing it as a raw string */
+    key_bio = BIO_new_mem_buf((void*) key_file, strlen(key_file));
+    if (key_bio == NULL)
+      return bud_error_str(kBudErrNoMem, "BIO_new_mem_buf:key");
+  }
+
+  pkey = PEM_read_bio_PrivateKey(key_bio, NULL, NULL, (void*) key_pass);
+  BIO_free_all(key_bio);
+  if (pkey == NULL)
+    return bud_error_dstr(kBudErrParseKey, key_file);
+
+  SSL_CTX_use_PrivateKey(context->ctx, pkey);
+  EVP_PKEY_free(pkey);
+
+  return bud_ok();
+}
+
+
+bud_error_t bud_context_load_keys(bud_context_t* context) {
+  bud_error_t err;
+  int i;
+  int count;
 
   err = bud_ok();
-  cert_bio = NULL;
-  key_bio = NULL;
 
   /* Load cert file or string */
-  cert_file = context->cert_file;
-  if (cert_file != NULL || context->cert_str != NULL) {
-    if (cert_file != NULL) {
-      cert_bio = BIO_new_file(cert_file, "r");
-      if (cert_bio == NULL) {
-        err = bud_error_dstr(kBudErrLoadCert, cert_file);
-        goto fatal;
-      }
-    } else {
-      cert_file = "<raw string>";
-      cert_bio = BIO_new_mem_buf((void*) context->cert_str,
-                                 strlen(context->cert_str));
-      if (cert_bio == NULL) {
-        err = bud_error_str(kBudErrNoMem, "BIO_new_mem_buf");
-        goto fatal;
-      }
-    }
-
-    r = bud_context_use_certificate_chain(context, cert_bio);
-    BIO_free_all(cert_bio);
-
+  if (context->cert_file != NULL) {
+    err = bud_context_load_cert(context, context->cert_file);
   /* Load cert array */
   } else if (context->cert_files != NULL &&
              json_array_get_count(context->cert_files) != 0) {
     count = json_array_get_count(context->cert_files);
     for (i = 0; i < count; i++) {
-      cert_file = json_array_get_string(context->cert_files, i);
-      cert_bio = BIO_new_file(cert_file, "r");
-      if (cert_bio == NULL) {
-        err = bud_error_dstr(kBudErrLoadCert, cert_file);
-        goto fatal;
-      }
-      r = bud_context_use_certificate_chain(context, cert_bio);
-      BIO_free_all(cert_bio);
-
-      /* Report error below */
-      if (!r)
+      err = bud_context_load_cert(
+          context,
+          json_array_get_string(context->cert_files, i));
+      if (!bud_is_ok(err))
         break;
     }
   } else {
     err = bud_error_str(kBudErrLoadCert, "no file was specified");
-    goto fatal;
   }
-  if (!r) {
-    err = bud_error_dstr(kBudErrParseCert, cert_file);
+  if (!bud_is_ok(err))
     goto fatal;
-  }
 
   /* Key file or string */
-  key_file = context->key_file;
-  key_pass = context->key_pass;
-  if (key_file != NULL || context->key_str != NULL) {
-    if (context->key_file != NULL) {
-      key_bio = BIO_new_file(key_file, "r");
-      if (key_bio == NULL) {
-        err = bud_error_dstr(kBudErrLoadKey, key_file);
-        goto fatal;
-      }
-    } else {
-      key_file = "<raw string>";
-      key_bio = BIO_new_mem_buf((void*) context->key_str,
-                                strlen(context->key_str));
-      if (key_bio == NULL) {
-        err = bud_error_str(kBudErrNoMem, "BIO_new_mem_buf");
-        goto fatal;
-      }
-    }
-
-    pkey = PEM_read_bio_PrivateKey(key_bio, NULL, NULL, (void*) key_pass);
-    BIO_free_all(key_bio);
-    if (pkey == NULL) {
-      err = bud_error_dstr(kBudErrParseKey, key_file);
-      goto fatal;
-    }
-    SSL_CTX_use_PrivateKey(context->ctx, pkey);
-    EVP_PKEY_free(pkey);
+  if (context->key_file != NULL) {
+    err = bud_context_load_key(context, context->key_file, context->key_pass);
 
   /* Key array */
   } else if (context->key_files != NULL &&
              json_array_get_count(context->key_files) != 0) {
     count = json_array_get_count(context->key_files);
     for (i = 0; i < count; i++) {
-      key_file = json_array_get_string(context->key_files, i);
-      key_pass = json_array_get_string(context->key_passes, i);
-
-      key_bio = BIO_new_file(key_file, "r");
-      if (key_bio == NULL) {
-        err = bud_error_dstr(kBudErrLoadKey, key_file);
-        goto fatal;
-      }
-
-      pkey = PEM_read_bio_PrivateKey(key_bio, NULL, NULL, (void*) key_pass);
-      BIO_free_all(key_bio);
-      if (pkey == NULL) {
-        err = bud_error_dstr(kBudErrParseKey, key_file);
-        goto fatal;
-      }
-      SSL_CTX_use_PrivateKey(context->ctx, pkey);
-      EVP_PKEY_free(pkey);
+      err = bud_context_load_key(
+          context,
+          json_array_get_string(context->key_files, i),
+          json_array_get_string(context->key_passes, i));
+      if (!bud_is_ok(err))
+        break;
     }
   } else {
     err = bud_error_str(kBudErrLoadKey, "no file was specified");
-    goto fatal;
   }
 
 fatal:

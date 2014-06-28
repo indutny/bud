@@ -112,8 +112,6 @@ struct bud_context_s {
   bud_config_backend_list_t backend;
 
   int server_preference;
-  const char* cert_str;
-  const char* key_str;
   const char* cert_file;
   const JSON_Array* cert_files;
   const char* key_file;

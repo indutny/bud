@@ -17,20 +17,44 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   JSON_Value* val;
   const char* cert_str;
   const char* key_str;
+  const char* pass_str;
+  JSON_Array* cert_strs;
+  JSON_Array* key_strs;
+  JSON_Array* pass_strs;
   bud_error_t err;
 
   obj = json_value_get_object(json);
-  cert_str = json_object_get_string(obj, "cert");
-  key_str = json_object_get_string(obj, "key");
-  if (obj == NULL || cert_str == NULL || key_str == NULL) {
+  val = json_object_get_value(obj, "cert");
+  if (json_value_get_type(val) == JSONString)
+    cert_str = json_value_get_string(val);
+  else
+    cert_strs = json_value_get_array(val);
+  val = json_object_get_value(obj, "key");
+  if (json_value_get_type(val) == JSONString)
+    key_str = json_value_get_string(val);
+  else
+    key_strs = json_value_get_array(val);
+  val = json_object_get_value(obj, "passphrase");
+  if (json_value_get_type(val) == JSONString)
+    pass_str = json_value_get_string(val);
+  else
+    pass_strs = json_value_get_array(val);
+
+  if (obj == NULL ||
+      !((cert_str != NULL && key_str != NULL) ||
+        (cert_strs != NULL && key_strs != NULL))) {
     err = bud_error_str(kBudErrJSONParse, "<SNI Response>");
     goto fatal;
   }
 
   /* Load NPN from response */
   memset(ctx, 0, sizeof(*ctx));
-  ctx->cert_str = cert_str;
-  ctx->key_str = key_str;
+  ctx->cert_file = cert_str;
+  ctx->key_file = key_str;
+  ctx->key_pass = pass_str;
+  ctx->cert_files = cert_strs;
+  ctx->key_files = key_strs;
+  ctx->key_passes = pass_strs;
   ctx->ciphers = json_object_get_string(obj, "ciphers");
   ctx->ecdh = json_object_get_string(obj, "ecdh");
   ctx->ticket_key = json_object_get_string(obj, "ticket_key");
@@ -44,6 +68,14 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
     goto fatal;
 
   err = bud_context_init(config, ctx);
+
+  /* Make sure that deallocated values won't be used */
+  ctx->cert_file = NULL;
+  ctx->key_file = NULL;
+  ctx->key_pass = NULL;
+  ctx->cert_files = NULL;
+  ctx->key_files = NULL;
+  ctx->key_passes = NULL;
   if (!bud_is_ok(err))
     goto fatal;
 
