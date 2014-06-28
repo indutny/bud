@@ -535,7 +535,11 @@ bud_error_t bud_context_load(JSON_Object* obj, bud_context_t* ctx) {
   ctx->ticket_key = json_object_get_string(obj, "ticket_key");
   ctx->ca_file = json_object_get_string(obj, "ca");
   ctx->ca_array = json_object_get_array(obj, "ca");
-  ctx->request_cert = json_object_get_boolean(obj, "request_cert");
+  val = json_object_get_value(obj, "request_cert");
+  if (val != NULL)
+    ctx->request_cert = json_value_get_boolean(val);
+  else
+    ctx->request_cert = 0;
   val = json_object_get_value(obj, "server_preference");
   if (val != NULL)
     ctx->server_preference = json_value_get_boolean(val);
@@ -640,6 +644,8 @@ void bud_config_read_pool_conf(JSON_Object* obj,
   p = json_object_get_object(obj, key);
   if (p != NULL) {
     pool->enabled = json_object_get_boolean(p, "enabled");
+    if (pool->enabled == -1)
+      pool->enabled = 0;
     pool->port = (uint16_t) json_object_get_number(p, "port");
     pool->host = json_object_get_string(p, "host");
     pool->url = json_object_get_string(p, "url");
