@@ -532,6 +532,7 @@ bud_error_t bud_context_load(JSON_Object* obj, bud_context_t* ctx) {
   ctx->npn = json_object_get_array(obj, "npn");
   ctx->ciphers = json_object_get_string(obj, "ciphers");
   ctx->ecdh = json_object_get_string(obj, "ecdh");
+  ctx->dh_file = json_object_get_string(obj, "dh");
   ctx->ticket_key = json_object_get_string(obj, "ticket_key");
   ctx->ca_file = json_object_get_string(obj, "ca");
   ctx->ca_array = json_object_get_array(obj, "ca");
@@ -842,6 +843,10 @@ void bud_config_print_default() {
     fprintf(stdout, "    \"ecdh\": \"%s\",\n", config.contexts[0].ecdh);
   else
     fprintf(stdout, "    \"ecdh\": null,\n");
+  if (config.contexts[0].dh_file != NULL)
+    fprintf(stdout, "    \"dh\": \"%s\",\n", config.contexts[0].dh_file);
+  else
+    fprintf(stdout, "    \"dh\": null,\n");
   fprintf(stdout, "    \"cert\": \"%s\",\n", config.contexts[0].cert_file);
   fprintf(stdout, "    \"key\": \"%s\",\n", config.contexts[0].key_file);
   fprintf(stdout, "    \"passphrase\": null,\n");
@@ -1221,13 +1226,12 @@ bud_error_t bud_context_init(bud_config_t* config,
     SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, bud_config_verify_cert);
   }
 
-  /* Use default curve */
+  /* Use default ECDH curve */
   if (context->ecdh == NULL)
     context->ecdh = "prime256v1";
 
   /* ECDH curve selection */
   ecdh_nid = OBJ_sn2nid(context->ecdh);
-
   if (ecdh_nid == NID_undef) {
     ecdh = NULL;
     err = bud_error_dstr(kBudErrECDHNotFound, context->ecdh);
@@ -1244,6 +1248,28 @@ bud_error_t bud_context_init(bud_config_t* config,
   SSL_CTX_set_tmp_ecdh(ctx, ecdh);
   EC_KEY_free(ecdh);
   ecdh = NULL;
+
+  /* DH params */
+  if (context->dh_file != NULL) {
+    BIO* dh_bio;
+    DH* dh;
+    int r;
+
+    dh_bio = BIO_new_file(context->dh_file, "r");
+    if (dh_bio == NULL)
+      return bud_error_dstr(kBudErrLoadDH, context->dh_file);
+
+    dh = PEM_read_bio_DHparams(dh_bio, NULL, NULL, NULL);
+    BIO_free_all(dh_bio);
+    if (dh == NULL)
+      return bud_error_dstr(kBudErrParseDH, context->dh_file);
+
+    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
+    r = SSL_CTX_set_tmp_dh(ctx, dh);
+    DH_free(dh);
+    if (r < 0)
+      return bud_error_dstr(kBudErrParseDH, context->dh_file);
+  }
 
   /* Cipher suites */
   if (context->ciphers != NULL)

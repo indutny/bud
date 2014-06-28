@@ -37,6 +37,8 @@ enum bud_error_code_e {
   kBudErrInvalidGroup = 0x112,
   kBudErrSetuid = 0x113,
   kBudErrSetgid = 0x114,
+  kBudErrLoadDH = 0x115,
+  kBudErrParseDH = 0x116,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,

@@ -116,6 +116,14 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("setuid() failed: %d", err.ret)                               \
     case kBudErrSetgid:                                                       \
       BUD_ERROR("setgid() failed: %d", err.ret)                               \
+    case kBudErrLoadDH:                                                       \
+      BUD_ERROR("Failed to load DH params from %s, reason: %s",               \
+                err.str,                                                      \
+                ERR_reason_error_string(ERR_get_error()))                     \
+    case kBudErrParseDH:                                                      \
+      BUD_ERROR("Failed to load/parse DH params from %s reason: %s",          \
+                err.str,                                                      \
+                ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \

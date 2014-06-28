@@ -121,6 +121,7 @@ struct bud_context_s {
   const JSON_Array* npn;
   const char* ciphers;
   const char* ecdh;
+  const char* dh_file;
   const char* ticket_key;
   int request_cert;
   const char* ca_file;
