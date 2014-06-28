@@ -718,6 +718,8 @@ void bud_context_free(bud_context_t* context) {
     X509_STORE_free(context->ca_store);
   if (context->ocsp_id != NULL)
     OCSP_CERTID_free(context->ocsp_id);
+  if (context->dh != NULL)
+    DH_free(context->dh);
   free(context->ocsp_der_id);
   free(context->backend.list);
   free(context->npn_line);
@@ -728,6 +730,7 @@ void bud_context_free(bud_context_t* context) {
   context->ca_store = NULL;
   context->npn_line = NULL;
   context->ocsp_id = NULL;
+  context->dh = NULL;
   context->ocsp_der_id = NULL;
   context->backend.list = NULL;
 }
@@ -1266,9 +1269,21 @@ bud_error_t bud_context_init(bud_config_t* config,
 
     SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
     r = SSL_CTX_set_tmp_dh(ctx, dh);
-    DH_free(dh);
+    if (context == &config->contexts[0])
+      context->dh = dh;
+    else
+      DH_free(dh);
     if (r < 0)
       return bud_error_dstr(kBudErrParseDH, context->dh_file);
+
+  /* Use shared DH params */
+  } else if (config->contexts[0].dh != NULL) {
+    int r;
+
+    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
+    r = SSL_CTX_set_tmp_dh(ctx, config->contexts[0].dh);
+    if (r < 0)
+      return bud_error_dstr(kBudErrParseDH, config->contexts[0].dh_file);
   }
 
   /* Cipher suites */

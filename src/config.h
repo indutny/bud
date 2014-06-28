@@ -133,6 +133,7 @@ struct bud_context_s {
   X509* issuer;
   X509_STORE* ca_store;
   OCSP_CERTID* ocsp_id;
+  DH* dh;
   char* ocsp_der_id;
   size_t ocsp_der_id_len;
   const char* ocsp_url;
