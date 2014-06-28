@@ -1105,6 +1105,12 @@ bud_error_t bud_context_load_keys(bud_context_t* context) {
 
   err = bud_ok();
 
+  /* Drop all existing extra certs */
+  if (context->ctx->extra_certs != NULL) {
+    sk_X509_pop_free(context->ctx->extra_certs, X509_free);
+    context->ctx->extra_certs = NULL;
+  }
+
   /* Load cert file or string */
   if (context->cert_file != NULL) {
     err = bud_context_load_cert(context, context->cert_file);
@@ -1690,15 +1696,6 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
   }
 
   if (ret) {
-    /**
-     * If we could set up our certificate, now proceed to
-     * the CA certificates.
-     */
-    if (ctx->ctx->extra_certs != NULL) {
-      sk_X509_pop_free(ctx->ctx->extra_certs, X509_free);
-      ctx->ctx->extra_certs = NULL;
-    }
-
     while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
       r = SSL_CTX_add_extra_chain_cert(ctx->ctx, ca);
 
