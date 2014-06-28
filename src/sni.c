@@ -23,6 +23,13 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   JSON_Array* pass_strs;
   bud_error_t err;
 
+  cert_str = NULL;
+  key_str = NULL;
+  pass_str = NULL;
+  cert_strs = NULL;
+  key_strs = NULL;
+  pass_strs = NULL;
+
   obj = json_value_get_object(json);
   val = json_object_get_value(obj, "cert");
   if (json_value_get_type(val) == JSONString)
