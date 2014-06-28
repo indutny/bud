@@ -494,12 +494,15 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   frontend->ssl3 = -1;
   frontend->max_send_fragment = -1;
   frontend->allow_half_open = -1;
+  frontend->reneg_limit = -1;
   if (obj == NULL)
     return bud_ok();
 
   frontend->security = json_object_get_string(obj, "security");
   frontend->reneg_window = json_object_get_number(obj, "reneg_window");
-  frontend->reneg_limit = json_object_get_number(obj, "reneg_limit");
+  val = json_object_get_value(obj, "reneg_limit");
+  if (val != NULL)
+    frontend->reneg_limit = json_value_get_number(val);
 
   val = json_object_get_value(obj, "ssl3");
   if (val != NULL)
@@ -913,7 +916,7 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.max_send_fragment, -1, 1400);
   DEFAULT(config->frontend.allow_half_open, -1, 0);
   DEFAULT(config->frontend.reneg_window, 0, 600);
-  DEFAULT(config->frontend.reneg_limit, 0, 3);
+  DEFAULT(config->frontend.reneg_limit, -1, 3);
   DEFAULT(config->balance, NULL, "roundrobin");
 
   for (i = 0; i < config->backend.count; i++)
