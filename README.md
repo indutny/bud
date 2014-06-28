@@ -157,6 +157,10 @@ to get default configuration options (with comments and description below):
   // **Optional** possible values: "roundrobin", "sni"
   "balance": "roundrobin"
 
+  // Unix-specific option, drop privileges after starting the process
+  "user": null,
+  "group": null,
+
   // Backend configuration (i.e. address of Cleartext server)
   "backend": [{
     "port": 8000,

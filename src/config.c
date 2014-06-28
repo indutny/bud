@@ -845,6 +845,8 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"reneg_limit\": %d\n", config.frontend.reneg_limit);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"balance\": \"%s\",\n", config.balance);
+  fprintf(stdout, "  \"user\": null,\n");
+  fprintf(stdout, "  \"group\": null,\n");
   fprintf(stdout, "  \"backend\": [{\n");
   fprintf(stdout, "    \"port\": %d,\n", config.backend.list[0].port);
   fprintf(stdout, "    \"host\": \"%s\",\n", config.backend.list[0].host);
