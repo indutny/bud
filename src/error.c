@@ -124,6 +124,10 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("Failed to load/parse DH params from %s reason: %s",          \
                 err.str,                                                      \
                 ERR_reason_error_string(ERR_get_error()))                     \
+    case kBudErrInvalidBalance:                                               \
+      BUD_ERROR("Invalid balance, should be `round-robin` or `on-fail`, "     \
+                    "not `%s`",                                               \
+                err.str)                                                      \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \

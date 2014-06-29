@@ -103,6 +103,12 @@ struct bud_config_backend_list_s {
   int last;
 };
 
+enum bud_config_balance_e {
+  kBudBalanceRoundRobin,
+  kBudBalanceSNI,
+  kBudBalanceOnFail
+};
+
 #undef BUD_CONFIG_ADDR_FIELDS
 
 struct bud_context_s {
@@ -127,6 +133,9 @@ struct bud_context_s {
   const char* ca_file;
   const JSON_Array* ca_array;
 
+  /* Could be either `on-fail` or false */
+  const char* balance;
+
   /* Various */
   SSL_CTX* ctx;
   X509* cert;
@@ -141,13 +150,8 @@ struct bud_context_s {
   char ticket_key_storage[48];
   char* npn_line;
   size_t npn_line_len;
+  bud_config_balance_t balance_e;
 };
-
-enum bud_config_balance_e {
-  kBudBalanceRoundRobin,
-  kBudBalanceSNI
-};
-
 
 struct bud_config_s {
   /* Internal, just to keep stuff allocated */

@@ -12,6 +12,7 @@ static void bud_kill_backend(bud_config_t* config,
 static void bud_revive_backend(uv_timer_t* timer);
 
 bud_config_backend_t* bud_select_backend(bud_config_t* config,
+                                         bud_config_balance_t balance,
                                          bud_config_backend_list_t* backend) {
   bud_config_backend_t* res;
   int first;
@@ -20,6 +21,10 @@ bud_config_backend_t* bud_select_backend(bud_config_t* config,
 
   now = uv_now(config->loop);
   death_timeout = (uint64_t) config->availability.death_timeout;
+
+  /* Always try the top-most backend when balancing `on-fail` */
+  if (balance == kBudBalanceOnFail)
+    backend->last = 0;
 
   first = backend->last;
   do {
@@ -30,11 +35,15 @@ bud_config_backend_t* bud_select_backend(bud_config_t* config,
      * amount of time
      */
     if (!res->dead && res->dead_since != 0) {
-      if (now - res->last_checked < death_timeout &&
-          now - res->dead_since > death_timeout) {
+      if (now - res->last_checked <= death_timeout &&
+          now - res->dead_since >= death_timeout) {
         bud_kill_backend(config, res);
       }
     }
+
+    /* Do not iterate over backends when balancing 'on-fail' */
+    if (balance == kBudBalanceOnFail && !res->dead)
+      break;
 
     backend->last++;
     backend->last %= backend->count;
@@ -258,6 +267,7 @@ bud_client_error_t bud_client_retry(bud_client_t* client) {
   client->backend.close = kBudProgressDone;
   if (client->backend_list != NULL) {
     client->selected_backend = bud_select_backend(client->config,
+                                                  client->balance,
                                                   client->backend_list);
   }
 

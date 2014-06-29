@@ -75,6 +75,7 @@ static bud_error_t bud_config_load_backend(
     bud_config_t* config,
     JSON_Object* obj,
     bud_config_backend_t* backend);
+static bud_config_balance_t bud_config_balance_to_enum(const char* balance);
 
 
 int kBudSSLConfigIndex = -1;
@@ -395,8 +396,6 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
       goto failed_load_context;
     }
 
-    ctx->servername = json_object_get_string(obj, "servername");
-    ctx->servername_len = ctx->servername == NULL ? 0 : strlen(ctx->servername);
     *err = bud_context_load(obj, ctx);
     if (!bud_is_ok(*err))
       goto failed_load_context;
@@ -534,6 +533,8 @@ bud_error_t bud_context_load(JSON_Object* obj, bud_context_t* ctx) {
 
   ctx->server_preference = -1;
 
+  ctx->servername = json_object_get_string(obj, "servername");
+  ctx->servername_len = ctx->servername == NULL ? 0 : strlen(ctx->servername);
   ctx->cert_file = json_object_get_string(obj, "cert");
   ctx->cert_files = json_object_get_array(obj, "cert");
   ctx->key_file = json_object_get_string(obj, "key");
@@ -547,6 +548,8 @@ bud_error_t bud_context_load(JSON_Object* obj, bud_context_t* ctx) {
   ctx->ticket_key = json_object_get_string(obj, "ticket_key");
   ctx->ca_file = json_object_get_string(obj, "ca");
   ctx->ca_array = json_object_get_array(obj, "ca");
+  ctx->balance = json_object_get_string(obj, "balance");
+
   val = json_object_get_value(obj, "request_cert");
   if (val != NULL)
     ctx->request_cert = json_value_get_boolean(val);
@@ -744,6 +747,7 @@ void bud_context_free(bud_context_t* context) {
   context->dh = NULL;
   context->ocsp_der_id = NULL;
   context->backend.list = NULL;
+  context->backend.count = 0;
 }
 
 
@@ -1258,7 +1262,6 @@ bud_error_t bud_context_init(bud_config_t* config,
   /* ECDH curve selection */
   ecdh_nid = OBJ_sn2nid(context->ecdh);
   if (ecdh_nid == NID_undef) {
-    ecdh = NULL;
     err = bud_error_dstr(kBudErrECDHNotFound, context->ecdh);
     goto fatal;
   }
@@ -1272,7 +1275,6 @@ bud_error_t bud_context_init(bud_config_t* config,
   SSL_CTX_set_options(ctx, SSL_OP_SINGLE_ECDH_USE);
   SSL_CTX_set_tmp_ecdh(ctx, ecdh);
   EC_KEY_free(ecdh);
-  ecdh = NULL;
 
   /* DH params */
   if (context->dh_file != NULL) {
@@ -1281,13 +1283,17 @@ bud_error_t bud_context_init(bud_config_t* config,
     int r;
 
     dh_bio = BIO_new_file(context->dh_file, "r");
-    if (dh_bio == NULL)
-      return bud_error_dstr(kBudErrLoadDH, context->dh_file);
+    if (dh_bio == NULL) {
+      err = bud_error_dstr(kBudErrLoadDH, context->dh_file);
+      goto fatal;
+    }
 
     dh = PEM_read_bio_DHparams(dh_bio, NULL, NULL, NULL);
     BIO_free_all(dh_bio);
-    if (dh == NULL)
-      return bud_error_dstr(kBudErrParseDH, context->dh_file);
+    if (dh == NULL) {
+      err = bud_error_dstr(kBudErrParseDH, context->dh_file);
+      goto fatal;
+    }
 
     SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
     r = SSL_CTX_set_tmp_dh(ctx, dh);
@@ -1295,8 +1301,10 @@ bud_error_t bud_context_init(bud_config_t* config,
       context->dh = dh;
     else
       DH_free(dh);
-    if (r < 0)
-      return bud_error_dstr(kBudErrParseDH, context->dh_file);
+    if (r < 0) {
+      err = bud_error_dstr(kBudErrParseDH, context->dh_file);
+      goto fatal;
+    }
 
   /* Use shared DH params */
   } else if (config->contexts[0].dh != NULL) {
@@ -1304,8 +1312,10 @@ bud_error_t bud_context_init(bud_config_t* config,
 
     SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
     r = SSL_CTX_set_tmp_dh(ctx, config->contexts[0].dh);
-    if (r < 0)
-      return bud_error_dstr(kBudErrParseDH, config->contexts[0].dh_file);
+    if (r < 0) {
+      err = bud_error_dstr(kBudErrParseDH, config->contexts[0].dh_file);
+      goto fatal;
+    }
   }
 
   /* Cipher suites */
@@ -1351,15 +1361,18 @@ bud_error_t bud_context_init(bud_config_t* config,
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 
   SSL_CTX_set_tlsext_status_cb(ctx, bud_client_stapling_cb);
-  context->ctx = ctx;
 
+  context->balance_e = bud_config_balance_to_enum(context->balance);
+  if (context->balance_e == kBudBalanceSNI) {
+    err = bud_error_dstr(kBudErrInvalidBalance, context->balance);
+    goto fatal;
+  }
+
+  context->ctx = ctx;
   /* Load keys and certs */
   return bud_context_load_keys(context);
 
 fatal:
-  if (ecdh != NULL)
-    EC_KEY_free(ecdh);
-
   SSL_CTX_free(ctx);
   return err;
 }
@@ -1491,14 +1504,11 @@ bud_error_t bud_config_init(bud_config_t* config) {
 
   i = 0;
 
-  if (strcmp(config->balance, "sni") == 0)
-    config->balance_e = kBudBalanceSNI;
-  else
-    config->balance_e = kBudBalanceRoundRobin;
+  config->balance_e = bud_config_balance_to_enum(config->balance);
 
   /* At least one backend should be present for non-SNI balancing */
   if (config->contexts[0].backend.count == 0 &&
-      config->balance_e == kBudBalanceRoundRobin) {
+      config->balance_e != kBudBalanceSNI) {
     return bud_error(kBudErrNoBackend);
   }
 
@@ -1906,3 +1916,20 @@ bud_error_t bud_config_drop_privileges(bud_config_t* config) {
 
   return bud_ok();
 }
+
+
+#define CSTRCMP(a, b) strncmp((a), b, sizeof(b) - 1)
+
+
+bud_config_balance_t bud_config_balance_to_enum(const char* balance) {
+  if (balance == NULL)
+    return kBudBalanceRoundRobin;
+  if (CSTRCMP(balance, "sni") == 0)
+    return kBudBalanceSNI;
+  else if (CSTRCMP(balance, "on-fail") == 0)
+    return kBudBalanceOnFail;
+  else
+    return kBudBalanceRoundRobin;
+}
+
+#undef CSTRCMP

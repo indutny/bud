@@ -160,7 +160,12 @@ to get default configuration options (with comments and description below):
   },
 
   // Balance tactic
-  // **Optional** possible values: "roundrobin", "sni"
+  // **Optional** possible values: "roundrobin", "sni", or "on-fail"
+  //
+  // * "roundrobin" - on each new connection select next live backend
+  // * "sni" - select backend list from either async sni or supplied contexts
+  // * "on-fail" - select next backend in list only if the previous one is
+  //   dead
   "balance": "roundrobin"
 
   // Unix-specific option, drop privileges after starting the process
@@ -217,6 +222,9 @@ to get default configuration options (with comments and description below):
   "contexts": [{
     // Servername to match against
     "servername": "blog.indutny.com",
+
+    // **Optional** balance algorithm, could not be `sni`
+    "balance": "roundrobin",
 
     // Path to TLS certificate
     // Could be an array

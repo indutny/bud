@@ -53,6 +53,7 @@ struct bud_client_s {
 
   /* Availability */
   bud_client_progress_t retry;
+  bud_config_balance_t balance;
   struct bud_config_backend_list_s* backend_list;
   struct bud_config_backend_s* selected_backend;
   uv_timer_t retry_timer;
