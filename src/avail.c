@@ -114,9 +114,14 @@ void bud_revive_backend(uv_timer_t* timer) {
 
   /* Ignore errors */
   backend = timer->data;
+  uv_close((uv_handle_t*) backend->revive_timer, (uv_close_cb) free);
+
+  /* Backend is gone :( */
+  if (backend == NULL)
+    return;
+
   backend->dead = 0;
   backend->dead_since = 0;
-  uv_close((uv_handle_t*) backend->revive_timer, (uv_close_cb) free);
   backend->revive_timer = NULL;
 
   bud_log(backend->config,

@@ -716,6 +716,8 @@ void bud_context_free(bud_context_t* context) {
 
   for (i = 0; i < context->backend.count; i++) {
     if (context->backend.list[i].revive_timer != NULL) {
+      /* Let the timer now that the backend is gone at this point */
+      context->backend.list[i].revive_timer->data = NULL;
       uv_close((uv_handle_t*) context->backend.list[i].revive_timer,
                (uv_close_cb) free);
       context->backend.list[i].revive_timer = NULL;
