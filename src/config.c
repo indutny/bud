@@ -187,6 +187,7 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
 void bud_config_copy(bud_config_t* dst, bud_config_t* src) {
   /* Load params from the new one */
   dst->json = src->json;
+  dst->logger = src->logger;
   dst->path = src->path;
   dst->inlined = src->inlined;
   dst->contexts = src->contexts;
