@@ -159,16 +159,15 @@ void bud_worker_read_cb(uv_stream_t* stream,
 #ifndef _WIN32
 void bud_worker_signal_cb(uv_signal_t* signal, int status) {
   bud_config_t* config;
-  bud_error_t err;
 
   config = signal->data;
   if (status == UV_ECANCELED)
     return;
 
-  err = bud_config_reload(config);
-  if (bud_is_ok(err))
-    bud_log(config, kBudLogInfo, "Successfully reloaded config");
-  else
-    bud_error_log(config, kBudLogWarning, err);
+  bud_log(config, kBudLogInfo, "Worker shutting down");
+
+  /* Close server and signal listener and let the worker die */
+  uv_close((uv_handle_t*) config->signal.sighup, bud_worker_close_cb);
+  uv_close((uv_handle_t*) config->ipc, bud_worker_close_cb);
 }
 #endif  /* !_WIN32 */

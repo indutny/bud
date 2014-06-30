@@ -10,8 +10,16 @@ struct bud_server_s;
 typedef struct bud_worker_s bud_worker_t;
 typedef bud_error_t (*bud_worker_kill_cb)(bud_worker_t* worker);
 
+enum {
+  kBudWorkerStateNone = 0x0,
+  kBudWorkerStateActive = 0x1,
+  kBudWorkerStateStale = 0x2,
+  kBudWorkerStateDead = 0x4
+};
+
 struct bud_worker_s {
-  int active;
+  unsigned int state;
+  int index;
 
   bud_config_t* config;
   uv_process_t proc;

@@ -28,6 +28,7 @@ static bud_error_t bud_master_init_signals(bud_config_t* config);
 static void bud_master_signal_close_cb(uv_handle_t* handle);
 static void bud_master_signal_cb(uv_signal_t* handle, int signum);
 #endif  /* !_WIN32 */
+static bud_error_t bud_master_spawn_workers(bud_config_t* config);
 static bud_error_t bud_master_spawn_worker(bud_worker_t* worker);
 static void bud_master_kill_worker(bud_worker_t* worker,
                                    uint64_t delay,
@@ -73,15 +74,7 @@ bud_error_t bud_master(bud_config_t* config) {
   if (!bud_is_ok(err))
     goto fatal;
 
-  /* Spawn workers */
-  for (i = 0; i < config->worker_count; i++) {
-    config->workers[i].config = config;
-    err = bud_master_spawn_worker(&config->workers[i]);
-
-    if (!bud_is_ok(err))
-      while (i-- > 0)
-        bud_master_kill_worker(&config->workers[i], 0, NULL);
-  }
+  err = bud_master_spawn_workers(config);
 
   if (bud_is_ok(err)) {
     bud_log(config,
@@ -110,7 +103,7 @@ bud_error_t bud_master_finalize(bud_config_t* config) {
   int i;
 
   for (i = 0; i < config->worker_count; i++)
-    if (config->workers[i].active)
+    if (config->workers[i].state & kBudWorkerStateActive)
       bud_master_kill_worker(&config->workers[i], 0, NULL);
 
 #ifndef _WIN32
@@ -243,6 +236,7 @@ void bud_master_signal_close_cb(uv_handle_t* handle) {
 
 void bud_master_signal_cb(uv_signal_t* handle, int signum) {
   bud_config_t* config;
+  bud_worker_t* stale;
   bud_error_t err;
   int i;
 
@@ -254,23 +248,66 @@ void bud_master_signal_cb(uv_signal_t* handle, int signum) {
 
   /* SIGHUP: 0 workers, handle it */
   if (config->worker_count == 0) {
-    err = bud_config_reload(config);
-    if (bud_is_ok(err))
-      bud_log(config, kBudLogInfo, "Successfully reloaded config");
-    else
-      bud_error_log(config, kBudLogWarning, err);
+    bud_log(config, kBudLogWarning, "Can't reload config in 0-workers setup");
     return;
   }
 
-  /* SIGHUP - send it to workers */
+  /* SIGHUP - gracefully restart workers */
   bud_log(config,
           kBudLogInfo,
           "master got SIGHUP, broadcasting to workers");
-  for (i = 0; i < config->worker_count; i++)
-    if (config->workers[i].active)
-      uv_process_kill(&config->workers[i].proc, SIGHUP);
+  stale = config->workers;
+
+  /* Allocate new workers array and start them */
+  config->workers = calloc(config->worker_count, sizeof(*config->workers));
+  if (config->workers == NULL) {
+    err = bud_error_str(kBudErrNoMem, "new workers");
+    goto restore;
+  }
+
+  err = bud_master_spawn_workers(config);
+  if (!bud_is_ok(err))
+    goto restore;
+
+  /* Send SIGHUP to stale workers and mark them as stale */
+  for (i = 0; i < config->worker_count; i++) {
+    if (stale[i].state & kBudWorkerStateActive) {
+      stale[i].state |= kBudWorkerStateStale;
+      uv_process_kill(&stale[i].proc, SIGHUP);
+    }
+  }
+  return;
+
+restore:
+  /* Failure, restore previous workers */
+  free(config->workers);
+  config->workers = stale;
+
+  bud_error_print(stderr, err);
 }
 #endif  /* !_WIN32 */
+
+
+bud_error_t bud_master_spawn_workers(bud_config_t* config) {
+  bud_error_t err;
+  int i;
+
+  /* In case, if worker_count == 0 */
+  err = bud_ok();
+
+  /* Spawn workers */
+  for (i = 0; i < config->worker_count; i++) {
+    config->workers[i].config = config;
+    config->workers[i].index = i;
+    err = bud_master_spawn_worker(&config->workers[i]);
+
+    if (!bud_is_ok(err))
+      while (i-- > 0)
+        bud_master_kill_worker(&config->workers[i], 0, NULL);
+  }
+
+  return err;
+}
 
 
 bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
@@ -282,6 +319,23 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
 
   config = worker->config;
   ASSERT(config != NULL, "Worker config absent");
+
+  /* Config reload requested, this worker should not be restarted */
+  if (worker->state & kBudWorkerStateStale) {
+    bud_worker_t* start;
+
+    start = &worker[-worker->index];
+    worker->state |= kBudWorkerStateDead;
+
+    /* However check if all workers are gone, and if so - release the storage */
+    for (i = 0; i < config->worker_count; i++)
+      if (!(start[i].state & kBudWorkerStateDead))
+        return bud_ok();
+
+    /* All gone :( Good bye! */
+    free(start);
+    return bud_ok();
+  }
 
   memset(&options, 0, sizeof(options));
   options.exit_cb = bud_master_respawn_worker;
@@ -326,7 +380,7 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
     err = bud_error_num(kBudErrSpawn, r);
     goto failed_uv_spawn;
   } else {
-    worker->active = 1;
+    worker->state |= kBudWorkerStateActive;
     err = bud_ok();
     bud_log(worker->config,
             kBudLogInfo,
@@ -380,10 +434,11 @@ void bud_master_respawn_worker(uv_process_t* proc,
 void bud_master_kill_worker(bud_worker_t* worker,
                             uint64_t delay,
                             bud_worker_kill_cb cb) {
-  ASSERT(worker->active, "Tried to kill inactive worker");
+  ASSERT(worker->state & kBudWorkerStateActive,
+         "Tried to kill inactive worker");
 
   uv_process_kill(&worker->proc, SIGKILL);
-  worker->active = 0;
+  worker->state &= ~kBudWorkerStateActive;
   worker->kill_cb = cb;
   worker->proc.data = worker;
   worker->ipc.data = worker;
@@ -455,10 +510,11 @@ void bud_master_balance(struct bud_server_s* server) {
     config->last_worker++;
     config->last_worker %= config->worker_count;
     worker = &config->workers[config->last_worker];
-  } while (!worker->active && config->last_worker != last_index);
+  } while (!(worker->state & kBudWorkerStateActive) &&
+           config->last_worker != last_index);
 
   /* All workers are down... wait */
-  if (!worker->active) {
+  if (!(worker->state & kBudWorkerStateActive)) {
     config->pending_accept = 1;
     return;
   }

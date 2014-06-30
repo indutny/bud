@@ -224,7 +224,6 @@ struct bud_config_s {
 
 bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err);
 bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err);
-bud_error_t bud_config_reload(bud_config_t* config);
 void bud_config_free(bud_config_t* config);
 
 /* Helper for loading SNI */

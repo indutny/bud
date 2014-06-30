@@ -36,7 +36,6 @@ static bud_error_t bud_config_load_ca_file(X509_STORE** store,
                                            const char* filename);
 static bud_error_t bud_config_load_frontend(JSON_Object* obj,
                                             bud_config_frontend_t* frontend);
-static void bud_config_copy(bud_config_t* dst, bud_config_t* src);
 static void bud_config_destroy(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
 static void bud_config_set_backend_defaults(bud_config_backend_t* backend);
@@ -181,54 +180,6 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   }
 
   return config;
-}
-
-
-void bud_config_copy(bud_config_t* dst, bud_config_t* src) {
-  /* Load params from the new one */
-  dst->json = src->json;
-  dst->logger = src->logger;
-  dst->path = src->path;
-  dst->inlined = src->inlined;
-  dst->contexts = src->contexts;
-  dst->restart_timeout = src->restart_timeout;
-  dst->balance = src->balance;
-  dst->user = src->user;
-  dst->group = src->group;
-  memcpy(&dst->log, &src->log, sizeof(src->log));
-  memcpy(&dst->availability, &src->availability, sizeof(src->availability));
-  memcpy(&dst->frontend, &src->frontend, sizeof(src->frontend));
-  memcpy(&dst->sni, &src->sni, sizeof(src->sni));
-  memcpy(&dst->stapling, &src->stapling, sizeof(src->stapling));
-}
-
-
-bud_error_t bud_config_reload(bud_config_t* config) {
-  bud_error_t err;
-  bud_config_t* loaded;
-  bud_config_t restore;
-
-  loaded = bud_config_load(config->path, config->inlined, &err);
-  if (!bud_is_ok(err))
-    return err;
-
-  memset(&restore, 0, sizeof(restore));
-  bud_config_copy(&restore, config);
-  bud_config_copy(config, loaded);
-
-  /* Initialize config with new params */
-  err = bud_config_init(config);
-
-  /* Restore everything on failure */
-  if (!bud_is_ok(err)) {
-    bud_config_copy(config, &restore);
-    bud_config_free(loaded);
-    return err;
-  }
-
-  free(loaded);
-  bud_config_destroy(&restore);
-  return bud_ok();
 }
 
 
