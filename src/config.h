@@ -10,6 +10,7 @@
 #include "openssl/x509.h"
 #include "parson.h"
 
+#include "bud/tracing.h"
 #include "common.h"
 #include "error.h"
 
@@ -22,6 +23,7 @@ struct bud_http_pool_s;
 typedef struct bud_context_s bud_context_t;
 typedef struct bud_config_http_pool_s bud_config_http_pool_t;
 typedef enum bud_config_balance_e bud_config_balance_t;
+typedef struct bud_config_trace_s bud_config_trace_t;
 typedef struct bud_config_s bud_config_t;
 typedef struct bud_config_addr_s bud_config_addr_t;
 typedef enum bud_config_proxyline_s bud_config_proxyline_t;
@@ -153,6 +155,19 @@ struct bud_context_s {
   bud_config_balance_t balance_e;
 };
 
+#define BUD_CONFIG_TRACE_DECL(V) bud_trace_cb_t* V;
+
+struct bud_config_trace_s {
+  /* DSO hooks for tracing */
+  BUD_TRACING_ENUM(BUD_CONFIG_TRACE_DECL)
+
+  JSON_Array* dso_array;
+  uv_lib_t* dso;
+  int dso_count;
+};
+
+#undef BUD_CONFIG_TRACE_DECL
+
 struct bud_config_s {
   /* Internal, just to keep stuff allocated */
   JSON_Value* json;
@@ -220,6 +235,8 @@ struct bud_config_s {
 
   int context_count;
   bud_context_t* contexts;
+
+  bud_config_trace_t trace;
 };
 
 bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err);

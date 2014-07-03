@@ -28,6 +28,10 @@
 #include "version.h"
 
 static bud_error_t bud_config_init(bud_config_t* config);
+static bud_error_t bud_config_load_tracing(bud_config_trace_t* trace,
+                                           JSON_Object* obj);
+static bud_error_t bud_config_init_tracing(bud_config_trace_t* trace);
+static void bud_config_trace_free(bud_config_trace_t* trace);
 static void bud_config_load_addr(JSON_Object* obj,
                                  bud_config_addr_t* addr);
 static bud_error_t bud_config_load_ca_arr(X509_STORE** store,
@@ -242,6 +246,11 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
     goto failed_alloc_path;
   }
 
+  *err = bud_config_load_tracing(&config->trace,
+                                 json_object_get_object(obj, "tracing"));
+  if (!bud_is_ok(*err))
+    goto failed_load_tracing;
+
   config->inlined = inlined;
 
   /* Allocate contexts and backends */
@@ -251,7 +260,7 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
                             sizeof(*config->contexts));
   if (config->contexts == NULL) {
     *err = bud_error_str(kBudErrNoMem, "bud_context_t");
-    goto failed_get_index;
+    goto failed_alloc_contexts;
   }
 
   config->json = json;
@@ -307,12 +316,12 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
   frontend = json_object_get_object(obj, "frontend");
   *err = bud_config_load_frontend(frontend, &config->frontend);
   if (!bud_is_ok(*err))
-    goto failed_get_index;
+    goto failed_alloc_contexts;
 
   /* Load frontend's context */
   *err = bud_context_load(frontend, &config->contexts[0]);
   if (!bud_is_ok(*err))
-    goto failed_get_index;
+    goto failed_alloc_contexts;
 
   /* Backend configuration */
   config->balance = json_object_get_string(obj, "balance");
@@ -320,7 +329,7 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
                                       obj,
                                       &config->contexts[0].backend);
   if (!bud_is_ok(*err))
-    goto failed_get_index;
+    goto failed_alloc_contexts;
 
   /* User and group configuration */
   config->user = json_object_get_string(obj, "user");
@@ -370,9 +379,13 @@ failed_load_context:
     ctx->backend.list = NULL;
   }
 
-failed_get_index:
+failed_alloc_contexts:
   free(config->contexts);
   config->contexts = NULL;
+  free(config->trace.dso);
+  config->trace.dso = NULL;
+
+failed_load_tracing:
   free(config->path);
   config->path = NULL;
 
@@ -384,6 +397,133 @@ failed_get_object:
 
 end:
   return NULL;
+}
+
+
+#define BUD_CONFIG_INIT_TRACING(V) trace->V = NULL;
+
+#define BUD_CONFIG_ALLOC_TRACING(V)                                           \
+    trace->V = calloc(trace->dso_count + 1, sizeof(*trace->V));               \
+    if (trace->V == NULL)                                                     \
+      goto fatal;                                                             \
+
+#define BUD_CONFIG_FREE_TRACING(V)                                            \
+    free(trace->V);                                                           \
+    trace->V = NULL;                                                          \
+
+
+bud_error_t bud_config_load_tracing(bud_config_trace_t* trace,
+                                    JSON_Object* obj) {
+  BUD_TRACING_ENUM(BUD_CONFIG_INIT_TRACING)
+
+  trace->dso_count = 0;
+  trace->dso = NULL;
+  trace->dso_array = NULL;
+
+  if (obj == NULL)
+    return bud_ok();
+
+  trace->dso_array = json_object_get_array(obj, "dso");
+  trace->dso_count = json_array_get_count(trace->dso_array);
+  if (trace->dso_count == 0)
+    goto done;
+
+  trace->dso = calloc(trace->dso_count, sizeof(*trace->dso));
+  if (trace->dso == NULL)
+    return bud_error_str(kBudErrNoMem, "trace dso");
+
+  BUD_TRACING_ENUM(BUD_CONFIG_ALLOC_TRACING)
+
+done:
+  return bud_ok();
+
+fatal:
+  BUD_TRACING_ENUM(BUD_CONFIG_FREE_TRACING)
+  free(trace->dso);
+  trace->dso = NULL;
+
+  return bud_error_str(kBudErrNoMem, "trace callbacks");
+}
+
+
+#undef BUD_CONFIG_FREE_TRACING
+#undef BUD_CONFIG_ALLOC_TRACING
+#undef BUD_CONFIG_INIT_TRACING
+
+
+#define BUD_CONFIG_DECL_TRACING(V) bud_trace_cb_t* last_##V;
+
+#define BUD_CONFIG_INIT_TRACING(V) last_##V = trace->V;
+
+#define BUD_CONFIG_COPY_TRACING(V)                                            \
+    if (module->V != NULL) {                                                  \
+      *last_##V = module->V;                                                  \
+      last_##V++;                                                             \
+    }                                                                         \
+
+#define BUD_CONFIG_ZERO_TRACING(V)                                            \
+    if (last_##V == trace->V) {                                               \
+      free(trace->V);                                                         \
+      trace->V = NULL;                                                        \
+    }                                                                         \
+
+bud_error_t bud_config_init_tracing(bud_config_trace_t* trace) {
+  int i;
+  int r;
+  bud_error_t err;
+  BUD_TRACING_ENUM(BUD_CONFIG_DECL_TRACING)
+
+  BUD_TRACING_ENUM(BUD_CONFIG_INIT_TRACING)
+
+  for (i = 0; i < trace->dso_count; i++) {
+    bud_trace_module_t* module;
+
+    r = uv_dlopen(json_array_get_string(trace->dso_array, i), &trace->dso[i]);
+    if (r != 0) {
+      i--;
+      err = bud_error_num(kBudErrDLOpen, r);
+      goto fatal;
+    }
+
+    r = uv_dlsym(&trace->dso[i], "bud_trace_module", (void**) &module);
+    if (r != 0) {
+      err = bud_error_num(kBudErrDLSym, r);
+      goto fatal;
+    }
+
+    BUD_TRACING_ENUM(BUD_CONFIG_COPY_TRACING)
+  }
+
+  BUD_TRACING_ENUM(BUD_CONFIG_ZERO_TRACING)
+
+  return bud_ok();
+
+fatal:
+  /* Unload libraries */
+  for (; i >= 0; i--)
+    uv_dlclose(&trace->dso[i]);
+
+  /* Prevent us from unloading it again in trace_free */
+  trace->dso_count = 0;
+
+  return err;
+}
+
+
+#undef BUD_CONFIG_ZERO_TRACING
+#undef BUD_CONFIG_COPY_TRACING
+#undef BUD_CONFIG_DECL_TRACING
+#undef BUD_CONFIG_INIT_TRACING
+
+
+void bud_config_trace_free(bud_config_trace_t* trace) {
+  int i;
+
+  for (i = 0; i < trace->dso_count; i++)
+    uv_dlclose(&trace->dso[i]);
+
+  free(trace->dso);
+  trace->dso = NULL;
 }
 
 
@@ -644,6 +784,8 @@ void bud_config_destroy(bud_config_t* config) {
 
   free(config->path);
   config->path = NULL;
+
+  bud_config_trace_free(&config->trace);
 }
 
 
@@ -850,7 +992,10 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"host\": \"%s\",\n", config.stapling.host);
   fprintf(stdout, "    \"url\": \"%s\"\n", config.stapling.url);
   fprintf(stdout, "  },\n");
-  fprintf(stdout, "  \"contexts\": []\n");
+  fprintf(stdout, "  \"contexts\": [],\n");
+  fprintf(stdout, "  \"tracing\": {\n");
+  fprintf(stdout, "    \"dso\": []\n");
+  fprintf(stdout, "  }\n");
   fprintf(stdout, "}\n");
 }
 
@@ -1497,6 +1642,10 @@ bud_error_t bud_config_init(bud_config_t* config) {
 
   /* Initialize logger */
   config->logger = bud_logger_new(config, &err);
+  if (!bud_is_ok(err))
+    goto fatal;
+
+  err = bud_config_init_tracing(&config->trace);
   if (!bud_is_ok(err))
     goto fatal;
 

@@ -40,6 +40,8 @@ enum bud_error_code_e {
   kBudErrLoadDH = 0x115,
   kBudErrParseDH = 0x116,
   kBudErrInvalidBalance = 0x117,
+  kBudErrDLOpen = 0x118,
+  kBudErrDLSym = 0x119,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,

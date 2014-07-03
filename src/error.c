@@ -128,6 +128,10 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("Invalid balance, should be `round-robin` or `on-fail`, "     \
                     "not `%s`",                                               \
                 err.str)                                                      \
+    case kBudErrDLOpen:                                                       \
+      BUD_UV_ERROR("uv_dlopen(file)", err)                                    \
+    case kBudErrDLSym:                                                        \
+      BUD_UV_ERROR("uv_dlsym(file, symbol)", err)                             \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \

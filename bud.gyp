@@ -11,6 +11,7 @@
     ],
     "include_dirs": [
       "src",
+      "include",
       "<(SHARED_INTERMEDIATE_DIR)",
     ],
     "sources": [
