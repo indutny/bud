@@ -1306,6 +1306,12 @@ bud_error_t bud_context_init(bud_config_t* config,
     SSL_CTX_set_next_protos_advertised_cb(ctx,
                                           bud_config_advertise_next_proto,
                                           context);
+
+  /* Use default NPN configuration */
+  } else if (config->contexts[0].npn_line != NULL) {
+    SSL_CTX_set_next_protos_advertised_cb(ctx,
+                                          bud_config_advertise_next_proto,
+                                          &config->contexts[0]);
   }
 #else  /* !OPENSSL_NPN_NEGOTIATED */
   err = bud_error(kBudErrNPNNotSupported);
