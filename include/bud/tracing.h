@@ -8,7 +8,10 @@ struct ssl_st;
 
 typedef struct bud_trace_module_s bud_trace_module_t;
 typedef struct bud_trace_client_s bud_trace_client_t;
+typedef struct bud_trace_backend_s bud_trace_backend_t;
 typedef void (*bud_trace_cb_t)(bud_trace_client_t* client);
+typedef void (*bud_trace_backend_cb_t)(bud_trace_client_t* client,
+                                       bud_trace_backend_t* backend);
 
 #define CONNECTION_FIELDS                                                     \
     int fd;                                                                   \
@@ -19,6 +22,10 @@ struct bud_trace_client_s {
   /* OpenSSL's SSL* object */
   struct ssl_st* ssl;
 
+  CONNECTION_FIELDS
+};
+
+struct bud_trace_backend_s {
   CONNECTION_FIELDS
 };
 

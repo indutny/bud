@@ -67,14 +67,32 @@ static void bud_trace_invoke(bud_trace_cb_t* cbs, bud_trace_client_t* t) {
 }
 
 
+static void bud_trace_backend_invoke(bud_trace_cb_t* cbs,
+                                     bud_trace_client_t* tc,
+                                     bud_trace_backend_t* tb) {
+  for (; *cbs != NULL; cbs++)
+    ((bud_trace_backend_cb_t) *cbs)(tc, tb);
+}
+
+
 #define BUD_TRACE_INVOKE(client, name)                                        \
-    do {                                                                      \
-      if (client->config->trace.name != NULL) {                               \
-        bud_trace_client_t t;                                                 \
-        bud_trace_fill_client(client, &t);                                    \
-        bud_trace_invoke(client->config->trace.name, &t) ;                    \
-      }                                                                       \
-    } while(0)                                                                \
+    if (client->config->trace.name != NULL) {                                 \
+      bud_trace_client_t t;                                                   \
+      bud_trace_fill_client(client, &t);                                      \
+      bud_trace_invoke(client->config->trace.name, &t);                       \
+    }                                                                         \
+
+
+#define BUD_TRACE_BACKEND_INVOKE(client, name)                                \
+    if (client->config->trace.name != NULL) {                                 \
+      bud_trace_client_t tc;                                                  \
+      bud_trace_backend_t tb;                                                 \
+      bud_trace_fill_client(client, &tc);                                     \
+      tb.fd = client->backend.tcp.io_watcher.fd;                              \
+      tb.host = client->selected_backend->host;                               \
+      tb.port = client->selected_backend->port;                               \
+      bud_trace_backend_invoke(client->config->trace.name, &tc, &tb);         \
+    }                                                                         \
 
 #define BUD_TRACE_GENERIC(name, cname)                                        \
     void bud_trace_##name(bud_client_t* client) {                             \
@@ -97,7 +115,7 @@ void bud_trace_backend_connect(bud_client_t* client) {
   bud_dtrace_connection_t b;
   const char* bhost;
 
-  BUD_TRACE_INVOKE(client, backend_connect);
+  BUD_TRACE_BACKEND_INVOKE(client, backend_connect);
 
   if (!BUD_BACKEND_CONNECT_ENABLED())
     return;
