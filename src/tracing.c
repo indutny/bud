@@ -1,5 +1,6 @@
 #include "tracing.h"
 #include "client.h"
+#include "config.h"
 
 typedef struct bud_dtrace_connection_s bud_dtrace_connection_t;
 typedef struct bud_dtrace_handshake_s bud_dtrace_handshake_t;
@@ -91,6 +92,7 @@ static void bud_trace_backend_invoke(bud_trace_cb_t* cbs,
       tb.fd = client->backend.tcp.io_watcher.fd;                              \
       tb.host = client->selected_backend->host;                               \
       tb.port = client->selected_backend->port;                               \
+      tb.balance = bud_config_balance_to_str(client->balance);                \
       bud_trace_backend_invoke(client->config->trace.name, &tc, &tb);         \
     }                                                                         \
 

@@ -272,4 +272,7 @@ int bud_config_str_to_addr(const char* host,
 
 bud_error_t bud_config_drop_privileges(bud_config_t* config);
 
+/* Helper for tracing */
+const char* bud_config_balance_to_str(bud_config_balance_t balance);
+
 #endif  /* SRC_CONFIG_H_ */

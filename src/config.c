@@ -2034,3 +2034,13 @@ bud_config_balance_t bud_config_balance_to_enum(const char* balance) {
 }
 
 #undef CSTRCMP
+
+
+const char* bud_config_balance_to_str(bud_config_balance_t balance) {
+  if (balance == kBudBalanceRoundRobin)
+    return "roundrobin";
+  else if (balance == kBudBalanceSNI)
+    return "sni";
+  else
+    return "on-fail";
+}

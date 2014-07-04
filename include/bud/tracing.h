@@ -19,14 +19,15 @@ typedef void (*bud_trace_backend_cb_t)(bud_trace_client_t* client,
     const char* host;                                                         \
 
 struct bud_trace_client_s {
+  CONNECTION_FIELDS
+
   /* OpenSSL's SSL* object */
   struct ssl_st* ssl;
-
-  CONNECTION_FIELDS
 };
 
 struct bud_trace_backend_s {
   CONNECTION_FIELDS
+  const char* balance;
 };
 
 #undef CONNECTION_FIELDS
