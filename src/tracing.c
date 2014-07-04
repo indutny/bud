@@ -122,6 +122,7 @@ void bud_trace_backend_connect(bud_client_t* client) {
 
   bud_dtrace_fill_connection(client, &c);
 
+#ifdef BUD_DTRACE
   bhost = client->selected_backend->host;
   b.fd = client->backend.tcp.io_watcher.fd;
   b.host = DSTR(bhost);
@@ -135,6 +136,7 @@ void bud_trace_backend_connect(bud_client_t* client) {
                       b.fd,
                       b.port,
                       (char*) bhost);
+#endif  /* BUD_DTRACE */
 }
 
 
@@ -149,17 +151,18 @@ void bud_trace_handshake(bud_client_t* client) {
 
   bud_dtrace_fill_connection(client, (bud_dtrace_connection_t*) &h);
 
+#ifdef BUD_DTRACE
   h.cipher = DSTR(SSL_get_cipher_name(client->ssl));
-#ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
+# ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
   h.servername =
       DSTR(SSL_get_servername(client->ssl, TLSEXT_NAMETYPE_host_name));
-#else  /* !SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
+# else  /* !SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
   h.servername = 0;
-#endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
+# endif  /* SSL_CTRL_SET_TLSEXT_SERVERNAME_CB */
   if (h.servername == 0)
     h.servername = DSTR("<not available>");
 
-#ifdef OPENSSL_NPN_NEGOTIATED
+# ifdef OPENSSL_NPN_NEGOTIATED
   {
     unsigned int proto_len;
     const char* protocol;
@@ -174,9 +177,10 @@ void bud_trace_handshake(bud_client_t* client) {
     proto_st[proto_len] = '\0';
   }
   h.protocol = DSTR(proto_st);
-#else  /* !OPENSSL_NPN_NEGOTIATED */
+# else  /* !OPENSSL_NPN_NEGOTIATED */
   h.protocol = DSTR("<unknown>");
-#endif  /* OPENSSL_NPN_NEGOTIATED */
+# endif  /* OPENSSL_NPN_NEGOTIATED */
+#endif  /* BUD_DTRACE */
 
   BUD_HANDSHAKE(&h, h.fd, h.port, client->host);
 }
