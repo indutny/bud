@@ -73,7 +73,7 @@ static void bud_trace_fill_backend(bud_client_t* client,
     case kBudBalanceOnFail: t->balance = kBudTraceBalanceOnFail; break;
   }
   t->balance_str = bud_config_balance_to_str(client->balance);
-  t->sni_match = client->backend_list == &client->config->contexts[0].backend;
+  t->sni_match = client->backend_list != &client->config->contexts[0].backend;
 }
 
 
