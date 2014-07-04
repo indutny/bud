@@ -62,6 +62,21 @@ static void bud_trace_fill_client(bud_client_t* client, bud_trace_client_t* t) {
 }
 
 
+static void bud_trace_fill_backend(bud_client_t* client,
+                                   bud_trace_backend_t* t) {
+  t->fd = client->backend.tcp.io_watcher.fd;
+  t->host = client->selected_backend->host;
+  t->port = client->selected_backend->port;
+  switch (client->balance) {
+    case kBudBalanceRoundRobin: t->balance = kBudTraceBalanceRoundRobin; break;
+    case kBudBalanceSNI: t->balance = kBudTraceBalanceSNI; break;
+    case kBudBalanceOnFail: t->balance = kBudTraceBalanceOnFail; break;
+  }
+  t->balance_str = bud_config_balance_to_str(client->balance);
+  t->sni_match = client->backend_list == &client->config->contexts[0].backend;
+}
+
+
 static void bud_trace_invoke(bud_trace_cb_t* cbs, bud_trace_client_t* t) {
   for (; *cbs != NULL; cbs++)
     (*cbs)(t);
@@ -89,10 +104,7 @@ static void bud_trace_backend_invoke(bud_trace_cb_t* cbs,
       bud_trace_client_t tc;                                                  \
       bud_trace_backend_t tb;                                                 \
       bud_trace_fill_client(client, &tc);                                     \
-      tb.fd = client->backend.tcp.io_watcher.fd;                              \
-      tb.host = client->selected_backend->host;                               \
-      tb.port = client->selected_backend->port;                               \
-      tb.balance = bud_config_balance_to_str(client->balance);                \
+      bud_trace_fill_backend(client, &tb);                                     \
       bud_trace_backend_invoke(client->config->trace.name, &tc, &tb);         \
     }                                                                         \
 

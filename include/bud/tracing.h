@@ -9,6 +9,7 @@ struct ssl_st;
 typedef struct bud_trace_module_s bud_trace_module_t;
 typedef struct bud_trace_client_s bud_trace_client_t;
 typedef struct bud_trace_backend_s bud_trace_backend_t;
+typedef enum bud_trace_balance_e bud_trace_balance_t;
 typedef void (*bud_trace_cb_t)(bud_trace_client_t* client);
 typedef void (*bud_trace_backend_cb_t)(bud_trace_client_t* client,
                                        bud_trace_backend_t* backend);
@@ -17,6 +18,12 @@ typedef void (*bud_trace_backend_cb_t)(bud_trace_client_t* client,
     int fd;                                                                   \
     uint16_t port;                                                            \
     const char* host;                                                         \
+
+enum bud_trace_balance_e {
+  kBudTraceBalanceRoundRobin,
+  kBudTraceBalanceSNI,
+  kBudTraceBalanceOnFail
+};
 
 struct bud_trace_client_s {
   CONNECTION_FIELDS
@@ -27,7 +34,10 @@ struct bud_trace_client_s {
 
 struct bud_trace_backend_s {
   CONNECTION_FIELDS
-  const char* balance;
+
+  bud_trace_balance_t balance;
+  const char* balance_str;
+  int sni_match;
 };
 
 #undef CONNECTION_FIELDS
