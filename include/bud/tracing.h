@@ -45,4 +45,6 @@ struct bud_trace_module_s {
 
 #undef BUD_TRACE_MODULE_DECL
 
+#define BUD_TRACE_MODULE bud_trace_module_t bud_trace_module
+
 #endif  /* INCLUDE_BUD_TRACING_H_ */
