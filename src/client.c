@@ -763,7 +763,7 @@ bud_client_error_t bud_client_send(bud_client_t* client,
     /* NOTE: not causing recursion */
     bud_client_send_cb(&side->write_req, 0);
     goto done;
-  } if (r == UV_ENOSYS) {
+  } if (r == UV_ENOSYS || r == UV_EAGAIN) {
     /* Not supported try_write */
     r = 0;
   } else if (r < 0) {
