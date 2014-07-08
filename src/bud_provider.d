@@ -44,12 +44,25 @@ provider bud {
                      int port,
                      const char* host,
                      int backend_port,
-                     const char* backend_host);
+                     const char* backend_host)
+      : (bud_connection_t* c,
+         bud_connection_t* backend,
+         int fd,
+         int port,
+         const char* host,
+         int backend_port,
+         const char* backend_host);
 
   probe end(bud_dtrace_connection_t* c,
             int fd,
             int port,
             const char* host)
+      : (bud_connection_t* c, int fd, int port, const char* host);
+
+  probe retry(bud_dtrace_connection_t* c,
+              int fd,
+              int port,
+              const char* host)
       : (bud_connection_t* c, int fd, int port, const char* host);
 
   probe handshake(bud_dtrace_handshake_t* c,

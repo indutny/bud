@@ -305,6 +305,7 @@ void bud_client_retry_cb(uv_timer_t* timer) {
   /* Backend still dead, try again */
   if (client->selected_backend->dead) {
     WARNING_LN(&client->backend, "backend still dead, retrying");
+    bud_trace_retry(client);
     cerr = bud_client_retry(client);
     if (!bud_is_ok(cerr.err))
       bud_client_close(client, cerr);

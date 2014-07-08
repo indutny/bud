@@ -55,6 +55,7 @@ struct bud_trace_backend_s {
     X(frontend_accept)                                                        \
     X(end)                                                                    \
     X(handshake)                                                              \
+    X(retry)                                                                  \
 
 /* Tracing functions that do accept two arguments: client, backend */
 #define BUD_TRACING_BACKEND_ENUM(X)                                           \

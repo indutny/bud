@@ -124,6 +124,7 @@ static void bud_trace_backend_invoke(bud_trace_backend_cb_t* cbs,
 
 BUD_TRACE_GENERIC(frontend_accept, FRONTEND_ACCEPT)
 BUD_TRACE_GENERIC(end, END)
+BUD_TRACE_GENERIC(retry, RETRY)
 
 #undef BUD_TRACE_GENERIC
 
