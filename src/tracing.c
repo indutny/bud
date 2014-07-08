@@ -48,11 +48,15 @@ static void bud_dtrace_fill_connection(bud_client_t* client,
 # define BUD_HANDSHAKE_ENABLED() 0
 # define BUD_END_ENABLED() 0
 # define BUD_KILL_BACKEND_ENABLED() 0
+# define BUD_REVIVE_BACKEND_ENABLED() 0
+# define BUD_RETRY() 0
 # define BUD_FRONTEND_ACCEPT(a0, a1, a2, a3)
 # define BUD_BACKEND_CONNECT(a0, a1, a2, a3, a4, a5, a6, a7)
 # define BUD_HANDSHAKE(a0, a1, a2, a3)
 # define BUD_END(a0, a1, a2, a3)
 # define BUD_KILL_BACKEND(a0, a1, a2, a3, a4, a5, a6) 0
+# define BUD_REVIVE_BACKEND(a0, a1, a2, a3, a4, a5, a6) 0
+# define BUD_RETRY(a0, a1, a2, a3) 0
 
 # define bud_dtrace_fill_connection(client, conn) do {} while(0)
 
