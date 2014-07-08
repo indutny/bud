@@ -206,30 +206,42 @@ void bud_trace_handshake(bud_client_t* client) {
 }
 
 
-void bud_trace_kill_backend(bud_client_t* client,
-                            bud_config_backend_t* backend) {
-  bud_dtrace_connection_t c;
-  bud_dtrace_connection_t b;
-  const char* bhost;
-
-  BUD_TRACE_BACKEND_INVOKE(client, backend, kill_backend);
-
-  if (!BUD_KILL_BACKEND_ENABLED())
-    return;
-
-  bud_dtrace_fill_connection(client, &c);
-
 #ifdef BUD_DTRACE
-  bhost = backend->host;
-  b.host = DSTR(bhost);
-  b.port = backend->port;
 
-  BUD_KILL_BACKEND(&c,
-                   &b,
-                   c.fd,
-                   c.port,
-                   client->host,
-                   b.port,
-                   (char*) bhost);
-#endif  /* BUD_DTRACE */
-}
+# define BUD_TRACE_BACKEND_GENERIC_D(cname)                                    \
+    bhost = backend->host;                                                    \
+    b.host = DSTR(bhost);                                                     \
+    b.port = backend->port;                                                   \
+    BUD_##cname(&c,                                                           \
+                &b,                                                           \
+                c.fd,                                                         \
+                c.port,                                                       \
+                client->host,                                                 \
+                b.port,                                                       \
+                (char*) bhost);                                               \
+
+#else  /* !BUD_DTRACE */
+
+# define BUD_TRACE_BACKEND_GENERIC_D(a0)
+
+#endif  /* BUD_DTRACE */                                                      \
+
+
+#define BUD_TRACE_BACKEND_GENERIC(name, cname)                                \
+    void bud_trace_##name(bud_client_t* client,                               \
+                          bud_config_backend_t* backend) {                    \
+      bud_dtrace_connection_t c;                                              \
+      bud_dtrace_connection_t b;                                              \
+      const char* bhost;                                                      \
+      BUD_TRACE_BACKEND_INVOKE(client, backend, name);                        \
+      if (!BUD_##cname##_ENABLED())                                           \
+        return;                                                               \
+      bud_dtrace_fill_connection(client, &c);                                 \
+      BUD_TRACE_BACKEND_GENERIC_D(cname)                                      \
+    }                                                                         \
+
+BUD_TRACE_BACKEND_GENERIC(kill_backend, KILL_BACKEND)
+BUD_TRACE_BACKEND_GENERIC(revive_backend, REVIVE_BACKEND)
+
+#undef BUD_TRACE_BACKEND_GENERIC
+#undef BUD_TRACE_BACKEND_GENERIC_D

@@ -61,6 +61,7 @@ struct bud_trace_backend_s {
 #define BUD_TRACING_BACKEND_ENUM(X)                                           \
     X(backend_connect)                                                        \
     X(kill_backend)                                                           \
+    X(revive_backend)                                                         \
 
 #define BUD_TRACE_MODULE_CLIENT_DECL(V) bud_trace_cb_t V;
 #define BUD_TRACE_MODULE_BACKEND_DECL(V) bud_trace_backend_cb_t V;
