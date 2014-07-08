@@ -2,6 +2,8 @@
 #include "client.h"
 #include "config.h"
 
+#include <string.h>  /* memset */
+
 typedef struct bud_dtrace_connection_s bud_dtrace_connection_t;
 typedef struct bud_dtrace_handshake_s bud_dtrace_handshake_t;
 
@@ -29,9 +31,13 @@ struct bud_dtrace_handshake_s {
 
 static void bud_dtrace_fill_connection(bud_client_t* client,
                                        bud_dtrace_connection_t* conn) {
-  conn->fd = client->frontend.tcp.io_watcher.fd;
-  conn->host = DSTR(client->host);
-  conn->port = client->port;
+  if (client == NULL) {
+    memset(conn, 0, sizeof(*conn));
+  } else {
+    conn->fd = client->frontend.tcp.io_watcher.fd;
+    conn->host = DSTR(client->host);
+    conn->port = client->port;
+  }
 }
 
 #else  /* !BUD_DTRACE */
@@ -57,20 +63,32 @@ struct bud_dtrace_handshake_s {};
 
 
 static void bud_trace_fill_client(bud_client_t* client, bud_trace_client_t* t) {
-  t->ssl = client->ssl;
-  t->id = client->id;
-  t->fd = client->frontend.tcp.io_watcher.fd;
-  t->host = client->host;
-  t->port = client->port;
+  if (client == NULL) {
+    memset(t, 0, sizeof(*t));
+  } else {
+    t->ssl = client->ssl;
+    t->id = client->id;
+    t->fd = client->frontend.tcp.io_watcher.fd;
+    t->host = client->host;
+    t->port = client->port;
+  }
 }
 
 
 static void bud_trace_fill_backend(bud_client_t* client,
                                    bud_config_backend_t* backend,
                                    bud_trace_backend_t* t) {
+  t->host = backend->host;
+  t->port = backend->port;
+  if (client == NULL) {
+    t->fd = -1;
+    t->balance = kBudTraceBalanceRoundRobin;
+    t->balance_str = "roundrobin";
+    t->sni_match = 0;
+    return;
+  }
+
   t->fd = client->backend.tcp.io_watcher.fd;
-  t->host = client->selected_backend->host;
-  t->port = client->selected_backend->port;
   switch (client->balance) {
     case kBudBalanceRoundRobin: t->balance = kBudTraceBalanceRoundRobin; break;
     case kBudBalanceSNI: t->balance = kBudTraceBalanceSNI; break;
@@ -96,20 +114,20 @@ static void bud_trace_backend_invoke(bud_trace_backend_cb_t* cbs,
 
 
 #define BUD_TRACE_INVOKE(client, name)                                        \
-    if (client->config->trace.name != NULL) {                                 \
+    if ((client)->config->trace.name != NULL) {                               \
       bud_trace_client_t t;                                                   \
-      bud_trace_fill_client(client, &t);                                      \
-      bud_trace_invoke(client->config->trace.name, &t);                       \
+      bud_trace_fill_client((client), &t);                                    \
+      bud_trace_invoke((client)->config->trace.name, &t);                     \
     }                                                                         \
 
 
 #define BUD_TRACE_BACKEND_INVOKE(client, backend, name)                       \
-    if (client->config->trace.name != NULL) {                                 \
+    if ((backend)->config->trace.name != NULL) {                              \
       bud_trace_client_t tc;                                                  \
       bud_trace_backend_t tb;                                                 \
-      bud_trace_fill_client(client, &tc);                                     \
-      bud_trace_fill_backend(client, backend, &tb);                           \
-      bud_trace_backend_invoke(client->config->trace.name, &tc, &tb);         \
+      bud_trace_fill_client((client), &tc);                                   \
+      bud_trace_fill_backend((client), (backend), &tb);                       \
+      bud_trace_backend_invoke((backend)->config->trace.name, &tc, &tb);      \
     }                                                                         \
 
 #define BUD_TRACE_GENERIC(name, cname)                                        \

@@ -133,6 +133,7 @@ void bud_revive_backend(uv_timer_t* timer) {
   backend->dead_since = 0;
   backend->revive_timer = NULL;
 
+  bud_trace_revive_backend(NULL, backend);
   bud_log(backend->config,
           kBudLogWarning,
           "Reviving backend %s:%d",
