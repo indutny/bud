@@ -5,11 +5,19 @@
 
 /* Forward declarations */
 struct bud_client_s;
+struct bud_config_backend_s;
 
-#define BUD_TRACE_DECL(V) void bud_trace_##V(struct bud_client_s* client);
+#define BUD_TRACE_CLIENT_DECL(V)                                              \
+    void bud_trace_##V(struct bud_client_s* client);                          \
 
-BUD_TRACING_ENUM(BUD_TRACE_DECL)
+#define BUD_TRACE_BACKEND_DECL(V)                                             \
+    void bud_trace_##V(struct bud_client_s* client,                           \
+                       struct bud_config_backend_s* backend);                 \
 
-#undef BUD_TRACE_DECL
+BUD_TRACING_CLIENT_ENUM(BUD_TRACE_CLIENT_DECL)
+BUD_TRACING_BACKEND_ENUM(BUD_TRACE_BACKEND_DECL)
+
+#undef BUD_TRACE_CLIENT_DECL
+#undef BUD_TRACE_BACKEND_DECL
 
 #endif  /* SRC_TRACING_H_ */

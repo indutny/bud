@@ -45,19 +45,32 @@ struct bud_trace_backend_s {
 
 #undef CONNECTION_FIELDS
 
+/* All tracing functions */
 #define BUD_TRACING_ENUM(X)                                                   \
+    BUD_TRACING_CLIENT_ENUM(X)                                                \
+    BUD_TRACING_BACKEND_ENUM(X)                                               \
+
+/* Tracing functions that do accept only one argument: client */
+#define BUD_TRACING_CLIENT_ENUM(X)                                            \
     X(frontend_accept)                                                        \
-    X(backend_connect)                                                        \
     X(end)                                                                    \
     X(handshake)                                                              \
 
-#define BUD_TRACE_MODULE_DECL(V) bud_trace_cb_t V;
+/* Tracing functions that do accept two arguments: client, backend */
+#define BUD_TRACING_BACKEND_ENUM(X)                                           \
+    X(backend_connect)                                                        \
+    X(kill_backend)                                                           \
+
+#define BUD_TRACE_MODULE_CLIENT_DECL(V) bud_trace_cb_t V;
+#define BUD_TRACE_MODULE_BACKEND_DECL(V) bud_trace_backend_cb_t V;
 
 struct bud_trace_module_s {
-  BUD_TRACING_ENUM(BUD_TRACE_MODULE_DECL);
+  BUD_TRACING_CLIENT_ENUM(BUD_TRACE_MODULE_CLIENT_DECL)
+  BUD_TRACING_BACKEND_ENUM(BUD_TRACE_MODULE_BACKEND_DECL)
 };
 
-#undef BUD_TRACE_MODULE_DECL
+#undef BUD_TRACE_MODULE_CLIENT_DECL
+#undef BUD_TRACE_MODULE_BACKEND_DECL
 
 #define BUD_TRACE_MODULE bud_trace_module_t bud_trace_module
 

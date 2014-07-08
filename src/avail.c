@@ -103,6 +103,7 @@ void bud_kill_backend(bud_client_t* client,
           "Killed backend %s:%d",
           backend->host,
           backend->port);
+  bud_trace_kill_backend(client, backend);
   backend->dead = 1;
   return;
 
@@ -222,7 +223,7 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
   /* Success */
   client->connect = kBudProgressDone;
   client->selected_backend->dead_since = 0;
-  bud_trace_backend_connect(client);
+  bud_trace_backend_connect(client, client->selected_backend);
 
   /* Start reading if queued */
   if (client->backend.reading == kBudProgressRunning) {

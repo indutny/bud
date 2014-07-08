@@ -41,10 +41,12 @@ static void bud_dtrace_fill_connection(bud_client_t* client,
 # define BUD_BACKEND_CONNECT_ENABLED() 0
 # define BUD_HANDSHAKE_ENABLED() 0
 # define BUD_END_ENABLED() 0
+# define BUD_KILL_BACKEND_ENABLED() 0
 # define BUD_FRONTEND_ACCEPT(a0, a1, a2, a3)
 # define BUD_BACKEND_CONNECT(a0, a1, a2, a3, a4, a5, a6, a7)
 # define BUD_HANDSHAKE(a0, a1, a2, a3)
 # define BUD_END(a0, a1, a2, a3)
+# define BUD_KILL_BACKEND(a0, a1, a2, a3, a4, a5, a6) 0
 
 # define bud_dtrace_fill_connection(client, conn) do {} while(0)
 
@@ -64,6 +66,7 @@ static void bud_trace_fill_client(bud_client_t* client, bud_trace_client_t* t) {
 
 
 static void bud_trace_fill_backend(bud_client_t* client,
+                                   bud_config_backend_t* backend,
                                    bud_trace_backend_t* t) {
   t->fd = client->backend.tcp.io_watcher.fd;
   t->host = client->selected_backend->host;
@@ -84,11 +87,11 @@ static void bud_trace_invoke(bud_trace_cb_t* cbs, bud_trace_client_t* t) {
 }
 
 
-static void bud_trace_backend_invoke(bud_trace_cb_t* cbs,
+static void bud_trace_backend_invoke(bud_trace_backend_cb_t* cbs,
                                      bud_trace_client_t* tc,
                                      bud_trace_backend_t* tb) {
   for (; *cbs != NULL; cbs++)
-    ((bud_trace_backend_cb_t) *cbs)(tc, tb);
+    (*cbs)(tc, tb);
 }
 
 
@@ -100,12 +103,12 @@ static void bud_trace_backend_invoke(bud_trace_cb_t* cbs,
     }                                                                         \
 
 
-#define BUD_TRACE_BACKEND_INVOKE(client, name)                                \
+#define BUD_TRACE_BACKEND_INVOKE(client, backend, name)                       \
     if (client->config->trace.name != NULL) {                                 \
       bud_trace_client_t tc;                                                  \
       bud_trace_backend_t tb;                                                 \
       bud_trace_fill_client(client, &tc);                                     \
-      bud_trace_fill_backend(client, &tb);                                     \
+      bud_trace_fill_backend(client, backend, &tb);                           \
       bud_trace_backend_invoke(client->config->trace.name, &tc, &tb);         \
     }                                                                         \
 
@@ -125,12 +128,13 @@ BUD_TRACE_GENERIC(end, END)
 #undef BUD_TRACE_GENERIC
 
 
-void bud_trace_backend_connect(bud_client_t* client) {
+void bud_trace_backend_connect(bud_client_t* client,
+                               bud_config_backend_t* backend) {
   bud_dtrace_connection_t c;
   bud_dtrace_connection_t b;
   const char* bhost;
 
-  BUD_TRACE_BACKEND_INVOKE(client, backend_connect);
+  BUD_TRACE_BACKEND_INVOKE(client, backend, backend_connect);
 
   if (!BUD_BACKEND_CONNECT_ENABLED())
     return;
@@ -138,10 +142,10 @@ void bud_trace_backend_connect(bud_client_t* client) {
   bud_dtrace_fill_connection(client, &c);
 
 #ifdef BUD_DTRACE
-  bhost = client->selected_backend->host;
+  bhost = backend->host;
   b.fd = client->backend.tcp.io_watcher.fd;
   b.host = DSTR(bhost);
-  b.port = client->selected_backend->port;
+  b.port = backend->port;
 
   BUD_BACKEND_CONNECT(&c,
                       &b,
@@ -198,4 +202,33 @@ void bud_trace_handshake(bud_client_t* client) {
 #endif  /* BUD_DTRACE */
 
   BUD_HANDSHAKE(&h, h.fd, h.port, client->host);
+}
+
+
+void bud_trace_kill_backend(bud_client_t* client,
+                            bud_config_backend_t* backend) {
+  bud_dtrace_connection_t c;
+  bud_dtrace_connection_t b;
+  const char* bhost;
+
+  BUD_TRACE_BACKEND_INVOKE(client, backend, kill_backend);
+
+  if (!BUD_KILL_BACKEND_ENABLED())
+    return;
+
+  bud_dtrace_fill_connection(client, &c);
+
+#ifdef BUD_DTRACE
+  bhost = backend->host;
+  b.host = DSTR(bhost);
+  b.port = backend->port;
+
+  BUD_KILL_BACKEND(&c,
+                   &b,
+                   c.fd,
+                   c.port,
+                   client->host,
+                   b.port,
+                   (char*) bhost);
+#endif  /* BUD_DTRACE */
 }

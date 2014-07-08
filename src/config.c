@@ -452,7 +452,8 @@ fatal:
 #undef BUD_CONFIG_INIT_TRACING
 
 
-#define BUD_CONFIG_DECL_TRACING(V) bud_trace_cb_t* last_##V;
+#define BUD_CONFIG_DECL_CLIENT_TRACING(V) bud_trace_cb_t* last_##V;
+#define BUD_CONFIG_DECL_BACKEND_TRACING(V) bud_trace_backend_cb_t* last_##V;
 
 #define BUD_CONFIG_INIT_TRACING(V) last_##V = trace->V;
 
@@ -472,7 +473,8 @@ bud_error_t bud_config_init_tracing(bud_config_trace_t* trace) {
   int i;
   int r;
   bud_error_t err;
-  BUD_TRACING_ENUM(BUD_CONFIG_DECL_TRACING)
+  BUD_TRACING_CLIENT_ENUM(BUD_CONFIG_DECL_CLIENT_TRACING)
+  BUD_TRACING_BACKEND_ENUM(BUD_CONFIG_DECL_BACKEND_TRACING)
 
   BUD_TRACING_ENUM(BUD_CONFIG_INIT_TRACING)
 
@@ -513,7 +515,8 @@ fatal:
 
 #undef BUD_CONFIG_ZERO_TRACING
 #undef BUD_CONFIG_COPY_TRACING
-#undef BUD_CONFIG_DECL_TRACING
+#undef BUD_CONFIG_DECL_CLIENT_TRACING
+#undef BUD_CONFIG_DECL_BACKEND_TRACING
 #undef BUD_CONFIG_INIT_TRACING
 
 
