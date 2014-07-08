@@ -20,6 +20,7 @@ struct bud_client_s {
   struct bud_config_s* config;
 
   SSL* ssl;
+  uint64_t id;
 
   /* Renegotiation attack prevention */
   uint64_t last_handshake;

@@ -56,6 +56,7 @@ struct bud_dtrace_handshake_s {};
 
 static void bud_trace_fill_client(bud_client_t* client, bud_trace_client_t* t) {
   t->ssl = client->ssl;
+  t->id = client->id;
   t->fd = client->frontend.tcp.io_watcher.fd;
   t->host = client->host;
   t->port = client->port;

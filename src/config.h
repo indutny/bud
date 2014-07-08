@@ -179,6 +179,7 @@ struct bud_config_s {
   char exepath[1024];
   struct bud_server_s* server;
   struct bud_logger_s* logger;
+  uint64_t client_id;
 
   /* Master state */
   struct {
@@ -274,5 +275,8 @@ bud_error_t bud_config_drop_privileges(bud_config_t* config);
 
 /* Helper for tracing */
 const char* bud_config_balance_to_str(bud_config_balance_t balance);
+
+/* Helper for client */
+uint64_t bud_config_get_client_id(bud_config_t* config);
 
 #endif  /* SRC_CONFIG_H_ */

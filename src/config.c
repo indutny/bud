@@ -1,4 +1,5 @@
 #include <getopt.h>  /* getopt */
+#include <limits.h>  /* ULLONG_MAX */
 #include <stdio.h>  /* fprintf */
 #include <stdlib.h>  /* NULL */
 #include <string.h>  /* memset, strlen, strncmp */
@@ -2043,4 +2044,17 @@ const char* bud_config_balance_to_str(bud_config_balance_t balance) {
     return "sni";
   else
     return "on-fail";
+}
+
+
+uint64_t bud_config_get_client_id(bud_config_t* config) {
+  uint64_t r;
+
+  r = config->client_id;
+  if (r == ULLONG_MAX)
+    config->client_id = 0;
+  else
+    config->client_id++;
+
+  return r;
 }

@@ -70,6 +70,8 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->recycle = 0;
   client->destroy_waiting = 0;
 
+  client->id = bud_config_get_client_id(config);
+
   client->hello_parse = kBudProgressDone;
   if (config->sni.enabled || config->stapling.enabled)
     client->hello_parse = kBudProgressNone;
