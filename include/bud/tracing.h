@@ -28,11 +28,11 @@ enum bud_trace_balance_e {
 struct bud_trace_client_s {
   CONNECTION_FIELDS
 
-  /* Circularly-monotonic semi-unique connection id */
-  uint64_t id;
-
   /* OpenSSL's SSL* object */
   struct ssl_st* ssl;
+
+  /* Circularly-monotonic semi-unique connection id */
+  uint64_t id;
 };
 
 struct bud_trace_backend_s {
