@@ -49,7 +49,7 @@ static void bud_dtrace_fill_connection(bud_client_t* client,
 # define BUD_END_ENABLED() 0
 # define BUD_KILL_BACKEND_ENABLED() 0
 # define BUD_REVIVE_BACKEND_ENABLED() 0
-# define BUD_RETRY() 0
+# define BUD_RETRY_ENABLED() 0
 # define BUD_FRONTEND_ACCEPT(a0, a1, a2, a3)
 # define BUD_BACKEND_CONNECT(a0, a1, a2, a3, a4, a5, a6, a7)
 # define BUD_HANDSHAKE(a0, a1, a2, a3)
