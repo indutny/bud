@@ -9,9 +9,7 @@
 /* Forward declarations */
 struct bud_client_s;
 
-bud_config_backend_t* bud_select_backend(bud_config_t* config,
-                                         bud_config_balance_t balance,
-                                         bud_config_backend_list_t* backend);
+bud_config_backend_t* bud_select_backend(struct bud_client_s* client);
 
 /* Client helpers */
 bud_client_error_t bud_client_connect(struct bud_client_s* client);

@@ -136,9 +136,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
     client->selected_backend = NULL;
     client->connect = kBudProgressRunning;
   } else {
-    client->selected_backend = bud_select_backend(config,
-                                                  client->balance,
-                                                  client->backend_list);
+    client->selected_backend = bud_select_backend(client);
   }
 
   /* No backend can be selected yet, wait for SNI */
@@ -1143,11 +1141,8 @@ void bud_client_handshake_done_cb(const SSL* ssl) {
     client->backend_list = &context->backend;
     client->balance = context->balance_e;
   }
-  if (client->backend_list != NULL) {
-    client->selected_backend = bud_select_backend(client->config,
-                                                  client->balance,
-                                                  client->backend_list);
-  }
+  if (client->backend_list != NULL)
+    client->selected_backend = bud_select_backend(client);
   if (client->selected_backend != NULL) {
     /* Backend provided - connect */
     cerr = bud_client_connect(client);

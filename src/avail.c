@@ -7,17 +7,22 @@
 #include "logger.h"
 #include "tracing.h"
 
-static void bud_kill_backend(bud_config_t* config,
+static void bud_kill_backend(bud_client_t* client,
                              bud_config_backend_t* backend);
 static void bud_revive_backend(uv_timer_t* timer);
 
-bud_config_backend_t* bud_select_backend(bud_config_t* config,
-                                         bud_config_balance_t balance,
-                                         bud_config_backend_list_t* backend) {
+bud_config_backend_t* bud_select_backend(bud_client_t* client) {
+  bud_config_t* config;
+  bud_config_balance_t balance;
+  bud_config_backend_list_t* backend;
   bud_config_backend_t* res;
   int first;
   uint64_t now;
   uint64_t death_timeout;
+
+  config = client->config;
+  balance = client->balance;
+  backend = client->backend_list;
 
   now = uv_now(config->loop);
   death_timeout = (uint64_t) config->availability.death_timeout;
@@ -37,7 +42,7 @@ bud_config_backend_t* bud_select_backend(bud_config_t* config,
     if (!res->dead && res->dead_since != 0) {
       if (now - res->last_checked <= death_timeout &&
           now - res->dead_since >= death_timeout) {
-        bud_kill_backend(config, res);
+        bud_kill_backend(client, res);
       }
     }
 
@@ -62,9 +67,12 @@ bud_config_backend_t* bud_select_backend(bud_config_t* config,
 }
 
 
-void bud_kill_backend(bud_config_t* config,
+void bud_kill_backend(bud_client_t* client,
                       bud_config_backend_t* backend) {
+  bud_config_t* config;
   int r;
+
+  config = client->config;
 
   /* If there're no reviving - there are no death */
   if (config->availability.revive_interval == 0)
@@ -270,11 +278,8 @@ bud_client_error_t bud_client_retry(bud_client_t* client) {
 
   /* Select backend again */
   client->backend.close = kBudProgressDone;
-  if (client->backend_list != NULL) {
-    client->selected_backend = bud_select_backend(client->config,
-                                                  client->balance,
-                                                  client->backend_list);
-  }
+  if (client->backend_list != NULL)
+    client->selected_backend = bud_select_backend(client);
 
   client->retry = kBudProgressNone;
   r = uv_timer_start(&client->retry_timer,
