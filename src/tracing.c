@@ -130,12 +130,23 @@ static void bud_trace_backend_invoke(bud_trace_backend_cb_t* cbs,
       bud_trace_backend_invoke((backend)->config->trace.name, &tc, &tb);      \
     }                                                                         \
 
+#ifdef BUD_DTRACE
+
+#define BUD_TRACE_GENERIC_D(cname)                                            \
+    BUD_##cname(&d, d.fd, d.port, client->host);                              \
+
+#else  /* !BUD_DTRACE */
+
+#define BUD_TRACE_GENERIC_D(a0)
+
+#endif  /* BUD_DTRACE */
+
 #define BUD_TRACE_GENERIC(name, cname)                                        \
     void bud_trace_##name(bud_client_t* client) {                             \
       if (BUD_##cname##_ENABLED()) {                                          \
         bud_dtrace_connection_t d;                                            \
         bud_dtrace_fill_connection(client, &d);                               \
-        BUD_##cname(&d, d.fd, d.port, client->host);                          \
+        BUD_TRACE_GENERIC_D(cname)                                            \
       }                                                                       \
       BUD_TRACE_INVOKE(client, name);                                         \
     }                                                                         \
@@ -145,6 +156,7 @@ BUD_TRACE_GENERIC(end, END)
 BUD_TRACE_GENERIC(retry, RETRY)
 
 #undef BUD_TRACE_GENERIC
+#undef BUD_TRACE_GENERIC_D
 
 
 void bud_trace_backend_connect(bud_client_t* client,
