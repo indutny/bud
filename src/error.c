@@ -215,9 +215,13 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
     case kBudErrClientSetExData:                                              \
       BUD_ERROR("SSL_set_ex_data() for SNI")                                  \
     case kBudErrClientSSLWrite:                                               \
-      BUD_ERROR("SSL_write(client) - %d", err.ret)                            \
+      BUD_ERROR("SSL_write(client) - %d (%s)",                                \
+                err.ret,                                                      \
+                ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrClientSSLRead:                                                \
-      BUD_ERROR("SSL_read(client) - %d", err.ret)                             \
+      BUD_ERROR("SSL_read(client) - %d (%s)",                                 \
+                err.ret,                                                      \
+                ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrClientThrottle:                                               \
       BUD_ERROR("throttle(client) **NOT A ERROR**")                           \
     case kBudErrClientShutdown:                                               \
