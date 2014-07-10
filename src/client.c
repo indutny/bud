@@ -755,7 +755,7 @@ bud_client_error_t bud_client_send(bud_client_t* client,
 
   /* Try writing without queueing first */
   r = uv_try_write((uv_stream_t*) &side->tcp, buf, count);
-  ASSERT(r >= 0 && (size_t) r <= side->write_size || r < 0,
+  ASSERT((r >= 0 && (size_t) r <= side->write_size) || r < 0,
          "Value returned by uv_try_write is OOB");
 
   /* Fully written */
