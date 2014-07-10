@@ -773,6 +773,9 @@ bud_client_error_t bud_client_send(bud_client_t* client,
     goto fatal;
   }
 
+  /* Skip partially written bytes */
+  ringbuffer_read_skip(&side->output, r);
+
   /* Partially written */
   side->write_size -= r;
   pbuf = buf;
@@ -787,6 +790,7 @@ bud_client_error_t bud_client_send(bud_client_t* client,
       r -= pbuf->len;
     }
   }
+  DBG(side, "async uv_write(%ld) follow up: %ld", side->write_size, count);
 
   r = uv_write(&side->write_req,
                (uv_stream_t*) &side->tcp,
