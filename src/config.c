@@ -454,6 +454,7 @@ fatal:
 
 #define BUD_CONFIG_DECL_CLIENT_TRACING(V) bud_trace_cb_t* last_##V;
 #define BUD_CONFIG_DECL_BACKEND_TRACING(V) bud_trace_backend_cb_t* last_##V;
+#define BUD_CONFIG_DECL_ERROR_TRACING(V) bud_trace_error_cb_t* last_##V;
 
 #define BUD_CONFIG_INIT_TRACING(V) last_##V = trace->V;
 
@@ -475,6 +476,7 @@ bud_error_t bud_config_init_tracing(bud_config_trace_t* trace) {
   bud_error_t err;
   BUD_TRACING_CLIENT_ENUM(BUD_CONFIG_DECL_CLIENT_TRACING)
   BUD_TRACING_BACKEND_ENUM(BUD_CONFIG_DECL_BACKEND_TRACING)
+  BUD_TRACING_ERROR_ENUM(BUD_CONFIG_DECL_ERROR_TRACING)
 
   BUD_TRACING_ENUM(BUD_CONFIG_INIT_TRACING)
 
@@ -491,6 +493,12 @@ bud_error_t bud_config_init_tracing(bud_config_trace_t* trace) {
     r = uv_dlsym(&trace->dso[i], "bud_trace_module", (void**) &module);
     if (r != 0) {
       err = bud_error_num(kBudErrDLSym, r);
+      goto fatal;
+    }
+
+    /* Verify that version is correct */
+    if (module->version != BUD_TRACE_VERSION) {
+      err = bud_error_num(kBudErrDLVersion, module->version);
       goto fatal;
     }
 
@@ -517,6 +525,7 @@ fatal:
 #undef BUD_CONFIG_COPY_TRACING
 #undef BUD_CONFIG_DECL_CLIENT_TRACING
 #undef BUD_CONFIG_DECL_BACKEND_TRACING
+#undef BUD_CONFIG_DECL_ERROR_TRACING
 #undef BUD_CONFIG_INIT_TRACING
 
 

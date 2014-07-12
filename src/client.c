@@ -249,6 +249,9 @@ bud_client_side_t* bud_client_side_by_tcp(bud_client_t* client, uv_tcp_t* tcp) {
 void bud_client_close(bud_client_t* client, bud_client_error_t err) {
   bud_client_side_t* side;
 
+  /* Trace error in any case */
+  bud_trace_error(client, err.err);
+
   side = err.side;
   if (bud_is_ok(err.err) ||
       (err.err.code == kBudErrClientSSLRead &&

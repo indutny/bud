@@ -50,6 +50,7 @@ static void bud_dtrace_fill_connection(bud_client_t* client,
 # define BUD_KILL_BACKEND_ENABLED() 0
 # define BUD_REVIVE_BACKEND_ENABLED() 0
 # define BUD_RETRY_ENABLED() 0
+# define BUD_ERROR_ENABLED() 0
 # define BUD_FRONTEND_ACCEPT(a0, a1, a2, a3)
 # define BUD_BACKEND_CONNECT(a0, a1, a2, a3, a4, a5, a6, a7)
 # define BUD_HANDSHAKE(a0, a1, a2, a3)
@@ -57,6 +58,7 @@ static void bud_dtrace_fill_connection(bud_client_t* client,
 # define BUD_KILL_BACKEND(a0, a1, a2, a3, a4, a5, a6) 0
 # define BUD_REVIVE_BACKEND(a0, a1, a2, a3, a4, a5, a6) 0
 # define BUD_RETRY(a0, a1, a2, a3) 0
+# define BUD_ERROR(a0, a1, a2, a3, a4) 0
 
 # define bud_dtrace_fill_connection(client, conn) do {} while(0)
 
@@ -117,6 +119,14 @@ static void bud_trace_backend_invoke(bud_trace_backend_cb_t* cbs,
 }
 
 
+static void bud_trace_error_invoke(bud_trace_error_cb_t* cbs,
+                                   bud_trace_client_t* tc,
+                                   bud_error_t err) {
+  for (; *cbs != NULL; cbs++)
+    (*cbs)(tc, err);
+}
+
+
 #define BUD_TRACE_INVOKE(client, name)                                        \
     if ((client)->config->trace.name != NULL) {                               \
       bud_trace_client_t t;                                                   \
@@ -132,6 +142,14 @@ static void bud_trace_backend_invoke(bud_trace_backend_cb_t* cbs,
       bud_trace_fill_client((client), &tc);                                   \
       bud_trace_fill_backend((client), (backend), &tb);                       \
       bud_trace_backend_invoke((backend)->config->trace.name, &tc, &tb);      \
+    }                                                                         \
+
+
+#define BUD_TRACE_ERROR_INVOKE(client, err, name)                             \
+    if ((client)->config->trace.name != NULL) {                               \
+      bud_trace_client_t c;                                                   \
+      bud_trace_fill_client((client), &c);                                    \
+      bud_trace_error_invoke((client)->config->trace.name, &c, (err));        \
     }                                                                         \
 
 #ifdef BUD_DTRACE
@@ -279,3 +297,17 @@ BUD_TRACE_BACKEND_GENERIC(revive_backend, REVIVE_BACKEND)
 
 #undef BUD_TRACE_BACKEND_GENERIC
 #undef BUD_TRACE_BACKEND_GENERIC_D
+
+
+void bud_trace_error(bud_client_t* client, bud_error_t err) {
+
+  BUD_TRACE_ERROR_INVOKE(client, err, error);
+
+#ifdef BUD_DTRACE
+  if (BUD_ERROR_ENABLED()) {
+    bud_dtrace_connection_t d;
+    bud_dtrace_fill_connection(client, &d);
+    BUD_ERROR(&d, d.fd, d.port, client->host, err.code);
+  }
+#endif  /* BUD_DTRACE */
+}

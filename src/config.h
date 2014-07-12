@@ -157,11 +157,13 @@ struct bud_context_s {
 
 #define BUD_CONFIG_TRACE_CLIENT_DECL(V) bud_trace_cb_t* V;
 #define BUD_CONFIG_TRACE_BACKEND_DECL(V) bud_trace_backend_cb_t* V;
+#define BUD_CONFIG_TRACE_ERROR_DECL(V) bud_trace_error_cb_t* V;
 
 struct bud_config_trace_s {
   /* DSO hooks for tracing */
   BUD_TRACING_CLIENT_ENUM(BUD_CONFIG_TRACE_CLIENT_DECL)
   BUD_TRACING_BACKEND_ENUM(BUD_CONFIG_TRACE_BACKEND_DECL)
+  BUD_TRACING_ERROR_ENUM(BUD_CONFIG_TRACE_ERROR_DECL)
 
   JSON_Array* dso_array;
   uv_lib_t* dso;
@@ -170,6 +172,7 @@ struct bud_config_trace_s {
 
 #undef BUD_CONFIG_TRACE_CLIENT_DECL
 #undef BUD_CONFIG_TRACE_BACKEND_DECL
+#undef BUD_CONFIG_TRACE_ERROR_DECL
 
 struct bud_config_s {
   /* Internal, just to keep stuff allocated */

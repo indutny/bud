@@ -4,6 +4,7 @@
 #include "openssl/err.h"
 #include "uv.h"
 
+#include "bud/tracing.h"
 #include "error.h"
 #include "config.h"
 #include "common.h"
@@ -132,6 +133,10 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_UV_ERROR("uv_dlopen(file)", err)                                    \
     case kBudErrDLSym:                                                        \
       BUD_UV_ERROR("uv_dlsym(file, symbol)", err)                             \
+    case kBudErrDLVersion:                                                    \
+      BUD_ERROR("Tracing DSO version mismatch, expected %d got %d",           \
+                BUD_TRACE_VERSION,                                            \
+                err.ret)                                                      \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \

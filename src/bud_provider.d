@@ -85,6 +85,13 @@ provider bud {
                   int port,
                   const char* host)
       : (bud_handshake_t* c, int fd, int port, const char* host);
+
+  probe error(bud_dtrace_connection_t* c,
+              int fd,
+              int port,
+              const char* host,
+              int code)
+      : (bud_connection_t* c, int fd, int port, const char* host, int code);
 };
 
 #pragma D attributes Evolving/Evolving/ISA provider bud provider
