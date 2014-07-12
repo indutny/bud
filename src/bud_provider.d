@@ -86,7 +86,7 @@ provider bud {
                   const char* host)
       : (bud_handshake_t* c, int fd, int port, const char* host);
 
-  probe error(bud_dtrace_connection_t* c,
+  probe close(bud_dtrace_connection_t* c,
               int fd,
               int port,
               const char* host,
