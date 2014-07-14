@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "error.h"
+#include "ipc.h"
 
 /* Forward declaration */
 struct bud_server_s;
@@ -23,7 +24,7 @@ struct bud_worker_s {
 
   bud_config_t* config;
   uv_process_t proc;
-  uv_pipe_t ipc;
+  bud_ipc_t ipc;
   uv_timer_t restart_timer;
   int close_waiting;
 

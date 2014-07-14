@@ -13,14 +13,7 @@
 #include "logger.h"
 #include "server.h"
 #include "client.h"
-
-typedef struct bud_master_msg_s bud_master_msg_t;
-
-struct bud_master_msg_s {
-  bud_config_t* config;
-  uv_tcp_t client;
-  uv_write_t req;
-};
+#include "ipc.h"
 
 #ifndef _WIN32
 static int bud_daemonize(bud_error_t* err);
@@ -39,8 +32,6 @@ static void bud_master_respawn_worker(uv_process_t* proc,
                                       int64_t exit_status,
                                       int term_signal);
 static void bud_master_ipc_close_cb(uv_handle_t* handle);
-static void bud_master_msg_close_cb(uv_handle_t* handle);
-static void bud_master_msg_send_cb(uv_write_t* req, int status);
 
 
 bud_error_t bud_master(bud_config_t* config) {
@@ -354,25 +345,23 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   options.args[i] = "--worker";
   options.args[i + 1] = NULL;
 
-  /* stdio = { pipe, inherit, inherit } */
-  options.stdio[0].flags = UV_CREATE_PIPE | UV_WRITABLE_PIPE;
-  options.stdio[0].data.stream = (uv_stream_t*) &worker->ipc;
-  options.stdio[1].flags = UV_INHERIT_FD;
-  options.stdio[1].data.fd = 1;
-  options.stdio[2].flags = UV_INHERIT_FD;
-  options.stdio[2].data.fd = 2;
-
   r = uv_timer_init(config->loop, &worker->restart_timer);
   if (r != 0) {
     err = bud_error_num(kBudErrRestartTimer, r);
     goto done;
   }
 
-  r = uv_pipe_init(config->loop, &worker->ipc, 1);
-  if (r != 0) {
-    err = bud_error_num(kBudErrIPCPipeInit, r);
-    goto failed_pipe_init;
-  }
+  err = bud_ipc_init(&worker->ipc, config);
+  if (!bud_is_ok(err))
+    goto failed_ipc_init;
+
+  /* stdio = { pipe, inherit, inherit } */
+  options.stdio[0].flags = UV_CREATE_PIPE | UV_WRITABLE_PIPE;
+  options.stdio[0].data.stream = bud_ipc_get_stream(&worker->ipc);
+  options.stdio[1].flags = UV_INHERIT_FD;
+  options.stdio[1].data.fd = 1;
+  options.stdio[2].flags = UV_INHERIT_FD;
+  options.stdio[2].data.fd = 2;
 
   r = uv_spawn(config->loop, &worker->proc, &options);
 
@@ -397,9 +386,9 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   goto done;
 
 failed_uv_spawn:
-  uv_close((uv_handle_t*) &worker->ipc, bud_master_ipc_close_cb);
+  bud_ipc_close(&worker->ipc);
 
-failed_pipe_init:
+failed_ipc_init:
   uv_close((uv_handle_t*) &worker->restart_timer, bud_master_ipc_close_cb);
 
 done:
@@ -441,11 +430,10 @@ void bud_master_kill_worker(bud_worker_t* worker,
   worker->state &= ~kBudWorkerStateActive;
   worker->kill_cb = cb;
   worker->proc.data = worker;
-  worker->ipc.data = worker;
   worker->restart_timer.data = worker;
-  worker->close_waiting = 3;
+  worker->close_waiting = 2;
   uv_close((uv_handle_t*) &worker->proc, bud_worker_close_cb);
-  uv_close((uv_handle_t*) &worker->ipc, bud_worker_close_cb);
+  bud_ipc_close(&worker->ipc);
   if (delay == 0) {
     uv_close((uv_handle_t*) &worker->restart_timer, bud_worker_close_cb);
   } else {
@@ -484,12 +472,10 @@ void bud_master_ipc_close_cb(uv_handle_t* handle) {
 
 
 void bud_master_balance(struct bud_server_s* server) {
-  int r;
+  bud_error_t err;
   bud_config_t* config;
   bud_worker_t* worker;
   int last_index;
-  bud_master_msg_t* msg;
-  uv_buf_t buf;
 
   config = server->config;
 
@@ -519,85 +505,7 @@ void bud_master_balance(struct bud_server_s* server) {
     return;
   }
 
-  msg = malloc(sizeof(*msg));
-  if (msg == NULL) {
-    bud_error_log(config,
-                  kBudLogWarning,
-                  bud_error_str(kBudErrNoMem, "bud_master_msg_t"));
-    return;
-  }
-  msg->config = config;
-
-  /* Accept handle */
-  r = uv_tcp_init(config->loop, &msg->client);
-  if (r != 0) {
-    bud_log(config,
-            kBudLogWarning,
-            "master uv_tcp_init() failed with (%d) \"%s\"",
-            r,
-            uv_strerror(r));
-    goto failed_tcp_init;
-  }
-
-  r = uv_accept((uv_stream_t*) &server->tcp, (uv_stream_t*) &msg->client);
-  if (r != 0) {
-    bud_log(config,
-            kBudLogWarning,
-            "master uv_accept() failed with (%d) \"%s\"",
-            r,
-            uv_strerror(r));
-    goto failed_accept;
-  }
-
-  buf = uv_buf_init("x", 1);
-
-  r = uv_write2(&msg->req,
-                (uv_stream_t*) &worker->ipc,
-                &buf,
-                1,
-                (uv_stream_t*) &msg->client,
-                bud_master_msg_send_cb);
-  if (r != 0) {
-    bud_log(config,
-            kBudLogWarning,
-            "master uv_write2() failed with (%d) \"%s\"",
-            r,
-            uv_strerror(r));
-    goto failed_accept;
-  }
-  return;
-
-failed_accept:
-  uv_close((uv_handle_t*) &msg->client, bud_master_msg_close_cb);
-  return;
-
-failed_tcp_init:
-  free(msg);
-}
-
-
-void bud_master_msg_close_cb(uv_handle_t* handle) {
-  bud_master_msg_t* msg;
-
-  msg = container_of(handle, bud_master_msg_t, client);
-  free(msg);
-}
-
-
-void bud_master_msg_send_cb(uv_write_t* req, int status) {
-  bud_master_msg_t* msg;
-
-  if (status == UV_ECANCELED)
-    return;
-
-  msg = container_of(req, bud_master_msg_t, req);
-  if (status != 0) {
-    bud_log(msg->config,
-            kBudLogWarning,
-            "master write_cb() failed with (%d) \"%s\"",
-            status,
-            uv_strerror(status));
-  }
-
-  uv_close((uv_handle_t*) &msg->client, bud_master_msg_close_cb);
+  err = bud_ipc_balance(&worker->ipc, (uv_stream_t*) &server->tcp);
+  if (!bud_is_ok(err))
+    bud_error_log(config, kBudLogWarning, err);
 }

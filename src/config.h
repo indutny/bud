@@ -13,6 +13,7 @@
 #include "bud/tracing.h"
 #include "common.h"
 #include "error.h"
+#include "ipc.h"
 
 /* Forward declarations */
 struct bud_server_s;
@@ -200,7 +201,7 @@ struct bud_config_s {
   int pending_accept;
 
   /* Worker state */
-  uv_pipe_t* ipc;
+  bud_ipc_t ipc;
 
   /* Used by client.c */
   struct {

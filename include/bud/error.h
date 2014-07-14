@@ -48,9 +48,7 @@ enum bud_error_code_e {
   kBudErrForkFailed = 0x200,
   kBudErrSetsidFailed = 0x201,
   kBudErrChdirFailed = 0x202,
-  kBudErrIPCPipeInit = 0x203,
-  kBudErrIPCPipeOpen = 0x204,
-  kBudErrIPCReadStart = 0x205,
+  /* x203 - x205, previously used by IPC */
   kBudErrRestartTimer = 0x206,
   kBudErrSpawn = 0x207,
   kBudErrSignalInit = 0x208,
@@ -107,7 +105,15 @@ enum bud_error_code_e {
   kBudErrClientRetry = 0x80f,
   kBudErrClientProxyline = 0x810,
   kBudErrClientNoBackendInSNI = 0x811,
-  kBudErrClientXForwardInsert = 0x812
+  kBudErrClientXForwardInsert = 0x812,
+
+  /* IPC */
+  kBudErrIPCPipeInit = 0x900,
+  kBudErrIPCPipeOpen = 0x901,
+  kBudErrIPCReadStart = 0x902,
+  kBudErrIPCBalanceInit = 0x903,
+  kBudErrIPCBalanceAccept = 0x904,
+  kBudErrIPCBalanceWrite = 0x905
 };
 
 struct bud_error_s {
