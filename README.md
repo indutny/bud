@@ -6,10 +6,28 @@ A TLS terminator for superheroes.
 
 Bud is a TLS terminating proxy, a babel fish decoding incoming TLS traffic and
 sending it in a plain text to your backend servers. Not only it does it, but
-does it good and with a lot of useful features!
+does it well and with a lot of useful features!
 
 ## Install
 
+### Requirements
+You must have gcc installed. Chances are that you do, but on the off chance you don't:
+
+```bash
+# OSX
+# Command Line Tools for Xcode: xcode-select --install,
+# https://developer.apple.com/downloads, or Xcode
+
+# SmartOS
+[sudo] pkgin update
+[sudo] pkgin install gcc47
+
+# Ubuntu
+[sudo] apt-get update
+[sudo] apt-get install build-essential
+```
+
+### Easy Install
 Bud can easily be installed using [npm](http://npmjs.org)
 
 ``` bash
@@ -19,7 +37,7 @@ Bud can easily be installed using [npm](http://npmjs.org)
 This will install the command line tool `bud`.  Optionally, you can build
 Bud from source with the steps below.
 
-## Build
+### Build
 
 Preparing:
 ```bash
@@ -42,6 +60,18 @@ To start bud - create configuration file using this template and:
 ```bash
 bud --conf conf.json
 ```
+
+### Options
+```
+Usage: bud [options]
+
+options:
+  --version, -v              Print bud version
+  --config PATH, -c PATH     Load JSON configuration
+  --default-config           Print default JSON config
+  --daemon, -d               Daemonize process
+```
+
 
 ## Configuration
 
@@ -74,7 +104,7 @@ to get default configuration options (with comments and description below):
     "syslog": true
   },
 
-  // Availability configuration
+  // Availability of the backend
   "availability": {
     // Maximum number of backend reconnects before giving up
     "max_retries": 5,
@@ -82,7 +112,7 @@ to get default configuration options (with comments and description below):
     // Time between retries
     "retry_interval": 250,
 
-    // How long backend should not be responding until considered to bedead
+    // How long backend should not be responding until considered to be dead
     "death_timeout": 1000,
 
     // Timeout after which it should be revived
@@ -106,11 +136,12 @@ to get default configuration options (with comments and description below):
     "security": "ssl23",
 
     // Path to default TLS certificate
-    // NOTE: Could be an array of certs
+    // NOTE: Could be an array of cert strings
+    // e.g. ["-----BEGIN CERTIFICATE-----...", "-----BEGIN CERTIFICATE-----..."]
     "cert": "keys/cert.pem",
 
     // Path to default TLS private key
-    // NOTE: Could be an array of keys
+    // NOTE: Could be an array of keys as file paths or strings
     "key": "keys/key.pem",
 
     // **Optional** Passphrase for the private key
@@ -118,17 +149,23 @@ to get default configuration options (with comments and description below):
     "passphrase": null,
 
     // **Optional** Cipher suites to use
+    // Bud defaults to a very inclusive set of ciphers, a modern set might be:
+    // **Recommend** "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA256:ECDHE-RSA-AES256-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA256:DHE-RSA-AES256-SHA256:AES256-GCM-SHA384:AES256-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES128-SHA:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:AES128-GCM-SHA256:AES128-SHA256:AES128-SHA:DES-CBC3-SHA"
     "ciphers": null,
 
     // **Optional** ECDH Curve to use, defaults to `prime256v1
     "ecdh": "prime256v1",
 
     // **Optional** Path to DH parameters file
+    // **Recommend** generate a file
+    // openssl dhparam -out dh.key 3072
     "dh": null,
 
     // **Optional** Base64 encoded TLS session ticket key,
     // should decode into 48 raw bytes
-    "ticket_key": "yzNUDktR5KmA4wX9g9kDSzEn+3+7HjCXrI+kz4tTxNL22tnPyd+2gqEW608LRBh8",
+    // **Recommend** Generate with:
+    // node -pe "require('crypto').randomBytes(48).toString('base64')"
+    "ticket_key": "yzNUDktR5KmA4wX9g9kDSzEn...true randomness",
 
     // **Optional** NPN protocols to advertise
     "npn": ["http/1.1", "http/1.0"],
@@ -142,6 +179,7 @@ to get default configuration options (with comments and description below):
     "reneg_limit": 3,
 
     // **Optional** If true - enable SSL3 support
+    // SSL3 is known to be insecure, and is only used by old browsers
     "ssl3": false,
 
     // **Optional** Maximum size of TLS fragment
@@ -169,6 +207,7 @@ to get default configuration options (with comments and description below):
   "balance": "roundrobin"
 
   // Unix-specific option, drop privileges after starting the process
+  // **Recommend** Create a user and a group for bud.
   "user": null,
   "group": null,
 
@@ -287,23 +326,40 @@ kill -SIGHUP <bud-master's-pid>
 
 ### X-Forwarded-For
 
-Setting `backend.*.x-forward` will cause an `X-Forwarded-For` header to be injected
-into the first request seen on a socket.  However, subsequent request using the
-same socket (via Keep-Alive), will not receieve this header from `bud`.  To remedy this,
-you should associate this header with the underlying socket or connection, and not expect
-it to be present with every HTTP request.  A possible implementation in Node.JS would look
-like:
+Setting `backend.*.x-forward` will cause an `X-Forwarded-For` header to be
+injected into the first request seen on a socket. However, subsequent request
+using the same socket (via Keep-Alive), will not receive this header from `bud`
+. To remedy this, you should associate this header with the underlying socket
+or connection, and not expect it to be present with every HTTP request. A
+possible implementation in Node.JS would look like:
 
 ``` js
-var http = require('http');
-http.createServer(onrequest).listen(8080, 'localhost');
+var http = require('http')
+http.createServer(onrequest).listen(8080, 'localhost')
+
 function onrequest(req, res) {
+  // this is a previous SSL request
   if (req.connection.xForward)
     req.headers['x-forwarded-for'] = req.connection.xForward;
+  // this is a new SSL request
   else if (req.headers['x-forwarded-for'])
     req.connection.xForward = req.headers['x-forwarded-for'];
+  // this is not an SSL request
+  else {
+    // optional, but a way to force SSL
+    res.writeHead(301, {
+      'Location': 'https://localhost:1443'
+    })
+    return void res.end()
+  }
 
-  // handle request normally now knowing that the `X-Forwarded-For` header is present
+
+  // optional, it's a good idea to send this header to
+  // force SSL in modern browsers
+  res.setHeader('Strict-Transport-Security', 'max-age=' + 60 * 60 * 24 * 365)
+
+  // handle request normally now knowing that the
+  // `X-Forwarded-For` header is present
 }
 ```
 
@@ -362,15 +418,122 @@ body.
 The response to bud should be the same as in the first case, base64-encoded
 data received from OCSP server.
 
-#### Backend Example
+### Backend Example
 
 Example OCSP+SNI backend implementation in node.js could be found [here][1].
 
-#### Community
+### Generating a key and getting an ssl cert
+
+Generating a key is easy with openssl
+
+```bash
+openssl genrsa -out server.key 2048
+```
+
+To generate the public certs, you'll need to buy an SSL cert from the provider
+of your choice. They'll ask you to upload your key file, and the `.crt` file
+generated below:
+
+```bash
+# you'll be asked for a bunch of info. The important one is "common name"
+# this must match your domain exactly. e.g.
+# example.com
+# if you've bought a wildcard cert, you should use
+# *.example.com
+openssl req -new -key server.key -out server.csr
+openssl x509 -req -days 9999 -in server.csr -signkey server.key -out server.crt
+```
+
+You'll upload the .crt and .key files to the cert provider. What you want back
+from them is a .pem file that has their entire cert chain. Then in your bud
+config:
+
+```json
+{
+  "frontent": {
+    // you generated this in the first step
+    "key": "server.key",
+    // this is the file you downloaded from your cert provider
+    "cert": "server.pem"
+  }
+}
+```
+
+## Running as monitored process
+Keep bud running even after a server restart
+
+### SmartOS
+```bash
+touch bud.xml
+read -d '' budconfig << EOF
+<?xml version="1.0"?>
+<!DOCTYPE service_bundle SYSTEM "/usr/share/lib/xml/dtd/service_bundle.dtd.1">
+<!--
+        Created by Manifold
+--><service_bundle type="manifest" name="bud">
+
+    <service name="bud" type="service" version="1">
+
+        <create_default_instance enabled="true"/>
+
+        <single_instance/>
+
+        <dependency name="network" grouping="require_all" restart_on="error" type="service">
+            <service_fmri value="svc:/milestone/network:default"/>
+        </dependency>
+
+        <dependency name="filesystem" grouping="require_all" restart_on="error" type="service">
+            <service_fmri value="svc:/system/filesystem/local"/>
+        </dependency>
+
+        <exec_method type="method" name="start" exec="/opt/local/bin/bud -c %{config_file} -d" timeout_seconds="5"/>
+
+        <exec_method type="method" name="stop" exec=":kill" timeout_seconds="60"/>
+
+        <property_group name="startd" type="framework">
+
+            <propval name="duration" type="astring" value="contract"/>
+            <propval name="ignore_error" type="astring" value="core,signal"/>
+        </property_group>
+
+
+        <property_group name="application" type="application">
+            <!-- TODO: customize this path to your bud config -->
+            <propval name="config_file" type="astring" value="/root/bud/bud.json"/>
+        </property_group>
+
+
+        <stability value="Evolving"/>
+
+        <template>
+            <common_name>
+                <loctext xml:lang="C">
+                    bud-tls
+                </loctext>
+            </common_name>
+        </template>
+
+    </service>
+
+</service_bundle>
+EOF
+echo $budconfig > bud.xml
+svccfg import bud.xml
+svcadm enable bud
+# should be in the online state
+svcs -l bud
+# see the logs for details
+tail /var/svc/log/bud\:default.log
+```
+
+### Ubuntu
+A docker image is [avaliable](https://github.com/joeybaker/docker-bud-tls)
+
+## Community
 
 Join #bud-tls on freenode IRC to discuss things with me or others!
 
-#### LICENSE
+## LICENSE
 
 This software is licensed under the MIT License.
 
