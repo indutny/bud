@@ -255,6 +255,8 @@ void bud_ipc_msg_send_cb(uv_write_t* req, int status) {
     return;
 
   msg = container_of(req, bud_ipc_msg_handle_t, req);
+  uv_close((uv_handle_t*) &msg->tcp, bud_ipc_msg_handle_on_close);
+
   /* Error */
   if (status != 0) {
     /* XXX Probably report to caller? */
@@ -264,7 +266,6 @@ void bud_ipc_msg_send_cb(uv_write_t* req, int status) {
             status,
             uv_strerror(status));
   }
-  free(msg);
 }
 
 
