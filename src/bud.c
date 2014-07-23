@@ -51,10 +51,14 @@ int main(int argc, char** argv) {
 
   /* Finalize server */
   if (config->server != NULL) {
+    bud_error_t ierr;
     if (config->is_worker)
-      err = bud_worker_finalize(config);
+      ierr = bud_worker_finalize(config);
     else
-      err = bud_master_finalize(config);
+      ierr = bud_master_finalize(config);
+
+    if (bud_is_ok(err) && !bud_is_ok(ierr))
+      err = ierr;
   }
 
   uv_run(config->loop, UV_RUN_NOWAIT);
