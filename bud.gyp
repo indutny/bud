@@ -108,6 +108,13 @@
               ],
             }],
           }],
+          ["OS == 'freebsd'", {
+            "direct_dependent_settings": {
+              "libraries": [
+                "-lelf",
+              ],
+            }
+          }],
         ],
       }],
     ],
