@@ -658,6 +658,11 @@ bud_error_t bud_context_load(JSON_Object* obj, bud_context_t* ctx) {
     ctx->request_cert = json_value_get_boolean(val);
   else
     ctx->request_cert = 0;
+  val = json_object_get_value(obj, "optional_cert");
+  if (val != NULL)
+    ctx->optional_cert = json_value_get_boolean(val);
+  else
+    ctx->optional_cert = 0;
   val = json_object_get_value(obj, "server_preference");
   if (val != NULL)
     ctx->server_preference = json_value_get_boolean(val);
@@ -977,6 +982,7 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"passphrase\": null,\n");
   fprintf(stdout, "    \"ticket_key\": null,\n");
   fprintf(stdout, "    \"request_cert\": false,\n");
+  fprintf(stdout, "    \"optional_cert\": false,\n");
   fprintf(stdout, "    \"ca\": null,\n");
   fprintf(stdout, "    \"reneg_window\": %d,\n", config.frontend.reneg_window);
   fprintf(stdout, "    \"reneg_limit\": %d\n", config.frontend.reneg_limit);
@@ -1357,9 +1363,12 @@ bud_error_t bud_context_init(bud_config_t* config,
    * Perform client cert validation manually.
    */
   if (config->contexts[0].request_cert || context->request_cert) {
-    SSL_CTX_set_verify(ctx,
-                       SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
-                       bud_config_verify_cert);
+    int flags;
+
+    flags = SSL_VERIFY_PEER;
+    if (!(config->contexts[0].optional_cert || context->optional_cert))
+      flags |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+    SSL_CTX_set_verify(ctx, flags, bud_config_verify_cert);
   } else {
     /* Just verify anything */
     SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, bud_config_verify_cert);
@@ -1989,6 +1998,8 @@ int bud_config_verify_cert(int status, X509_STORE_CTX* s) {
   if (store == NULL) {
     if (cert != NULL)
       return SSL_get_verify_result(ssl) == X509_V_OK ? 1 : 0;
+    else if (config->contexts[0].optional_cert)
+      return 1;
     else
       return config->contexts[0].request_cert ? 1 : 0;
   }

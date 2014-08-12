@@ -132,6 +132,7 @@ struct bud_context_s {
   const char* dh_file;
   const char* ticket_key;
   int request_cert;
+  int optional_cert;
   const char* ca_file;
   const JSON_Array* ca_array;
 
