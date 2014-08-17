@@ -62,6 +62,12 @@
           '-Wl,--whole-archive <(LIBOPENSSL) -Wl,--no-whole-archive',
         ],
       }],
+
+      ['OS in "freebsd"', {
+        'ldflags': [
+          '-Wl,--export-dynamic',
+        ],
+      }],
     ]
   }, {
     "target_name": "bud-dtrace",
