@@ -37,7 +37,7 @@
 
     # For tracing support
     "ldflags": [
-      "--whole-archive",
+      "-Wl,--whole-archive",
     ],
 
     "xcode_settings": {
