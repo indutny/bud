@@ -8,6 +8,7 @@
     "component%": "static_library",  # NB. these names match with what V8 expects
     "msvs_multi_core_compile": "0",  # we do enable multicore compiles, but not using the V8 way
     "gcc_version%": "unknown",
+    "node_root_dir%": "",
     "clang%": 1,
     "fips_dir%": "false",
     "conditions": [
@@ -15,6 +16,11 @@
         "OBJ_DIR": "<(PRODUCT_DIR)/obj",
       }, {
         "OBJ_DIR": "<(PRODUCT_DIR)/obj.target",
+      }],
+      ["node_root_dir == ''", {
+        "LIBOPENSSL": "<(PRODUCT_DIR)/libopenssl.a",
+      }, {
+        "LIBOPENSSL": "<(PRODUCT_DIR)/openssl.a",
       }],
     ],
   },
