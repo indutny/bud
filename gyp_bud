@@ -92,7 +92,10 @@ if __name__ == '__main__':
   if not any(a.startswith('-Dtarget_arch=') for a in args):
     args.append('-Dtarget_arch=%s' % host_arch())
 
-  if not any(a.startswith('-Dfips_dir=') for a in args):
+  if any(a.startswith('-Dfips_dir=') for a in args):
+    fips_fn = os.path.join(os.path.abspath(root), 'fips.gypi')
+    args.extend(['-I', fips_fn])
+  else:
     args.append('-Dfips_dir=false')
 
   gyp_args = list(args)

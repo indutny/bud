@@ -52,12 +52,6 @@
       ],
     },
     "conditions": [
-      ["fips_dir != 'false'", {
-        "make_global_settings": [
-          ["CC", "<(fips_dir)/bin/fipsld"],
-          ["LINK", "<(fips_dir)/bin/fipsld"],
-        ],
-      }],
       ["target_arch=='ia32'", {
         "xcode_settings": {"ARCHS": ["i386"]},
       }],
