@@ -24,7 +24,7 @@ bud_error_t bud_worker(bud_config_t* config) {
   int r;
   bud_error_t err;
 
-  bud_log(config, kBudLogDebug, "worker starting");
+  bud_clog(config, kBudLogDebug, "worker starting");
 
   config->loop = uv_default_loop();
   if (config->loop == NULL) {
@@ -148,7 +148,7 @@ void bud_worker_read_cb(uv_stream_t* stream,
       return;
 
     ASSERT(pending == UV_TCP, "worker received non-tcp handle on ipc");
-    bud_log(config, kBudLogDebug, "worker received handle");
+    bud_clog(config, kBudLogDebug, "worker received handle");
 
     /* Accept client */
     bud_client_create(config, (uv_stream_t*) config->ipc);
@@ -164,7 +164,7 @@ void bud_worker_signal_cb(uv_signal_t* signal, int status) {
   if (status == UV_ECANCELED)
     return;
 
-  bud_log(config, kBudLogInfo, "Worker shutting down");
+  bud_clog(config, kBudLogInfo, "Worker shutting down");
 
   /* Close server and signal listener and let the worker die */
   uv_close((uv_handle_t*) config->signal.sighup, bud_worker_close_cb);

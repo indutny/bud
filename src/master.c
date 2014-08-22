@@ -47,7 +47,7 @@ bud_error_t bud_master(bud_config_t* config) {
   int i;
   bud_error_t err;
 
-  bud_log(config, kBudLogDebug, "master starting");
+  bud_clog(config, kBudLogDebug, "master starting");
 
 #ifndef _WIN32
   if (config->is_daemon)
@@ -77,17 +77,17 @@ bud_error_t bud_master(bud_config_t* config) {
   err = bud_master_spawn_workers(config);
 
   if (bud_is_ok(err)) {
-    bud_log(config,
-            kBudLogInfo,
-            "bud listening on [%s]:%d and...",
-            config->frontend.host,
-            config->frontend.port);
+    bud_clog(config,
+             kBudLogInfo,
+             "bud listening on [%s]:%d and...",
+             config->frontend.host,
+             config->frontend.port);
     for (i = 0; i < config->contexts[0].backend.count; i++) {
-      bud_log(config,
-              kBudLogInfo,
-              "...forwarding to: [%s]:%d",
-              config->contexts[0].backend.list[i].host,
-              config->contexts[0].backend.list[i].port);
+      bud_clog(config,
+               kBudLogInfo,
+               "...forwarding to: [%s]:%d",
+               config->contexts[0].backend.list[i].host,
+               config->contexts[0].backend.list[i].port);
     }
   }
 
@@ -248,14 +248,14 @@ void bud_master_signal_cb(uv_signal_t* handle, int signum) {
 
   /* SIGHUP: 0 workers, handle it */
   if (config->worker_count == 0) {
-    bud_log(config, kBudLogWarning, "Can't reload config in 0-workers setup");
+    bud_clog(config, kBudLogWarning, "Can't reload config in 0-workers setup");
     return;
   }
 
   /* SIGHUP - gracefully restart workers */
-  bud_log(config,
-          kBudLogInfo,
-          "master got SIGHUP, broadcasting to workers");
+  bud_clog(config,
+           kBudLogInfo,
+           "master got SIGHUP, broadcasting to workers");
   stale = config->workers;
 
   /* Allocate new workers array and start them */
@@ -382,10 +382,10 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   } else {
     worker->state |= kBudWorkerStateActive;
     err = bud_ok();
-    bud_log(worker->config,
-            kBudLogInfo,
-            "spawned bud worker<%d>",
-            worker->proc.pid);
+    bud_clog(worker->config,
+             kBudLogInfo,
+             "spawned bud worker<%d>",
+             worker->proc.pid);
 
     /* Pending accept - try balancing */
     if (config->pending_accept) {
@@ -419,11 +419,11 @@ void bud_master_respawn_worker(uv_process_t* proc,
   worker = container_of(proc, bud_worker_t, proc);
   ASSERT(worker != NULL, "Proc has no worker");
 
-  bud_log(worker->config,
-          kBudLogWarning,
-          "bud worker<%d> died, signal: %d",
-          proc->pid,
-          term_signal);
+  bud_clog(worker->config,
+           kBudLogWarning,
+           "bud worker<%d> died, signal: %d",
+           proc->pid,
+           term_signal);
 
   bud_master_kill_worker(worker,
                          (uint64_t) worker->config->restart_timeout,
@@ -494,15 +494,13 @@ void bud_master_balance(struct bud_server_s* server) {
   config = server->config;
 
   if (config->worker_count == 0) {
-    bud_log(config, kBudLogDebug, "master self accept");
+    bud_clog(config, kBudLogDebug, "master self accept");
 
     /* Master = worker */
     return bud_client_create(config, (uv_stream_t*) &server->tcp);
   }
 
-  bud_log(config,
-          kBudLogDebug,
-          "master balance");
+  bud_clog(config, kBudLogDebug, "master balance");
 
   /* Round-robin worker selection */
   last_index = (config->last_worker + 1) % config->worker_count;
@@ -531,21 +529,21 @@ void bud_master_balance(struct bud_server_s* server) {
   /* Accept handle */
   r = uv_tcp_init(config->loop, &msg->client);
   if (r != 0) {
-    bud_log(config,
-            kBudLogWarning,
-            "master uv_tcp_init() failed with (%d) \"%s\"",
-            r,
-            uv_strerror(r));
+    bud_clog(config,
+             kBudLogWarning,
+             "master uv_tcp_init() failed with (%d) \"%s\"",
+             r,
+             uv_strerror(r));
     goto failed_tcp_init;
   }
 
   r = uv_accept((uv_stream_t*) &server->tcp, (uv_stream_t*) &msg->client);
   if (r != 0) {
-    bud_log(config,
-            kBudLogWarning,
-            "master uv_accept() failed with (%d) \"%s\"",
-            r,
-            uv_strerror(r));
+    bud_clog(config,
+             kBudLogWarning,
+             "master uv_accept() failed with (%d) \"%s\"",
+             r,
+             uv_strerror(r));
     goto failed_accept;
   }
 
@@ -558,11 +556,11 @@ void bud_master_balance(struct bud_server_s* server) {
                 (uv_stream_t*) &msg->client,
                 bud_master_msg_send_cb);
   if (r != 0) {
-    bud_log(config,
-            kBudLogWarning,
-            "master uv_write2() failed with (%d) \"%s\"",
-            r,
-            uv_strerror(r));
+    bud_clog(config,
+             kBudLogWarning,
+             "master uv_write2() failed with (%d) \"%s\"",
+             r,
+             uv_strerror(r));
     goto failed_accept;
   }
   return;
@@ -592,11 +590,11 @@ void bud_master_msg_send_cb(uv_write_t* req, int status) {
 
   msg = container_of(req, bud_master_msg_t, req);
   if (status != 0) {
-    bud_log(msg->config,
-            kBudLogWarning,
-            "master write_cb() failed with (%d) \"%s\"",
-            status,
-            uv_strerror(status));
+    bud_clog(msg->config,
+             kBudLogWarning,
+             "master write_cb() failed with (%d) \"%s\"",
+             status,
+             uv_strerror(status));
   }
 
   uv_close((uv_handle_t*) &msg->client, bud_master_msg_close_cb);

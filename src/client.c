@@ -1206,6 +1206,6 @@ void bud_client_log(bud_client_t* client,
     return;
 
   va_start(pa, fmt);
-  bud_logva(client->config, level, fmt, pa);
+  bud_clogva(client->config, level, fmt, pa);
   va_end(pa);
 }
