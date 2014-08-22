@@ -98,6 +98,8 @@ if __name__ == '__main__':
   else:
     args.append('-Dfips_dir=false')
 
+  args.append('-Dnode_root_dir=""')
+
   gyp_args = list(args)
   print gyp_args
   run_gyp(gyp_args)
