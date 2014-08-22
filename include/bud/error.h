@@ -2,6 +2,7 @@
 #define INCLUDE_BUD_ERROR_H_
 
 #include <stdio.h>  /* FILE */
+#include "bud/common.h"
 
 /* Forward declaration */
 struct bud_config_s;
@@ -122,16 +123,16 @@ struct bud_error_s {
   int ret;
 };
 
-bud_error_t bud_ok();
-int bud_is_ok(bud_error_t err);
-bud_error_t bud_error(bud_error_code_t code);
-bud_error_t bud_error_str(bud_error_code_t code, const char* str);
-bud_error_t bud_error_dstr(bud_error_code_t code, const char* str);
-bud_error_t bud_error_num(bud_error_code_t code, int ret);
-void bud_error_log(struct bud_config_s* config,
-                   int level,
-                   bud_error_t err);
-void bud_error_print(FILE* fp, bud_error_t err);
-const char* bud_error_to_str(bud_error_t err);
+BUD_EXPORT bud_error_t bud_ok();
+BUD_EXPORT int bud_is_ok(bud_error_t err);
+BUD_EXPORT bud_error_t bud_error(bud_error_code_t code);
+BUD_EXPORT bud_error_t bud_error_str(bud_error_code_t code, const char* str);
+BUD_EXPORT bud_error_t bud_error_dstr(bud_error_code_t code, const char* str);
+BUD_EXPORT bud_error_t bud_error_num(bud_error_code_t code, int ret);
+BUD_EXPORT void bud_error_log(struct bud_config_s* config,
+                              int level,
+                              bud_error_t err);
+BUD_EXPORT void bud_error_print(FILE* fp, bud_error_t err);
+BUD_EXPORT const char* bud_error_to_str(bud_error_t err);
 
 #endif  /* SRC_ERROR_H_ */

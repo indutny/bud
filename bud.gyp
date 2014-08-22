@@ -57,9 +57,9 @@
         ],
       }],
 
-      ["OS == 'freebsd'", {
-        "libraries": [
-          "-lelf",
+      ['OS in "linux freebsd"', {
+        'ldflags': [
+          '-Wl,--whole-archive <(PRODUCT_DIR)/libopenssl.a -Wl,--no-whole-archive',
         ],
       }],
     ]

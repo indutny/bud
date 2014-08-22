@@ -2,6 +2,7 @@
 #define INCLUDE_BUD_TRACING_H_
 
 #include "bud/error.h"  /* bud_error_t */
+#include "bud/common.h"
 #include <stdint.h>  /* uint16_t */
 
 /* Forward declarations */

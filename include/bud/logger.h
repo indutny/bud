@@ -1,6 +1,8 @@
 #ifndef INCLUDE_BUD_LOGGER_H_
 #define INCLUDE_BUD_LOGGER_H_
 
+#include "bud/common.h"
+
 /* Forward declarations */
 struct bud_logger_s;
 
@@ -14,13 +16,13 @@ enum bud_log_level_e {
   kBudLogFatal = 4
 };
 
-void bud_log(struct bud_logger_s* logger,
-             bud_log_level_t level,
-             const char* fmt,
-             ...);
-void bud_logva(struct bud_logger_s* logger,
-               bud_log_level_t level,
-               const char* fmt,
-               va_list ap);
+BUD_EXPORT void bud_log(struct bud_logger_s* logger,
+                        bud_log_level_t level,
+                        const char* fmt,
+                        ...);
+BUD_EXPORT void bud_logva(struct bud_logger_s* logger,
+                          bud_log_level_t level,
+                          const char* fmt,
+                          va_list ap);
 
 #endif  /* INCLUDE_BUD_LOGGER_H_ */
