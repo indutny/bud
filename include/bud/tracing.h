@@ -6,6 +6,7 @@
 
 /* Forward declarations */
 struct ssl_st;
+struct bud_logger_s;
 
 typedef struct bud_trace_module_s bud_trace_module_t;
 typedef struct bud_trace_client_s bud_trace_client_t;
@@ -37,6 +38,9 @@ struct bud_trace_client_s {
 
   /* Circularly-monotonic semi-unique connection id */
   uint64_t id;
+
+  /* Logger instance */
+  struct bud_logger_s* logger;
 };
 
 struct bud_trace_backend_s {
@@ -89,6 +93,6 @@ struct bud_trace_module_s {
 
 /* Convenient define for a module declaration */
 #define BUD_TRACE_MODULE bud_trace_module_t bud_trace_module
-#define BUD_TRACE_VERSION 1
+#define BUD_TRACE_VERSION 2
 
 #endif  /* INCLUDE_BUD_TRACING_H_ */

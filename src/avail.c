@@ -98,11 +98,11 @@ void bud_kill_backend(bud_client_t* client,
     goto failed_start;
 
 
-  bud_log(config,
-          kBudLogWarning,
-          "Killed backend %s:%d",
-          backend->host,
-          backend->port);
+  bud_clog(config,
+           kBudLogWarning,
+           "Killed backend %s:%d",
+           backend->host,
+           backend->port);
   bud_trace_kill_backend(client, backend);
   backend->dead = 1;
   return;
@@ -134,11 +134,11 @@ void bud_revive_backend(uv_timer_t* timer) {
   backend->revive_timer = NULL;
 
   bud_trace_revive_backend(NULL, backend);
-  bud_log(backend->config,
-          kBudLogWarning,
-          "Reviving backend %s:%d",
-          backend->host,
-          backend->port);
+  bud_clog(backend->config,
+           kBudLogWarning,
+           "Reviving backend %s:%d",
+           backend->host,
+           backend->port);
 }
 
 

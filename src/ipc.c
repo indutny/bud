@@ -142,7 +142,7 @@ void bud_ipc_read_cb(uv_stream_t* stream,
       continue;
 
     ASSERT(pending == UV_TCP, "received non-tcp handle on ipc");
-    bud_log(ipc->config, kBudLogDebug, "received handle on ipc");
+    bud_clog(ipc->config, kBudLogDebug, "received handle on ipc");
 
     ASSERT(ipc->client_cb != NULL, "ipc client_cb not initialized");
     ipc->client_cb(ipc);
@@ -260,11 +260,11 @@ void bud_ipc_msg_send_cb(uv_write_t* req, int status) {
   /* Error */
   if (status != 0) {
     /* XXX Probably report to caller? */
-    bud_log(msg->ipc->config,
-            kBudLogWarning,
-            "ipc send_cb() failed with (%d) \"%s\"",
-            status,
-            uv_strerror(status));
+    bud_clog(msg->ipc->config,
+             kBudLogWarning,
+             "ipc send_cb() failed with (%d) \"%s\"",
+             status,
+             uv_strerror(status));
   }
 }
 

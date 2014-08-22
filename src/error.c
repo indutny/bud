@@ -254,11 +254,11 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
   }
 
 #define BUD_ERROR(...)                                                        \
-    bud_log(config, level, __VA_ARGS__);                                      \
+    bud_clog(config, level, __VA_ARGS__);                                     \
     break;
 
 #define BUD_UV_ERROR(msg, err)                                                \
-    bud_log(config,                                                           \
+    bud_clog(config,                                                          \
             level,                                                            \
             msg " returned %d, reason: %s",                                   \
             err.ret,                                                          \

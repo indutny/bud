@@ -56,6 +56,12 @@
           "_GNU_SOURCE",
         ],
       }],
+
+      ["OS == 'freebsd'", {
+        "libraries": [
+          "-lelf",
+        ],
+      }],
     ]
   }, {
     "target_name": "bud-dtrace",
@@ -108,6 +114,13 @@
                 "<@(_outputs)",
               ],
             }],
+          }],
+          ["OS == 'freebsd'", {
+            "direct_dependent_settings": {
+              "libraries": [
+                "-lelf",
+              ],
+            }
           }],
         ],
       }],

@@ -8,6 +8,7 @@
 #include "error.h"
 #include "common.h"
 #include "config.h"
+#include "bud/logger.h"
 #include "logger.h"
 
 static const char* bud_log_level_str(bud_log_level_t level);
@@ -99,15 +100,13 @@ void bud_logger_free(bud_logger_t* logger) {
 }
 
 
-void bud_logva(bud_config_t* config,
+void bud_logva(bud_logger_t* logger,
                bud_log_level_t level,
                const char* fmt,
                va_list ap) {
   va_list stdio_ap;
   va_list syslog_ap;
-  bud_logger_t* logger;
 
-  logger = config->logger;
   ASSERT(logger != NULL, "Logger not initalized");
 
   /* Ignore low-level logging */
@@ -163,14 +162,15 @@ void bud_logva(bud_config_t* config,
 #endif  /* !_WIN32 */
 }
 
-void bud_log(bud_config_t* config,
+
+void bud_log(bud_logger_t* logger,
              bud_log_level_t level,
              const char* fmt,
              ...) {
   va_list ap;
 
   va_start(ap, fmt);
-  bud_logva(config, level, fmt, ap);
+  bud_logva(logger, level, fmt, ap);
   va_end(ap);
 }
 
@@ -190,4 +190,24 @@ const char* bud_log_level_str(bud_log_level_t level) {
     default:
       return "unk";
   }
+}
+
+
+void bud_clog(bud_config_t* config,
+              bud_log_level_t level,
+              const char* fmt,
+              ...) {
+  va_list ap;
+
+  va_start(ap, fmt);
+  bud_clogva(config, level, fmt, ap);
+  va_end(ap);
+}
+
+
+void bud_clogva(bud_config_t* config,
+                bud_log_level_t level,
+                const char* fmt,
+                va_list ap) {
+  bud_logva(config->logger, level, fmt, ap);
 }

@@ -73,6 +73,7 @@ static void bud_trace_fill_client(bud_client_t* client, bud_trace_client_t* t) {
     memset(t, 0, sizeof(*t));
   } else {
     t->ssl = client->ssl;
+    t->logger = client->config->logger;
     t->id = client->id;
     t->fd = client->frontend.tcp.io_watcher.fd;
     t->host = client->host;

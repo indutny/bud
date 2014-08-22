@@ -34,6 +34,12 @@
         "cflags": [ "-g" ],
       }
     },
+
+    # For tracing support
+    "ldflags": [
+      "--whole-archive",
+    ],
+
     "xcode_settings": {
       "GCC_VERSION": "com.apple.compilers.llvm.clang.1_0",
       "GCC_WARN_ABOUT_MISSING_NEWLINE": "YES",  # -Wnewline-eof
