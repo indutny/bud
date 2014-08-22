@@ -1,6 +1,8 @@
 #ifndef INCLUDE_BUD_LOGGER_H_
 #define INCLUDE_BUD_LOGGER_H_
 
+#include <stdarg.h>
+
 #include "bud/common.h"
 
 /* Forward declarations */
