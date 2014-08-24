@@ -68,17 +68,19 @@ struct bud_dtrace_handshake_s {};
 #endif  /* BUD_DTRACE */
 
 
-static void bud_trace_fill_client(bud_client_t* client, bud_trace_client_t* t) {
+static void bud_trace_fill_client(bud_config_t* config,
+                                  bud_client_t* client,
+                                  bud_trace_client_t* t) {
   if (client == NULL) {
     memset(t, 0, sizeof(*t));
   } else {
     t->ssl = client->ssl;
-    t->logger = client->config->logger;
     t->id = client->id;
     t->fd = client->frontend.tcp.io_watcher.fd;
     t->host = client->host;
     t->port = client->port;
   }
+  t->logger = config->logger;
 }
 
 
@@ -131,7 +133,7 @@ static void bud_trace_close_invoke(bud_trace_close_cb_t* cbs,
 #define BUD_TRACE_INVOKE(client, name)                                        \
     if ((client)->config->trace.name != NULL) {                               \
       bud_trace_client_t t;                                                   \
-      bud_trace_fill_client((client), &t);                                    \
+      bud_trace_fill_client((client)->config, (client), &t);                  \
       bud_trace_invoke((client)->config->trace.name, &t);                     \
     }                                                                         \
 
@@ -140,7 +142,7 @@ static void bud_trace_close_invoke(bud_trace_close_cb_t* cbs,
     if ((backend)->config->trace.name != NULL) {                              \
       bud_trace_client_t tc;                                                  \
       bud_trace_backend_t tb;                                                 \
-      bud_trace_fill_client((client), &tc);                                   \
+      bud_trace_fill_client((backend)->config, (client), &tc);                \
       bud_trace_fill_backend((client), (backend), &tb);                       \
       bud_trace_backend_invoke((backend)->config->trace.name, &tc, &tb);      \
     }                                                                         \
@@ -149,7 +151,7 @@ static void bud_trace_close_invoke(bud_trace_close_cb_t* cbs,
 #define BUD_TRACE_CLOSE_INVOKE(client, err, name)                             \
     if ((client)->config->trace.name != NULL) {                               \
       bud_trace_client_t c;                                                   \
-      bud_trace_fill_client((client), &c);                                    \
+      bud_trace_fill_client((client)->config, (client), &c);                  \
       bud_trace_close_invoke((client)->config->trace.name, &c, (err));        \
     }                                                                         \
 
