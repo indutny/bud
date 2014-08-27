@@ -104,12 +104,17 @@ struct bud_config_backend_list_s {
   bud_config_backend_t* list;
   int count;
   int last;
+
+  /* Map by ip */
+  bud_hashmap_t external_map;
+  unsigned int external_count;
 };
 
 enum bud_config_balance_e {
   kBudBalanceRoundRobin,
   kBudBalanceSNI,
-  kBudBalanceOnFail
+  kBudBalanceOnFail,
+  kBudBalanceExternal
 };
 
 #undef BUD_CONFIG_ADDR_FIELDS

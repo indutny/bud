@@ -35,8 +35,8 @@ static void bud_dtrace_fill_connection(bud_client_t* client,
     memset(conn, 0, sizeof(*conn));
   } else {
     conn->fd = client->frontend.tcp.io_watcher.fd;
-    conn->host = DSTR(client->host);
-    conn->port = client->port;
+    conn->host = DSTR(client->remote.host);
+    conn->port = client->remote.port;
   }
 }
 
@@ -77,8 +77,8 @@ static void bud_trace_fill_client(bud_config_t* config,
     t->ssl = client->ssl;
     t->id = client->id;
     t->fd = client->frontend.tcp.io_watcher.fd;
-    t->host = client->host;
-    t->port = client->port;
+    t->host = client->remote.host;
+    t->port = client->remote.port;
   }
   t->logger = config->logger;
 }
@@ -102,6 +102,7 @@ static void bud_trace_fill_backend(bud_client_t* client,
     case kBudBalanceRoundRobin: t->balance = kBudTraceBalanceRoundRobin; break;
     case kBudBalanceSNI: t->balance = kBudTraceBalanceSNI; break;
     case kBudBalanceOnFail: t->balance = kBudTraceBalanceOnFail; break;
+    case kBudBalanceExternal: t->balance = kBudTraceBalanceExternal; break;
   }
   t->balance_str = bud_config_balance_to_str(client->balance);
   t->sni_match = client->backend_list != &client->config->contexts[0].backend;
@@ -158,7 +159,7 @@ static void bud_trace_close_invoke(bud_trace_close_cb_t* cbs,
 #ifdef BUD_DTRACE
 
 #define BUD_TRACE_GENERIC_D(cname)                                            \
-    BUD_##cname(&d, d.fd, d.port, client->host);                              \
+    BUD_##cname(&d, d.fd, d.port, client->remote.host);                       \
 
 #else  /* !BUD_DTRACE */
 
@@ -207,7 +208,7 @@ void bud_trace_backend_connect(bud_client_t* client,
                       &b,
                       c.fd,
                       c.port,
-                      client->host,
+                      client->remote.host,
                       b.fd,
                       b.port,
                       (char*) bhost);
@@ -257,13 +258,13 @@ void bud_trace_handshake(bud_client_t* client) {
 # endif  /* OPENSSL_NPN_NEGOTIATED */
 #endif  /* BUD_DTRACE */
 
-  BUD_HANDSHAKE(&h, h.fd, h.port, client->host);
+  BUD_HANDSHAKE(&h, h.fd, h.port, client->remote.host);
 }
 
 
 #ifdef BUD_DTRACE
 
-# define BUD_TRACE_BACKEND_GENERIC_D(cname)                                    \
+# define BUD_TRACE_BACKEND_GENERIC_D(cname)                                   \
     bhost = backend->host;                                                    \
     b.host = DSTR(bhost);                                                     \
     b.port = backend->port;                                                   \
@@ -271,7 +272,7 @@ void bud_trace_handshake(bud_client_t* client) {
                 &b,                                                           \
                 c.fd,                                                         \
                 c.port,                                                       \
-                client->host,                                                 \
+                client->remote.host,                                          \
                 b.port,                                                       \
                 (char*) bhost);                                               \
 
@@ -279,7 +280,7 @@ void bud_trace_handshake(bud_client_t* client) {
 
 # define BUD_TRACE_BACKEND_GENERIC_D(a0)
 
-#endif  /* BUD_DTRACE */                                                      \
+#endif  /* BUD_DTRACE */
 
 
 #define BUD_TRACE_BACKEND_GENERIC(name, cname)                                \
@@ -309,7 +310,7 @@ void bud_trace_close(bud_client_t* client, bud_error_t err) {
   if (BUD_CLOSE_ENABLED()) {
     bud_dtrace_connection_t d;
     bud_dtrace_fill_connection(client, &d);
-    BUD_CLOSE(&d, d.fd, d.port, client->host, err.code);
+    BUD_CLOSE(&d, d.fd, d.port, client->remote.host, err.code);
   }
 #endif  /* BUD_DTRACE */
 }

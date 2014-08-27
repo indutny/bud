@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "error.h"
+
 #define ASSERT__COMMON(expr, desc, ...)                                       \
     do {                                                                      \
       if (!(expr)) {                                                          \
@@ -44,5 +46,32 @@ size_t bud_base64_encode(const char* src,
                          char* dst,
                          size_t dlen);
 const char* bud_sslerror_str(int err);
+
+/* Hashmap */
+
+typedef struct bud_hashmap_s bud_hashmap_t;
+typedef struct bud_hashmap_item_s bud_hashmap_item_t;
+
+struct bud_hashmap_s {
+  bud_hashmap_item_t* space;
+  unsigned int size;
+};
+
+struct bud_hashmap_item_s {
+  const char* key;
+  unsigned int key_len;
+  void* value;
+};
+
+bud_error_t bud_hashmap_init(bud_hashmap_t* hashmap, unsigned int size);
+void bud_hashmap_destroy(bud_hashmap_t* hashmap);
+
+bud_error_t bud_hashmap_insert(bud_hashmap_t* hashmap,
+                               const char* key,
+                               unsigned int key_len,
+                               void* value);
+void* bud_hashmap_get(bud_hashmap_t* hashmap,
+                      const char* key,
+                      unsigned int key_len);
 
 #endif  /* SRC_COMMON_H_ */

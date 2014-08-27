@@ -15,6 +15,14 @@ struct bud_config_backend_s;
 struct bud_config_backend_list_s;
 
 typedef struct bud_client_s bud_client_t;
+typedef struct bud_client_host_s bud_client_host_t;
+
+struct bud_client_host_s {
+  char host[INET6_ADDRSTRLEN];
+  unsigned int host_len;
+  unsigned char family;
+  uint16_t port;
+};
 
 struct bud_client_s {
   struct bud_config_s* config;
@@ -60,11 +68,11 @@ struct bud_client_s {
   uv_timer_t retry_timer;
   int retry_count;
 
+  /* Balancing */
+  bud_client_host_t local;
+
   /* Tracing and proxyline */
-  char host[INET6_ADDRSTRLEN];
-  unsigned int host_len;
-  unsigned char family;
-  uint16_t port;
+  bud_client_host_t remote;
   unsigned int proxyline_waiting;
 
   /* XForward */

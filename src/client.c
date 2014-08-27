@@ -40,7 +40,8 @@ static void bud_client_send_cb(uv_write_t* req, int status);
 static bud_client_error_t bud_client_shutdown(bud_client_t* client,
                                               bud_client_side_t* side);
 static void bud_client_shutdown_cb(uv_shutdown_t* req, int status);
-static bud_client_error_t bud_client_prepare_strings(bud_client_t* client);
+static bud_client_error_t bud_client_fill_host(bud_client_t* client,
+                                               bud_client_host_t* host);
 static void bud_client_handshake_start_cb(const SSL* ssl);
 static void bud_client_handshake_done_cb(const SSL* ssl);
 static void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret);
@@ -125,6 +126,15 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
     goto failed_accept;
   client->frontend.reading = kBudProgressRunning;
 
+  /* Fill hosts */
+  cerr = bud_client_fill_host(client, &client->local);
+  if (!bud_is_ok(cerr.err))
+    goto failed_accept;
+
+  cerr = bud_client_fill_host(client, &client->remote);
+  if (!bud_is_ok(cerr.err))
+    goto failed_accept;
+
   /*
    * Select a backend and connect to it, or wait for a backend to become
    * alive again.
@@ -191,10 +201,6 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
 #endif  /* SSL_MODE_RELEASE_BUFFERS */
 
   SSL_set_accept_state(client->ssl);
-
-  cerr = bud_client_prepare_strings(client);
-  if (!bud_is_ok(cerr.err))
-    goto failed_connect;
 
   bud_trace_frontend_accept(client);
   DBG_LN(&client->frontend, "new");
@@ -985,7 +991,8 @@ void bud_client_shutdown_cb(uv_shutdown_t* req, int status) {
 }
 
 
-bud_client_error_t bud_client_prepare_strings(bud_client_t* client) {
+bud_client_error_t bud_client_fill_host(bud_client_t* client,
+                                        bud_client_host_t* host) {
   int r;
   struct sockaddr_storage storage;
   int storage_size;
@@ -993,27 +1000,33 @@ bud_client_error_t bud_client_prepare_strings(bud_client_t* client) {
   struct sockaddr_in6* addr6;
 
   storage_size = sizeof(storage);
-  r = uv_tcp_getpeername(&client->frontend.tcp,
-                         (struct sockaddr*) &storage,
-                         &storage_size);
+  if (host == &client->remote) {
+    r = uv_tcp_getpeername(&client->frontend.tcp,
+                           (struct sockaddr*) &storage,
+                           &storage_size);
+  } else {
+    r = uv_tcp_getsockname(&client->frontend.tcp,
+                           (struct sockaddr*) &storage,
+                           &storage_size);
+  }
   if (r != 0)
     goto fatal;
 
   addr = (struct sockaddr_in*) &storage;
   addr6 = (struct sockaddr_in6*) &storage;
-  client->family = storage.ss_family;
+  host->family = storage.ss_family;
   if (storage.ss_family == AF_INET) {
-    client->port = addr->sin_port;
+    host->port = addr->sin_port;
     r = uv_inet_ntop(AF_INET,
                      &addr->sin_addr,
-                     client->host,
-                     sizeof(client->host));
+                     host->host,
+                     sizeof(host->host));
   } else if (storage.ss_family == AF_INET6) {
-    client->port = addr6->sin6_port;
+    host->port = addr6->sin6_port;
     r = uv_inet_ntop(AF_INET6,
                      &addr6->sin6_addr,
-                     client->host,
-                     sizeof(client->host));
+                     host->host,
+                     sizeof(host->host));
   } else {
     r = -1;
     goto fatal;
@@ -1022,7 +1035,7 @@ bud_client_error_t bud_client_prepare_strings(bud_client_t* client) {
   if (r != 0)
     goto fatal;
 
-  client->host_len = strlen(client->host);
+  host->host_len = strlen(host->host);
 
   return bud_client_ok(&client->backend);
 
@@ -1050,9 +1063,9 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
   if (type == kBudProxylineNone)
     return bud_client_ok();
 
-  if (client->family == AF_INET) {
+  if (client->remote.family == AF_INET) {
     family = "TCP4";
-  } else if (client->family == AF_INET6) {
+  } else if (client->remote.family == AF_INET6) {
     family = "TCP6";
   } else {
     r = -1;
@@ -1064,8 +1077,8 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
                  sizeof(proxyline),
                  client->config->proxyline_fmt.haproxy,
                  family,
-                 client->host,
-                 ntohs(client->port));
+                 client->remote.host,
+                 ntohs(client->remote.port));
   } else {
     const char* cn;
 
@@ -1074,8 +1087,8 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
                  sizeof(proxyline),
                  client->config->proxyline_fmt.json,
                  family,
-                 client->host,
-                 ntohs(client->port),
+                 client->remote.host,
+                 ntohs(client->remote.port),
                  cn != NULL ? '"' : 'f',
                  cn != NULL ? cn : "als",
                  cn != NULL ? '"' : 'e');

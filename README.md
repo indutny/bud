@@ -234,7 +234,13 @@ to get default configuration options (with comments and description below):
     // - in order to avoid parsing each request, the `X-Forwarded-For` header
     //   will only be sent on the first client request.
 
-    "x-forward": false
+    "x-forward": false,
+
+    // *Optional key*
+    // If this property is present - balancing will start from the backend,
+    // which `external` value is matching server address.
+    // (Useful when listening on multiple interfaces)
+    "external": "[1.2.3.4]:443"
   }],
 
   // SNI context loading

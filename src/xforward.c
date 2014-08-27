@@ -91,8 +91,9 @@ bud_client_error_t bud_client_http_xforward(bud_client_t* client) {
   /* Format header */
   r = snprintf(xforward,
                sizeof(xforward),
-               "X-Forwarded-For: %s\r\n",
-               client->host);
+               "X-Forwarded-For: %.*s\r\n",
+               client->remote.host_len,
+               client->remote.host);
 
   /* Shift data and insert xforward header */
   r = ringbuffer_insert(&client->backend.output,
@@ -143,24 +144,24 @@ bud_client_error_t bud_client_spdy_xforward(bud_client_t* client,
   if (major == -1)
     goto skip;
 
-  assert(12 + client->host_len <= sizeof(frame));
+  assert(12 + client->remote.host_len <= sizeof(frame));
 
   frame[0] = 0x80;
   frame[1] = major;
   *(uint16_t*) (frame + 2) = ntohs(kSpdyXForwardFrameType);
 
   /* Frame and Host lengths */
-  *(uint32_t*) (frame + 4) = htonl(4 + client->host_len);
-  *(uint32_t*) (frame + 8) = htonl(client->host_len);
+  *(uint32_t*) (frame + 4) = htonl(4 + client->remote.host_len);
+  *(uint32_t*) (frame + 8) = htonl(client->remote.host_len);
 
   /* Copy hostname */
-  memcpy(frame + 12, client->host, client->host_len);
+  memcpy(frame + 12, client->remote.host, client->remote.host_len);
 
   /* Prepend it to output data */
   r = ringbuffer_insert(&client->backend.output,
                         0,
                         (const char*) frame,
-                        (size_t) 12 + client->host_len);
+                        (size_t) 12 + client->remote.host_len);
   if (r != 0) {
     return bud_client_error(bud_error(kBudErrClientXForwardInsert),
                             &client->backend);

@@ -78,7 +78,9 @@ static int bud_config_verify_cert(int status, X509_STORE_CTX* s);
 static bud_error_t bud_config_load_backend(
     bud_config_t* config,
     JSON_Object* obj,
-    bud_config_backend_t* backend);
+    bud_config_backend_t* backend,
+    bud_hashmap_t* map,
+    unsigned int* ext_count);
 static bud_config_balance_t bud_config_balance_to_enum(const char* balance);
 
 
@@ -86,6 +88,7 @@ int kBudSSLConfigIndex = -1;
 int kBudSSLClientIndex = -1;
 int kBudSSLSNIIndex = -1;
 static const int kBudDefaultKeepalive = 3600;
+static const int kBudBackendMapSize = 1024;
 
 
 bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
@@ -691,7 +694,11 @@ bud_error_t bud_config_load_backend_list(bud_config_t* config,
   JSON_Array* backend;
   int i;
 
-  err = bud_ok();
+  backends->external_count = 0;
+  err = bud_hashmap_init(&backends->external_map, kBudBackendMapSize);
+  if (!bud_is_ok(err))
+    return err;
+
   backend = json_object_get_array(obj, "backend");
   backends->count = backend == NULL ? 0 : json_array_get_count(backend);
   backends->list = calloc(backends->count, sizeof(*backends->list));
@@ -701,7 +708,9 @@ bud_error_t bud_config_load_backend_list(bud_config_t* config,
   for (i = 0; i < backends->count; i++) {
     err = bud_config_load_backend(config,
                                   json_array_get_object(backend, i),
-                                  &backends->list[i]);
+                                  &backends->list[i],
+                                  &backends->external_map,
+                                  &backends->external_count);
     if (!bud_is_ok(err))
       break;
   }
@@ -715,8 +724,12 @@ bud_error_t bud_config_load_backend_list(bud_config_t* config,
 
 bud_error_t bud_config_load_backend(bud_config_t* config,
                                     JSON_Object* obj,
-                                    bud_config_backend_t* backend) {
+                                    bud_config_backend_t* backend,
+                                    bud_hashmap_t* map,
+                                    unsigned int* ext_count) {
+  bud_error_t err;
   JSON_Value* val;
+  const char* external;
   int r;
 
   bud_config_load_addr(obj, (bud_config_addr_t*) backend);
@@ -750,6 +763,17 @@ bud_error_t bud_config_load_backend(bud_config_t* config,
   r = bud_config_str_to_addr(backend->host, backend->port, &backend->addr);
   if (r != 0)
     return bud_error_num(kBudErrPton, r);
+
+  external = json_object_get_string(obj, "external");
+  if (external == NULL)
+    return bud_ok();
+
+  /* Insert backend into a hashmap */
+  err = bud_hashmap_insert(map, external, strlen(external), backend);
+  if (!bud_is_ok(err))
+    return err;
+
+  (*ext_count)++;
 
   return bud_ok();
 }
@@ -834,6 +858,8 @@ void bud_context_free(bud_context_t* context) {
       context->backend.list[i].revive_timer = NULL;
     }
   }
+
+  bud_hashmap_destroy(&context->backend.external_map);
 
   SSL_CTX_free(context->ctx);
   if (context->cert != NULL)

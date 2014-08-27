@@ -28,7 +28,8 @@ typedef void (*bud_trace_close_cb_t)(bud_trace_client_t* client,
 enum bud_trace_balance_e {
   kBudTraceBalanceRoundRobin,
   kBudTraceBalanceSNI,
-  kBudTraceBalanceOnFail
+  kBudTraceBalanceOnFail,
+  kBudTraceBalanceExternal
 };
 
 struct bud_trace_client_s {

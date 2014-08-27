@@ -3,6 +3,7 @@
 #include "avail.h"
 #include "client.h"
 #include "client-common.h"
+#include "common.h"
 #include "config.h"
 #include "logger.h"
 #include "tracing.h"
@@ -23,6 +24,29 @@ bud_config_backend_t* bud_select_backend(bud_client_t* client) {
   config = client->config;
   balance = client->balance;
   backend = client->backend_list;
+
+  /* External balancing if any of backends has `external` field */
+  if (backend->external_count != 0) {
+    char key[1024];
+    unsigned int key_len;
+
+    /* Lookup in external map */
+    key_len = snprintf(key,
+                       sizeof(key),
+                       "[%.*s]:%d",
+                       client->local.host_len,
+                       client->local.host,
+                       config->frontend.port);
+    res = bud_hashmap_get(&backend->external_map, key, key_len);
+    if (res != NULL) {
+      backend->last = res - backend->list;
+
+      /* Info for tracing */
+      client->balance = kBudBalanceExternal;
+    }
+
+    /* Continue with default balancing */
+  }
 
   now = uv_now(config->loop);
   death_timeout = (uint64_t) config->availability.death_timeout;
