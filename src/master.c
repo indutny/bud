@@ -65,6 +65,11 @@ bud_error_t bud_master(bud_config_t* config) {
   if (!bud_is_ok(err))
     goto fatal;
 
+  /* Drop privileges */
+  err = bud_config_drop_privileges(config);
+  if (!bud_is_ok(err))
+    goto fatal;
+
   err = bud_master_spawn_workers(config);
 
   if (bud_is_ok(err)) {
@@ -81,9 +86,6 @@ bud_error_t bud_master(bud_config_t* config) {
                config->contexts[0].backend.list[i].port);
     }
   }
-
-  /* Drop privileges */
-  err = bud_config_drop_privileges(config);
 
 fatal:
   return err;
