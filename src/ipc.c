@@ -197,6 +197,8 @@ bud_error_t bud_ipc_balance(bud_ipc_t* ipc, uv_stream_t* server) {
     goto failed_malloc;
   }
 
+  handle->ipc = ipc;
+
   r = uv_tcp_init(ipc->config->loop, &handle->tcp);
   if (r != 0) {
     err = bud_error(kBudErrIPCBalanceInit);
