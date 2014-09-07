@@ -83,6 +83,7 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   ctx->cert_files = NULL;
   ctx->key_files = NULL;
   ctx->key_passes = NULL;
+  ctx->ticket_key = NULL;
   if (!bud_is_ok(err))
     goto fatal;
 
