@@ -572,6 +572,10 @@ void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
     goto fatal;
   }
 
+  /* Update context, may be needed for early ticket key generation */
+  SSL_set_SSL_CTX(client->ssl, client->sni_ctx.ctx);
+  client->ssl->options = client->sni_ctx.ctx->options;
+
 done:
   /* Request stapling info if needed */
   if (config->stapling.enabled && client->hello.ocsp_request != 0) {

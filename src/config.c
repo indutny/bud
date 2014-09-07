@@ -1786,6 +1786,7 @@ int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
 
   if (ctx != NULL) {
     SSL_set_SSL_CTX(s, ctx->ctx);
+    s->options = ctx->ctx->options;
     s->verify_mode = ctx->ctx->verify_mode;
     if (!SSL_set_ex_data(s, kBudSSLSNIIndex, ctx))
       return SSL_TLSEXT_ERR_ALERT_FATAL;
