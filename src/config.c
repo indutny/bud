@@ -1373,7 +1373,7 @@ bud_error_t bud_context_init(bud_config_t* config,
                                    context->ticket_key_storage,
                                    sizeof(context->ticket_key_storage));
   } else {
-    SSL_CTX_set_option(ctx, SSL_OP_NO_TICKET);
+    SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
   }
 
   /* Load CA chain */
