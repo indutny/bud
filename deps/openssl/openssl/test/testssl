@@ -35,6 +35,9 @@ fi
 echo test sslv2
 $ssltest -ssl2 $extra || exit 1
 
+echo test sslv3 with async key ex
+$ssltest -ssl3 -async_key_ex $extra || exit 1
+
 echo test sslv2 with server authentication
 $ssltest -ssl2 -server_auth $CA $extra || exit 1
 
@@ -164,6 +167,9 @@ $ssltest -tls1 -cipher PSK -psk abc123 $extra || exit 1
 
 echo test tls1 with PSK via BIO pair
 $ssltest -bio_pair -tls1 -cipher PSK -psk abc123 $extra || exit 1
+
+echo test tls1 with async key ex
+$ssltest -tls1 -async_key_ex $extra || exit 1
 
 if ../util/shlib_wrap.sh ../apps/openssl no-srp; then
   echo skipping SRP tests
