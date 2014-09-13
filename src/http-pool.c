@@ -370,7 +370,6 @@ bud_error_t bud_http_request_send(bud_http_request_t* req) {
     post_buf[0] = UV_STR_BUF("POST ");
     post_buf[1] = uv_buf_init(req->url, req->url_len);
     post_buf[2] = UV_STR_BUF(" HTTP/1.1\r\n"
-                             "Transfer-Encoding: chunked\r\n"
                              "Content-Type: application/json\r\n"
                              "Host: ");
     post_buf[3] = uv_buf_init(host,
@@ -383,11 +382,10 @@ bud_error_t bud_http_request_send(bud_http_request_t* req) {
     post_buf[5] = uv_buf_init(body_length,
                               snprintf(body_length,
                                        sizeof(body_length),
-                                       "%d\r\n\r\n%x\r\n",
-                                       (int) req->body_len,
+                                       "%d\r\n\r\n",
                                        (int) req->body_len));
     post_buf[6] = uv_buf_init(req->body, req->body_len);
-    post_buf[7] = UV_STR_BUF("\r\n0\r\n\r\n");
+    post_buf[7] = UV_STR_BUF("\r\n");
 
     r = uv_write(&req->write,
                  (uv_stream_t*) &req->tcp,
