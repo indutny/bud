@@ -338,17 +338,25 @@ fatal:
 
 bud_error_t bud_http_request_send(bud_http_request_t* req) {
   int r;
-  uv_buf_t get_buf[3];
-  uv_buf_t post_buf[6];
+  uv_buf_t get_buf[4];
+  uv_buf_t post_buf[8];
 
   ASSERT(req->state == kBudHttpConnected, "Writing to not connected socket");
 
   req->state = kBudHttpRunning;
 
   if (req->method == kBudHttpGet) {
+    char host[256];
+
     get_buf[0] = UV_STR_BUF("GET ");
     get_buf[1] = uv_buf_init(req->url, req->url_len);
-    get_buf[2] = UV_STR_BUF(" HTTP/1.1\r\n\r\n");
+    get_buf[2] = UV_STR_BUF(" HTTP/1.1\r\nHost: ");
+    get_buf[3] = uv_buf_init(host,
+                             snprintf(host,
+                                      sizeof(host),
+                                      "%s:%d\r\n\r\n",
+                                      req->pool->host,
+                                      req->pool->port));
 
     r = uv_write(&req->write,
                  (uv_stream_t*) &req->tcp,
@@ -357,21 +365,29 @@ bud_error_t bud_http_request_send(bud_http_request_t* req) {
                  bud_http_request_write_cb);
   } else {
     char body_length[128];
+    char host[256];
 
     post_buf[0] = UV_STR_BUF("POST ");
     post_buf[1] = uv_buf_init(req->url, req->url_len);
     post_buf[2] = UV_STR_BUF(" HTTP/1.1\r\n"
                              "Transfer-Encoding: chunked\r\n"
                              "Content-Type: application/json\r\n"
-                             "Content-Length: ");
-    post_buf[3] = uv_buf_init(body_length,
+                             "Host: ");
+    post_buf[3] = uv_buf_init(host,
+                              snprintf(host,
+                                       sizeof(host),
+                                       "%s:%d\r\n",
+                                       req->pool->host,
+                                       req->pool->port));
+    post_buf[4] = UV_STR_BUF("Content-Length: ");
+    post_buf[5] = uv_buf_init(body_length,
                               snprintf(body_length,
                                        sizeof(body_length),
                                        "%d\r\n\r\n%x\r\n",
                                        (int) req->body_len,
                                        (int) req->body_len));
-    post_buf[4] = uv_buf_init(req->body, req->body_len);
-    post_buf[5] = UV_STR_BUF("\r\n0\r\n\r\n");
+    post_buf[6] = uv_buf_init(req->body, req->body_len);
+    post_buf[7] = UV_STR_BUF("\r\n0\r\n\r\n");
 
     r = uv_write(&req->write,
                  (uv_stream_t*) &req->tcp,
