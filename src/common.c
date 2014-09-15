@@ -194,8 +194,8 @@ const char* bud_sslerror_str(int err) {
 static uint32_t bud_murmur3(const char* key, uint32_t len) {
   uint32_t hash;
   const uint32_t* chunks;
-  unsigned int chunk_count;
-  unsigned int i;
+  int chunk_count;
+  int i;
   uint32_t tail;
 
   hash = 0;
