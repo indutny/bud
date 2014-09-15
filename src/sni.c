@@ -65,6 +65,11 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   ctx->ciphers = json_object_get_string(obj, "ciphers");
   ctx->ecdh = json_object_get_string(obj, "ecdh");
   ctx->ticket_key = json_object_get_string(obj, "ticket_key");
+  val = json_object_get_value(obj, "ticket_timeout");
+  if (val != NULL)
+    ctx->ticket_timeout = json_value_get_number(val);
+  else
+    ctx->ticket_timeout = -1;
   ctx->npn = json_object_get_array(obj, "npn");
   ctx->ca_array = json_object_get_array(obj, "ca");
   val = json_object_get_value(obj, "request_cert");

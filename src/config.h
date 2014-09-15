@@ -137,6 +137,7 @@ struct bud_context_s {
   const char* ecdh;
   const char* dh_file;
   const char* ticket_key;
+  int ticket_timeout;
   int request_cert;
   int optional_cert;
   const char* ca_file;

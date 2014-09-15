@@ -167,6 +167,9 @@ to get default configuration options (with comments and description below):
     // node -pe "require('crypto').randomBytes(48).toString('base64')"
     "ticket_key": "yzNUDktR5KmA4wX9g9kDSzEn...true randomness",
 
+    // **Optional** Ticket timeout, default: 300
+    "ticket_timeout": 300,
+
     // **Optional** NPN protocols to advertise
     "npn": ["http/1.1", "http/1.0"],
 
