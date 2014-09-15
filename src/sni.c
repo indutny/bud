@@ -70,6 +70,11 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   val = json_object_get_value(obj, "request_cert");
   if (val != NULL)
     ctx->request_cert = json_value_get_boolean(val);
+  val = json_object_get_value(obj, "server_preference");
+  if (val != NULL)
+    ctx->server_preference = json_value_get_boolean(val);
+  else
+    ctx->server_preference = config->contexts[0].server_preference;
   err = bud_config_load_backend_list(config, obj, &ctx->backend);
   if (!bud_is_ok(err))
     goto fatal;
