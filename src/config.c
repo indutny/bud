@@ -102,6 +102,7 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   struct option long_options[] = {
     { "version", 0, NULL, 'v' },
     { "config", 1, NULL, 'c' },
+    { "piped-config", 0, NULL, 'p' },
     { "inline-config", 1, NULL, 'i' },
 #ifndef _WIN32
     { "daemonize", 0, NULL, 'd' },
@@ -117,15 +118,16 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   is_worker = 0;
   do {
     index = 0;
-    c = getopt_long(argc, argv, "vi:c:d", long_options, &index);
+    c = getopt_long(argc, argv, "vi:c:d:p", long_options, &index);
     switch (c) {
       case 'v':
         bud_print_version();
         c = -1;
         break;
+      case 'p':
       case 'i':
       case 'c':
-        config = bud_config_load(optarg, c == 'i', err);
+        config = bud_config_load(c == 'p' ? NULL : optarg, c == 'i', err);
         if (config == NULL) {
           ASSERT(!bud_is_ok(*err), "Config load failed without error");
           c = -1;
@@ -212,6 +214,7 @@ bud_error_t bud_config_verify_all_strings(const JSON_Array* arr,
 
 bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
   int i;
+  char* str_from_file;
   JSON_Value* json;
   JSON_Value* val;
   JSON_Object* frontend;
@@ -221,10 +224,20 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
   JSON_Array* contexts;
   bud_config_t* config;
 
-  if (inlined)
+  str_from_file = NULL;
+
+  if (path == NULL) {
+    *err = bud_read_file_by_fd(0, &str_from_file);
+    if (!bud_is_ok(*err)) {
+      goto end;
+    } else {
+      json = json_parse_string(str_from_file);
+    }
+  } else if (inlined) {
     json = json_parse_string(path);
-  else
+  } else {
     json = json_parse_file(path);
+  }
 
   if (json == NULL) {
     *err = bud_error_dstr(kBudErrJSONParse, path);
@@ -243,8 +256,19 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
     goto failed_get_object;
   }
 
-  /* Copy path or inlined config value */
-  config->path = strdup(path);
+  if (path != NULL) /* Copy path or inlined config value */
+    config->path = strdup(path);
+  else {
+    if (str_from_file != NULL) {
+      /* Was already allocated, reuse that memory with the assumption that destruction 
+         of config will  free this path mem: similar to the strdup(...) call above */
+      config->path = str_from_file;
+    } else {
+      *err = bud_error_str(kBudErrNoMem, "bud_config_t null config passed in");
+      goto end;
+    }
+  }
+
   if (config->path == NULL) {
     *err = bud_error_str(kBudErrNoMem, "bud_config_t strcpy(path)");
     goto failed_alloc_path;
@@ -901,6 +925,7 @@ void bud_print_help(int argc, char** argv) {
   fprintf(stdout, "  --version, -v              Print bud version\n");
   fprintf(stdout, "  --config PATH, -c PATH     Load JSON configuration\n");
   fprintf(stdout, "  --default-config           Print default JSON config\n");
+  fprintf(stdout, "  --piped-config             Pipe JSON configuration ie cat <config> | ./bud ...\n");
 #ifndef _WIN32
   fprintf(stdout, "  --daemon, -d               Daemonize process\n");
 #endif  /* !_WIN32 */

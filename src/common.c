@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdint.h>
 #include "openssl/ssl.h"
 
@@ -31,10 +32,11 @@ static const int unbase64_table[] =
   };
 #define unbase64(x) unbase64_table[(uint8_t)(x)]
 
+static const off_t BUF_STEP_LEN = 1024;
 
-size_t bud_base64_decode(char *buf,
+size_t bud_base64_decode(char* buf,
                          size_t len,
-                         const char *src,
+                         const char* src,
                          const size_t srcLen) {
   char a, b, c, d;
   char* dst;
@@ -363,4 +365,61 @@ void* bud_hashmap_get(bud_hashmap_t* hashmap,
     return NULL;
 
   return item->value;
+}
+
+
+bud_error_t bud_read_file_by_fd(int fd, char** out) {
+  ssize_t r;
+  char* tmp;
+  char* buffer;
+  off_t offset;
+  off_t buffer_len;
+  bud_error_t err;
+
+  buffer_len = BUF_STEP_LEN;
+  buffer = malloc(buffer_len);
+
+  if (buffer == NULL) {
+    err = bud_error_str(kBudErrNoMem, "read_file_fd");
+    goto read_failed;
+  }
+
+  offset = 0;
+
+  while (1) {
+    do
+      r = read(fd, buffer + offset, buffer_len - offset);
+    while (r == -1 && errno == EINTR);
+
+    if (r < 0) {
+      err = bud_error_str(errno, strerror(errno));
+      goto read_failed;
+    } else if (r == 0) { /* EOF Encountered */
+      break;
+    } else {
+      offset += r;
+
+      if (offset >= buffer_len) {
+        buffer_len += BUF_STEP_LEN;
+        tmp = realloc((void*) buffer, buffer_len);
+        if (tmp == NULL) {
+          err = bud_error_str(kBudErrNoMem, "attempt_realloc");
+          goto read_failed;
+        }
+
+        buffer = tmp;
+      }
+    }
+  }
+
+  buffer[offset] = '\0';
+  *out = buffer;
+
+  return bud_ok();
+
+read_failed:
+  if (buffer != NULL)
+    free(buffer);
+
+  return err;
 }
