@@ -61,6 +61,35 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
   return err;
 }
 
+bud_error_t bud_translate_errno(const int errno_value, const char *msg) {
+  bud_error_code_t err_code;
+
+  switch (errno_value) {
+    case EBADF:
+      err_code = kBudErrBadF;
+      break;
+    case EAGAIN:
+      err_code = kBudErrAgain;
+      break;
+    case EIO:
+      err_code = kBudErrIO;
+      break;
+    case EINTR:
+      err_code = kBudErrIntr;
+      break;
+    case EFAULT:
+      err_code = kBudErrFault;
+      break;
+    case EINVAL:
+      err_code = kBudErrInvalid;
+      break;
+    default:
+      err_code = kBudErrInvalid; /* TODO: Find a suitable default err code */
+  }
+
+  return bud_error_str(err_code, msg);
+}
+
 #define BUD_ERROR_HANDLER(err)                                                \
   switch (err.code) {                                                         \
     case kBudOk:                                                              \
@@ -249,6 +278,28 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_UV_ERROR("bud_ipc_balance() uv_accept", err)                        \
     case kBudErrIPCBalanceWrite:                                              \
       BUD_UV_ERROR("bud_ipc_balance()", err)                                  \
+    case kBudErrBadF:                                                         \
+      BUD_ERROR("Invalid file/socket file descriptor: %s", err.str)           \
+    case kBudErrIO:                                                           \
+    case kBudErrGenericIO:                                                    \
+      BUD_ERROR("An I/O error occured during read from file system: %s",      \
+                err.str)                                                      \
+    case kBudErrFault:                                                        \
+      BUD_ERROR("The buffer points outside the allocated address space: %s",  \
+                err.str)                                                      \
+    case kBudErrNXIO:                                                         \
+      BUD_ERROR("I/O operation requested on device that does not exist: %s",  \
+                err.str)                                                      \
+    case kBudErrAgain:                                                        \
+      BUD_ERROR("Non-blocking I/O device is not ready for reading: %s",       \
+                err.str)                                                      \
+    case kBudErrIsDir:                                                        \
+      BUD_ERROR("Attempted to read from a directory: %s", err.str)            \
+    case kBudErrIntr:                                                         \
+      BUD_ERROR("Read from slow device interrupted by signal delivery "       \
+                "before any data arrived: %s", err.str)                       \
+    case kBudErrInvalid:                                                      \
+      BUD_ERROR("Cannot read from a negative file descriptor: %s", err.str)   \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }
