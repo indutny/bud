@@ -74,4 +74,6 @@ void* bud_hashmap_get(bud_hashmap_t* hashmap,
                       const char* key,
                       unsigned int key_len);
 
+bud_error_t bud_read_file_by_fd(int fd, char** buffer);
+bud_error_t translate_errno(const int errno_value, const char *msg);
 #endif  /* SRC_COMMON_H_ */

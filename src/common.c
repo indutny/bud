@@ -1,4 +1,6 @@
+#include <errno.h>
 #include <stdint.h>
+#include <sys/stat.h>
 #include "openssl/ssl.h"
 
 #include "common.h"
@@ -363,4 +365,64 @@ void* bud_hashmap_get(bud_hashmap_t* hashmap,
     return NULL;
 
   return item->value;
+}
+
+bud_error_t bud_read_file_by_fd(int fd, char** out) {
+  ssize_t r;
+  char *buffer;
+  bud_error_t err;
+  struct stat stat_buf;
+  off_t buffer_len, offset;
+
+  if (fd < 0) {
+    err = bud_error_str(kBudErrInvalid, "read_file_fd");
+    goto read_failed;
+  }
+
+  if (fstat(fd, &stat_buf) || stat_buf.st_size < 0) {
+    err = bud_translate_errno(errno, "pipe config fstat");
+    goto read_failed;
+  }
+
+  buffer_len = stat_buf.st_size;
+  buffer = malloc(sizeof(char) * (buffer_len + 1)); /* Extra space for '\0' */
+
+  if (buffer == NULL) {
+    err = bud_error_str(kBudErrNoMem, "read_file_fd allocating buffer");
+    goto read_failed;
+  }
+
+  for (offset=0; offset < buffer_len; offset += r) {  
+    do {
+      r = read(fd, buffer + offset, buffer_len - offset);
+    } while (r == -1 && errno == EINTR);
+
+    if (r < 0) {
+      err = bud_translate_errno(errno, "pipe config read");
+      free(buffer);
+      goto read_failed;
+    } else if (r == 0) { /* EOF encountered */
+      if (offset < 1) {  /* No content was read in */
+        free(buffer);
+        buffer = NULL;
+      }
+
+      break;
+    }
+  }
+
+  if (buffer != NULL) {
+    *(buffer + buffer_len) = '\0';
+  }
+
+  *out = buffer;
+  err = bud_ok();
+  return err;
+
+  /* TODO:@odeke-em Implement mmap'd version, if possibly using massive files,
+    but most importantly if sys/mman.h is available on platforms running bud */
+
+read_failed:
+  *out = NULL;
+  return err;
 }

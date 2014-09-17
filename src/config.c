@@ -127,7 +127,7 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
       case 'p':
       case 'i':
       case 'c':
-        config = bud_config_load(c == 'p' ? NULL: optarg, c == 'i', err);
+        config = bud_config_load(c == 'p' ? NULL : optarg, c == 'i', err);
         if (config == NULL) {
           ASSERT(!bud_is_ok(*err), "Config load failed without error");
           c = -1;
@@ -211,55 +211,9 @@ bud_error_t bud_config_verify_all_strings(const JSON_Array* arr,
   return bud_ok();
 }
 
-char* bud_read_file_by_fp(FILE *fp, int* err_save) {
-  char* buffer, c;
-  int i, buffer_len, BUFFER_STEP_SIZE;
-
-  if (fp == NULL)
-    goto failed_file_read;
-
-  /* TODO:@odeke-em Implement mmap'd version, if possibly using massive files,
-    but most importantly if sys/mman.h is available on platforms running bud */
-
-  i=0, BUFFER_STEP_SIZE=1024, buffer_len=BUFFER_STEP_SIZE;
-
-  buffer = (char*)malloc(sizeof(char) * buffer_len);
-
-  while ((fread(&c, sizeof(char), 1, fp) == 1) && c != EOF) {
-    if (i >= buffer_len) {
-      buffer_len += BUFFER_STEP_SIZE;
-      buffer = (char *)realloc(buffer, sizeof(char) * buffer_len);
-      if (buffer == NULL) {
-        *err_save = kBudErrNoMem;
-        goto failed_file_read;
-      }
-    }
-
-    buffer[i++] = c; 
-  }
-
-  if (i < 1) {
-    free(buffer);
-    buffer = NULL;
-  } else {
-    buffer = (char *)realloc(buffer, sizeof(char) * (i + 1));
-    if (buffer == NULL) {
-      *err_save = kBudErrNoMem;
-      goto failed_file_read;
-    }
-
-    buffer[i] = '\0';
-    *err_save = kBudOk;
-  }
-
-  return buffer;
-  
-failed_file_read:
-  return NULL;
-}
 
 bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
-  int i, file_parse_err_code;
+  int i;
   char* str_from_file;
   JSON_Value* json;
   JSON_Value* val;
@@ -273,17 +227,17 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
   str_from_file = NULL;
 
   if (path == NULL) {
-    str_from_file = bud_read_file_by_fp(stdin, &file_parse_err_code);
-    if (file_parse_err_code != kBudOk) {
-      *err = bud_error_str(file_parse_err_code, "bud_config_t failed to read from fp");
+    *err = bud_read_file_by_fd(0, &str_from_file);
+    if (!bud_is_ok(*err)) {
       goto end;
-    } else
+    } else {
       json = json_parse_string(str_from_file);
-
-  } else if (inlined)
+    }
+  } else if (inlined) {
     json = json_parse_string(path);
-  else
+  } else {
     json = json_parse_file(path);
+  }
 
   if (json == NULL) {
     *err = bud_error_dstr(kBudErrJSONParse, path);
