@@ -12,3 +12,7 @@ node_modules/
 # ringbuffer
 deps/ringbuffer/tools/gyp
 deps/ringbuffer/out
+
+# Text editors swap files/backups
+*.swp
+*~

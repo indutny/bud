@@ -254,6 +254,7 @@ struct bud_config_s {
   bud_config_trace_t trace;
 };
 
+char* bud_read_file_by_fp(FILE* fp, int* err_save);
 bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err);
 bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err);
 void bud_config_free(bud_config_t* config);

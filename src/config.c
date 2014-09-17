@@ -102,6 +102,7 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   struct option long_options[] = {
     { "version", 0, NULL, 'v' },
     { "config", 1, NULL, 'c' },
+    { "piped-config", 0, NULL, 'p' },
     { "inline-config", 1, NULL, 'i' },
 #ifndef _WIN32
     { "daemonize", 0, NULL, 'd' },
@@ -117,15 +118,16 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   is_worker = 0;
   do {
     index = 0;
-    c = getopt_long(argc, argv, "vi:c:d", long_options, &index);
+    c = getopt_long(argc, argv, "vi:c:d:p", long_options, &index);
     switch (c) {
       case 'v':
         bud_print_version();
         c = -1;
         break;
+      case 'p':
       case 'i':
       case 'c':
-        config = bud_config_load(optarg, c == 'i', err);
+        config = bud_config_load(c == 'p' ? NULL: optarg, c == 'i', err);
         if (config == NULL) {
           ASSERT(!bud_is_ok(*err), "Config load failed without error");
           c = -1;
@@ -209,9 +211,56 @@ bud_error_t bud_config_verify_all_strings(const JSON_Array* arr,
   return bud_ok();
 }
 
+char* bud_read_file_by_fp(FILE *fp, int* err_save) {
+  char* buffer, c;
+  int i, buffer_len, BUFFER_STEP_SIZE;
+
+  if (fp == NULL)
+    goto failed_file_read;
+
+  /* TODO:@odeke-em Implement mmap'd version, if possibly using massive files,
+    but most importantly if sys/mman.h is available on platforms running bud */
+
+  i=0, BUFFER_STEP_SIZE=1024, buffer_len=BUFFER_STEP_SIZE;
+
+  buffer = (char*)malloc(sizeof(char) * buffer_len);
+
+  while ((fread(&c, sizeof(char), 1, fp) == 1) && c != EOF) {
+    if (i >= buffer_len) {
+      buffer_len += BUFFER_STEP_SIZE;
+      buffer = (char *)realloc(buffer, sizeof(char) * buffer_len);
+      if (buffer == NULL) {
+        *err_save = kBudErrNoMem;
+        goto failed_file_read;
+      }
+    }
+
+    buffer[i++] = c; 
+  }
+
+  if (i < 1) {
+    free(buffer);
+    buffer = NULL;
+  } else {
+    buffer = (char *)realloc(buffer, sizeof(char) * (i + 1));
+    if (buffer == NULL) {
+      *err_save = kBudErrNoMem;
+      goto failed_file_read;
+    }
+
+    buffer[i] = '\0';
+    *err_save = kBudOk;
+  }
+
+  return buffer;
+  
+failed_file_read:
+  return NULL;
+}
 
 bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
-  int i;
+  int i, file_parse_err_code;
+  char* str_from_file;
   JSON_Value* json;
   JSON_Value* val;
   JSON_Object* frontend;
@@ -221,7 +270,17 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
   JSON_Array* contexts;
   bud_config_t* config;
 
-  if (inlined)
+  str_from_file = NULL;
+
+  if (path == NULL) {
+    str_from_file = bud_read_file_by_fp(stdin, &file_parse_err_code);
+    if (file_parse_err_code != kBudOk) {
+      *err = bud_error_str(file_parse_err_code, "bud_config_t failed to read from fp");
+      goto end;
+    } else
+      json = json_parse_string(str_from_file);
+
+  } else if (inlined)
     json = json_parse_string(path);
   else
     json = json_parse_file(path);
@@ -243,8 +302,19 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
     goto failed_get_object;
   }
 
-  /* Copy path or inlined config value */
-  config->path = strdup(path);
+  if (path == NULL) {
+    if (str_from_file != NULL) {
+      /* Was already allocated, reuse that memory */
+      config->path = str_from_file;
+    } else {
+      *err = bud_error_str(kBudErrNoMem, "bud_config_t null config passed in");
+      goto end;
+    }
+  } else  {
+    /* Copy path or inlined config value */
+    config->path = strdup(path);
+  }
+
   if (config->path == NULL) {
     *err = bud_error_str(kBudErrNoMem, "bud_config_t strcpy(path)");
     goto failed_alloc_path;
@@ -901,6 +971,7 @@ void bud_print_help(int argc, char** argv) {
   fprintf(stdout, "  --version, -v              Print bud version\n");
   fprintf(stdout, "  --config PATH, -c PATH     Load JSON configuration\n");
   fprintf(stdout, "  --default-config           Print default JSON config\n");
+  fprintf(stdout, "  --piped-config             Pipe JSON configuration ie cat <config> | ./bud ...\n");
 #ifndef _WIN32
   fprintf(stdout, "  --daemon, -d               Daemonize process\n");
 #endif  /* !_WIN32 */
