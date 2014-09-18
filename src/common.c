@@ -1,6 +1,5 @@
 #include <errno.h>
 #include <stdint.h>
-#include <unistd.h>
 #include "openssl/ssl.h"
 
 #include "common.h"
