@@ -367,6 +367,7 @@ void* bud_hashmap_get(bud_hashmap_t* hashmap,
   return item->value;
 }
 
+
 bud_error_t bud_read_file_by_fd(int fd, char** out) {
   ssize_t r;
   char *buffer;
