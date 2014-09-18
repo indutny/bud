@@ -233,11 +233,10 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
     } else {
       json = json_parse_string(str_from_file);
     }
-  } else if (inlined) {
+  } else if (inlined)
     json = json_parse_string(path);
-  } else {
+  else
     json = json_parse_file(path);
-  }
 
   if (json == NULL) {
     *err = bud_error_dstr(kBudErrJSONParse, path);
