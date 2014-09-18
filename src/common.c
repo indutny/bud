@@ -1,6 +1,6 @@
 #include <errno.h>
 #include <stdint.h>
-#include <sys/stat.h>
+#include <unistd.h>
 #include "openssl/ssl.h"
 
 #include "common.h"
@@ -34,9 +34,9 @@ static const int unbase64_table[] =
 #define unbase64(x) unbase64_table[(uint8_t)(x)]
 
 
-size_t bud_base64_decode(char *buf,
+size_t bud_base64_decode(char* buf,
                          size_t len,
-                         const char *src,
+                         const char* src,
                          const size_t srcLen) {
   char a, b, c, d;
   char* dst;
@@ -368,52 +368,62 @@ void* bud_hashmap_get(bud_hashmap_t* hashmap,
 }
 
 
+bud_error_t attempt_realloc(void** buf, const size_t r_size) {
+  *buf = realloc(*buf, r_size);
+  if (*buf == NULL)
+    return bud_error_str(kBudErrNoMem, "attempt_realloc");
+  else
+    return bud_ok();
+}
+
+
 bud_error_t bud_read_file_by_fd(int fd, char** out) {
   ssize_t r;
-  char *buffer;
   bud_error_t err;
-  struct stat stat_buf;
-  off_t buffer_len, offset;
+  char* buffer, c;
+  off_t buffer_len, offset, BUF_STEP_LEN;
 
-  if (fd < 0) {
-    err = bud_error_str(kBudErrInvalid, "read_file_fd");
-    goto read_failed;
-  }
-
-  if (fstat(fd, &stat_buf) || stat_buf.st_size < 0) {
-    err = bud_translate_errno(errno, "pipe config fstat");
-    goto read_failed;
-  }
-
-  buffer_len = stat_buf.st_size;
-  buffer = malloc(sizeof(char) * (buffer_len + 1)); /* Extra space for '\0' */
+  BUF_STEP_LEN = 1024;
+  buffer_len = BUF_STEP_LEN;
+  buffer = malloc(sizeof(*buffer) * (buffer_len));
 
   if (buffer == NULL) {
-    err = bud_error_str(kBudErrNoMem, "read_file_fd allocating buffer");
+    err = bud_error_str(kBudErrNoMem, "read_file_fd");
     goto read_failed;
   }
 
-  for (offset=0; offset < buffer_len; offset += r) {  
-    do {
-      r = read(fd, buffer + offset, buffer_len - offset);
-    } while (r == -1 && errno == EINTR);
+  for (offset = 0;;) {
+    do
+      r = read(fd, &c, 1);
+    while (r == -1 && errno == EINTR);
 
-    if (r < 0) {
-      err = bud_translate_errno(errno, "pipe config read");
-      free(buffer);
+    if (r == 0 || c == EOF)
+      break;
+    else if (r < 0) {
+      err = bud_error_str_num(errno, "");
       goto read_failed;
-    } else if (r == 0) { /* EOF encountered */
-      if (offset < 1) {  /* No content was read in */
-        free(buffer);
-        buffer = NULL;
+    } else {
+      if (offset >= buffer_len) {
+        buffer_len += BUF_STEP_LEN;
+        err = attempt_realloc((void**)&buffer, sizeof(*buffer) * buffer_len);
+
+        if (!bud_is_ok(err))
+          goto read_failed;
       }
 
-      break;
+      buffer[offset++] = c;
     }
   }
 
-  if (buffer != NULL) {
-    *(buffer + buffer_len) = '\0';
+  if (!offset) { /* No read was performed */
+    free(buffer);
+    buffer = NULL;
+  } else {
+    err = attempt_realloc((void**)&buffer, sizeof(*buffer) * (offset + 1));
+    if (!bud_is_ok(err))
+      goto read_failed;
+    else
+      buffer[offset] = '\0';
   }
 
   *out = buffer;
@@ -424,6 +434,9 @@ bud_error_t bud_read_file_by_fd(int fd, char** out) {
     but most importantly if sys/mman.h is available on platforms running bud */
 
 read_failed:
+  if (buffer != NULL)
+    free(buffer);
+
   *out = NULL;
   return err;
 }

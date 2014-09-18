@@ -61,7 +61,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
   return err;
 }
 
-bud_error_t bud_translate_errno(const int errno_value, const char *msg) {
+
+bud_error_t bud_error_str_num(const int errno_value, const char* msg) {
   bud_error_code_t err_code;
 
   switch (errno_value) {
@@ -89,6 +90,7 @@ bud_error_t bud_translate_errno(const int errno_value, const char *msg) {
 
   return bud_error_str(err_code, msg);
 }
+
 
 #define BUD_ERROR_HANDLER(err)                                                \
   switch (err.code) {                                                         \

@@ -256,17 +256,17 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
     goto failed_get_object;
   }
 
-  if (path == NULL) {
+  if (path != NULL) /* Copy path or inlined config value */
+    config->path = strdup(path);
+  else {
     if (str_from_file != NULL) {
-      /* Was already allocated, reuse that memory */
+      /* Was already allocated, reuse that memory with the assumption that destruction 
+         of config will  free this path mem: similar to the strdup(...) call above */
       config->path = str_from_file;
     } else {
       *err = bud_error_str(kBudErrNoMem, "bud_config_t null config passed in");
       goto end;
     }
-  } else  {
-    /* Copy path or inlined config value */
-    config->path = strdup(path);
   }
 
   if (config->path == NULL) {

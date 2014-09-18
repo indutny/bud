@@ -34,9 +34,9 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
-size_t bud_base64_decode(char *buf,
+size_t bud_base64_decode(char* buf,
                          size_t len,
-                         const char *src,
+                         const char* src,
                          const size_t srcLen);
 size_t bud_base64_decoded_size_fast(size_t size);
 
@@ -75,5 +75,4 @@ void* bud_hashmap_get(bud_hashmap_t* hashmap,
                       unsigned int key_len);
 
 bud_error_t bud_read_file_by_fd(int fd, char** buffer);
-bud_error_t translate_errno(const int errno_value, const char *msg);
 #endif  /* SRC_COMMON_H_ */
