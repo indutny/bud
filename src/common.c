@@ -416,6 +416,8 @@ bud_error_t bud_read_file_by_fd(int fd, char** out) {
 
         if (!bud_is_ok(err))
           goto read_failed;
+
+        buffer = realloc_buffer_alias;
       }
 
       buffer[offset++] = c;
@@ -428,10 +430,12 @@ bud_error_t bud_read_file_by_fd(int fd, char** out) {
   } else {
     realloc_buffer_alias = attempt_realloc(
             (void*)buffer, sizeof(*buffer) * (offset + 1), &err);
+
     if (!bud_is_ok(err))
       goto read_failed;
-    else
-      buffer[offset] = '\0';
+
+    buffer = realloc_buffer_alias;
+    buffer[offset] = '\0';
   }
 
   *out = buffer;
