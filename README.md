@@ -68,6 +68,7 @@ Usage: bud [options]
 options:
   --version, -v              Print bud version
   --config PATH, -c PATH     Load JSON configuration
+  --piped-config, -p         Load piped JSON configuration
   --default-config           Print default JSON config
   --daemon, -d               Daemonize process
 ```

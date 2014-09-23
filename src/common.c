@@ -32,6 +32,7 @@ static const int unbase64_table[] =
   };
 #define unbase64(x) unbase64_table[(uint8_t)(x)]
 
+static const off_t BUF_STEP_LEN = 1024;
 
 size_t bud_base64_decode(char* buf,
                          size_t len,
@@ -367,7 +368,7 @@ void* bud_hashmap_get(bud_hashmap_t* hashmap,
 }
 
 
-static void* attempt_realloc(void* buf, const size_t r_size, bud_error_t *err) {
+static void* attempt_realloc(void* buf, const size_t r_size, bud_error_t* err) {
   buf = realloc(buf, r_size);
   if (buf == NULL)
     *err = bud_error_str(kBudErrNoMem, "attempt_realloc");
@@ -380,75 +381,61 @@ static void* attempt_realloc(void* buf, const size_t r_size, bud_error_t *err) {
 
 bud_error_t bud_read_file_by_fd(int fd, char** out) {
   ssize_t r;
-  bud_error_t err;
+  char* tmp;
+  char* buffer;
   off_t offset;
   off_t buffer_len;
-  off_t BUF_STEP_LEN;
-  char c;
-  char* buffer;
-  char* realloc_buffer_alias;
+  bud_error_t err;
 
-  BUF_STEP_LEN = 1024;
   buffer_len = BUF_STEP_LEN;
-  buffer = malloc(sizeof(*buffer) * (buffer_len));
-  realloc_buffer_alias = NULL;
+  buffer = malloc(buffer_len);
 
   if (buffer == NULL) {
     err = bud_error_str(kBudErrNoMem, "read_file_fd");
     goto read_failed;
   }
 
-  for (offset = 0;;) {
+  r = 1;
+  offset = 0;
+
+  while (1) {
     do
-      r = read(fd, &c, 1);
+      r = read(fd, buffer + offset, buffer_len - offset);
     while (r == -1 && errno == EINTR);
 
-    if (r == 0 || c == EOF)
-      break;
-    else if (r < 0) {
-      err = bud_error_str_num(errno, "");
+    if (r < 0) {
+      err = bud_error_str(errno, strerror(errno));
       goto read_failed;
+    } else if (r == 0) { /* EOF Encountered */
+      break;
     } else {
+      offset += r;
       if (offset >= buffer_len) {
         buffer_len += BUF_STEP_LEN;
-        realloc_buffer_alias = attempt_realloc(
-            (void*)buffer, sizeof(*buffer) * buffer_len, &err);
+        tmp = attempt_realloc((void*)buffer, buffer_len, &err);
 
         if (!bud_is_ok(err))
           goto read_failed;
 
-        buffer = realloc_buffer_alias;
+        buffer = tmp;
       }
-
-      buffer[offset++] = c;
     }
   }
 
-  if (!offset) { /* No read was performed */
-    free(buffer);
-    buffer = NULL;
-  } else {
-    realloc_buffer_alias = attempt_realloc(
-            (void*)buffer, sizeof(*buffer) * (offset + 1), &err);
+  tmp = attempt_realloc((void*)buffer, (offset + 1), &err);
 
-    if (!bud_is_ok(err))
-      goto read_failed;
+  if (!bud_is_ok(err))
+    goto read_failed;
 
-    buffer = realloc_buffer_alias;
-    buffer[offset] = '\0';
-  }
-
+  buffer = tmp;
+  buffer[offset] = '\0';
   *out = buffer;
-  err = bud_ok();
-  return err;
 
-  /* TODO:@odeke-em Implement mmap'd version, if possibly using massive files,
-    but most importantly if sys/mman.h is available on platforms running bud */
+  return err;
 
 read_failed:
   if (buffer != NULL)
     free(buffer);
 
-  *out = NULL;
   return err;
 }
