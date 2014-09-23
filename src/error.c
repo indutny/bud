@@ -61,7 +61,6 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
   return err;
 }
 
-
 #define BUD_ERROR_HANDLER(err)                                                \
   switch (err.code) {                                                         \
     case kBudOk:                                                              \
