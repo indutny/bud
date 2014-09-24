@@ -368,17 +368,6 @@ void* bud_hashmap_get(bud_hashmap_t* hashmap,
 }
 
 
-static void* attempt_realloc(void* buf, const size_t r_size, bud_error_t* err) {
-  buf = realloc(buf, r_size);
-  if (buf == NULL)
-    *err = bud_error_str(kBudErrNoMem, "attempt_realloc");
-  else
-    *err = bud_ok();
-
-  return buf;
-}
-
-
 bud_error_t bud_read_file_by_fd(int fd, char** out) {
   ssize_t r;
   char* tmp;
@@ -395,7 +384,6 @@ bud_error_t bud_read_file_by_fd(int fd, char** out) {
     goto read_failed;
   }
 
-  r = 1;
   offset = 0;
 
   while (1) {
@@ -410,28 +398,24 @@ bud_error_t bud_read_file_by_fd(int fd, char** out) {
       break;
     } else {
       offset += r;
+
       if (offset >= buffer_len) {
         buffer_len += BUF_STEP_LEN;
-        tmp = attempt_realloc((void*)buffer, buffer_len, &err);
-
-        if (!bud_is_ok(err))
+        tmp = realloc((void*) buffer, buffer_len);
+        if (tmp == NULL) {
+          err = bud_error_str(kBudErrNoMem, "attempt_realloc");
           goto read_failed;
+        }
 
         buffer = tmp;
       }
     }
   }
 
-  tmp = attempt_realloc((void*)buffer, (offset + 1), &err);
-
-  if (!bud_is_ok(err))
-    goto read_failed;
-
-  buffer = tmp;
   buffer[offset] = '\0';
   *out = buffer;
 
-  return err;
+  return bud_ok();
 
 read_failed:
   if (buffer != NULL)
