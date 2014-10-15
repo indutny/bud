@@ -628,7 +628,6 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
 
   bud_config_load_addr(obj, (bud_config_addr_t*) frontend);
 
-  frontend->ssl3 = -1;
   frontend->max_send_fragment = -1;
   frontend->allow_half_open = -1;
   frontend->reneg_limit = -1;
@@ -641,9 +640,6 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   if (val != NULL)
     frontend->reneg_limit = json_value_get_number(val);
 
-  val = json_object_get_value(obj, "ssl3");
-  if (val != NULL)
-    frontend->ssl3 = json_value_get_boolean(val);
   val = json_object_get_value(obj, "max_send_fragment");
   if (val != NULL)
     frontend->max_send_fragment = json_value_get_number(val);
@@ -956,7 +952,6 @@ void bud_config_print_default() {
   config.log.stdio = -1;
   config.log.syslog = -1;
   config.frontend.keepalive = -1;
-  config.frontend.ssl3 = -1;
   config.frontend.max_send_fragment = -1;
   config.frontend.allow_half_open = -1;
   config.restart_timeout = -1;
@@ -1007,10 +1002,6 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"keepalive\": %d,\n", config.frontend.keepalive);
   fprintf(stdout, "    \"security\": \"%s\",\n", config.frontend.security);
   fprintf(stdout, "    \"server_preference\": true,\n");
-  if (config.frontend.ssl3)
-    fprintf(stdout, "    \"ssl3\": true,\n");
-  else
-    fprintf(stdout, "    \"ssl3\": false,\n");
   fprintf(stdout,
           "    \"max_send_fragment\": %d,\n",
           config.frontend.max_send_fragment);
@@ -1100,7 +1091,6 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->frontend.host, NULL, "0.0.0.0");
   DEFAULT(config->frontend.security, NULL, "ssl23");
   DEFAULT(config->frontend.keepalive, -1, kBudDefaultKeepalive);
-  DEFAULT(config->frontend.ssl3, -1, 0);
   DEFAULT(config->frontend.max_send_fragment, -1, 1400);
   DEFAULT(config->frontend.allow_half_open, -1, 0);
   DEFAULT(config->frontend.reneg_window, 0, 600);
@@ -1379,8 +1369,6 @@ bud_error_t bud_context_init(bud_config_t* config,
       config->frontend.method = TLSv1_server_method();
     else if (strcmp(config->frontend.security, "tls1.2") == 0)
       config->frontend.method = TLSv1_2_server_method();
-    else if (strcmp(config->frontend.security, "ssl3") == 0)
-      config->frontend.method = SSLv3_server_method();
     else
       config->frontend.method = SSLv23_server_method();
   }
@@ -1508,10 +1496,8 @@ bud_error_t bud_context_init(bud_config_t* config,
   else if (config->contexts[0].ciphers != NULL)
     SSL_CTX_set_cipher_list(ctx, config->contexts[0].ciphers);
 
-  /* Disable SSL2 */
-  options = SSL_OP_NO_SSLv2 | SSL_OP_ALL;
-  if (!config->frontend.ssl3)
-    options |= SSL_OP_NO_SSLv3;
+  /* Disable SSL2/SSL3 */
+  options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_ALL;
 
   /* Do not resume session on renegotiation */
   options |= SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION;

@@ -133,7 +133,7 @@ to get default configuration options (with comments and description below):
 
     // Which protocol versions to support:
     // **optional**, default: "ssl23"
-    // "ssl23" (implies tls1.*) , "ssl3", "tls1", "tls1.1", "tls1.2"
+    // "ssl23" (implies tls1.*): "tls1", "tls1.1", "tls1.2"
     "security": "ssl23",
 
     // Path to default TLS certificate
@@ -181,10 +181,6 @@ to get default configuration options (with comments and description below):
 
     // **Optional** Maximum number of renegotiations in a window
     "reneg_limit": 3,
-
-    // **Optional** If true - enable SSL3 support
-    // SSL3 is known to be insecure, and is only used by old browsers
-    "ssl3": false,
 
     // **Optional** Maximum size of TLS fragment
     "max_send_fragment": 1400,
