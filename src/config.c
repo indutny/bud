@@ -118,7 +118,7 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   is_worker = 0;
   do {
     index = 0;
-    c = getopt_long(argc, argv, "vi:c:d:p", long_options, &index);
+    c = getopt_long(argc, argv, "vi:c:dp", long_options, &index);
     switch (c) {
       case 'v':
         bud_print_version();
