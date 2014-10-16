@@ -80,6 +80,9 @@ struct bud_client_s {
     size_t skip;
     unsigned char crlf;
   } xforward;
+
+  /* Key Ex */
+  bud_http_request_t* key_ex_req;
 };
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream);

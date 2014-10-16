@@ -251,6 +251,14 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_UV_ERROR("bud_ipc_balance() uv_accept", err)                        \
     case kBudErrIPCBalanceWrite:                                              \
       BUD_UV_ERROR("bud_ipc_balance()", err)                                  \
+    case kBudErrKeyExSkip:                                                    \
+      BUD_ERROR("KeyEx should be skipped")                                    \
+    case kBudErrKeyExNoResponse:                                              \
+      BUD_ERROR("KeyEx response does not have body")                          \
+    case kBudErrKeyExResponseOOB:                                             \
+      BUD_ERROR("KeyEx response body too big")                                \
+    case kBudErrKeyExSupply:                                                  \
+      BUD_ERROR("SSL_supply_key_ex_data() failure")                           \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }

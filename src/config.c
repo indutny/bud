@@ -369,6 +369,9 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
   /* OCSP Stapling configuration */
   bud_config_read_pool_conf(obj, "stapling", &config->stapling);
 
+  /* Async Key Ex configuration */
+  bud_config_read_pool_conf(obj, "key_ex", &config->key_ex);
+
   /* SSL Contexts */
 
   /* TODO(indutny): sort them and do binary search */
@@ -828,6 +831,9 @@ void bud_config_finalize(bud_config_t* config) {
   if (config->stapling.pool != NULL)
     bud_http_pool_free(config->stapling.pool);
   config->stapling.pool = NULL;
+  if (config->key_ex.pool != NULL)
+    bud_http_pool_free(config->key_ex.pool);
+  config->key_ex.pool = NULL;
 }
 
 
@@ -1060,6 +1066,12 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"host\": \"%s\",\n", config.stapling.host);
   fprintf(stdout, "    \"url\": \"%s\"\n", config.stapling.url);
   fprintf(stdout, "  },\n");
+  fprintf(stdout, "  \"key_ex\": {\n");
+  fprintf(stdout, "    \"enabled\": false,\n");
+  fprintf(stdout, "    \"port\": %d,\n", config.key_ex.port);
+  fprintf(stdout, "    \"host\": \"%s\",\n", config.key_ex.host);
+  fprintf(stdout, "    \"url\": \"%s\"\n", config.key_ex.url);
+  fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"contexts\": [],\n");
   fprintf(stdout, "  \"tracing\": {\n");
   fprintf(stdout, "    \"dso\": []\n");
@@ -1117,6 +1129,9 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->stapling.port, 0, 9000);
   DEFAULT(config->stapling.host, NULL, "127.0.0.1");
   DEFAULT(config->stapling.url, NULL, "/bud/stapling/%s");
+  DEFAULT(config->key_ex.port, 0, 9000);
+  DEFAULT(config->key_ex.host, NULL, "127.0.0.1");
+  DEFAULT(config->key_ex.url, NULL, "/bud/key-ex/%s");
 }
 
 
@@ -1381,6 +1396,15 @@ bud_error_t bud_context_init(bud_config_t* config,
   if (!SSL_CTX_set_ex_data(ctx, kBudSSLConfigIndex, config)) {
     err = bud_error_str(kBudErrNoMem, "SSL_CTX");
     goto fatal;
+  }
+
+  /* Allow dummy keys */
+  if (config->key_ex.enabled) {
+    long mode;
+
+    mode = SSL_CTX_get_mode(ctx);
+    mode |= SSL_MODE_ASYNC_KEY_EX;
+    SSL_CTX_set_mode(ctx, mode);
   }
 
   /* Disable sessions, they won't work with cluster anyway */
@@ -1740,6 +1764,16 @@ bud_error_t bud_config_init(bud_config_t* config) {
                                                 config->stapling.port,
                                                 &err);
       if (config->stapling.pool == NULL)
+        goto fatal;
+    }
+
+    /* Connect to Key Ex server */
+    if (config->key_ex.enabled) {
+      config->key_ex.pool = bud_http_pool_new(config,
+                                              config->key_ex.host,
+                                              config->key_ex.port,
+                                              &err);
+      if (config->key_ex.pool == NULL)
         goto fatal;
     }
   }

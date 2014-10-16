@@ -15,6 +15,7 @@
 #include "client-common.h"
 #include "hello-parser.h"
 #include "http-pool.h"
+#include "key-ex.h"
 #include "logger.h"
 #include "sni.h"
 #include "ocsp.h"
@@ -99,6 +100,9 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   /* X-Forward */
   client->xforward.skip = 0;
   client->xforward.crlf = 0;
+
+  /* Key Ex */
+  client->key_ex_req = NULL;
 
   r = uv_timer_init(config->loop, &client->retry_timer);
   if (r != 0)
@@ -602,6 +606,7 @@ bud_client_error_t bud_client_backend_in(bud_client_t* client) {
   int written;
   int err;
   bud_client_error_t cerr;
+  bud_error_t kerr;
 
   written = 0;
   while (!ringbuffer_is_empty(&client->backend.input)) {
@@ -633,6 +638,12 @@ bud_client_error_t bud_client_backend_in(bud_client_t* client) {
   if (written >= 0)
     return bud_client_ok(&client->backend);
 
+  kerr = bud_client_handle_key_ex(client);
+  if (bud_is_ok(kerr))
+    return bud_client_ok(&client->backend);
+  else if (kerr.code != kBudErrKeyExSkip)
+    return bud_client_error(kerr, &client->backend);
+
   err = SSL_get_error(client->ssl, written);
   if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
     return bud_client_ok(&client->backend);
@@ -648,6 +659,7 @@ bud_client_error_t bud_client_backend_out(bud_client_t* client) {
   size_t avail;
   char* out;
   bud_client_error_t cerr;
+  bud_error_t kerr;
 
   /* If buffer is full - stop reading */
   cerr = bud_client_throttle(client,
@@ -684,6 +696,12 @@ bud_client_error_t bud_client_backend_out(bud_client_t* client) {
 
   if (read > 0)
     goto success;
+
+  kerr = bud_client_handle_key_ex(client);
+  if (bud_is_ok(kerr))
+    return bud_client_ok(&client->frontend);
+  else if (kerr.code != kBudErrKeyExSkip)
+    return bud_client_error(kerr, &client->frontend);
 
   err = SSL_get_error(client->ssl, read);
   if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)

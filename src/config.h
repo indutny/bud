@@ -247,6 +247,7 @@ struct bud_config_s {
 
   bud_config_http_pool_t sni;
   bud_config_http_pool_t stapling;
+  bud_config_http_pool_t key_ex;
 
   int context_count;
   bud_context_t* contexts;

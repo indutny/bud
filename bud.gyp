@@ -26,6 +26,7 @@
       "src/hello-parser.c",
       "src/http-pool.c",
       "src/ipc.c",
+      "src/key-ex.c",
       "src/logger.c",
       "src/master.c",
       "src/ocsp.c",
