@@ -84,7 +84,7 @@ to get the default configuration options (with comments and description below):
   // Number of workers to use, if 0 - only one process will be spawned.
   "workers": 1,
 
-  // Timeout in milli seconds after which workers will be restarted (if they die)
+  // Timeout in ms after which workers will be restarted (if they die)
   "restart_timeout": 250,
 
   // Logging configuration
@@ -113,10 +113,10 @@ to get the default configuration options (with comments and description below):
     // Time between retries
     "retry_interval": 250,
 
-    // How long backend should not be responding until considered to be dead -- milli seconds
+    // How long backend should not be responding until considered to be dead -- ms
     "death_timeout": 1000,
 
-    // Timeout in milli seconds after which it should be revived
+    // Timeout in ms after which it should be revived
     "revive_interval": 2500
   },
 
@@ -168,7 +168,7 @@ to get the default configuration options (with comments and description below):
     // node -pe "require('crypto').randomBytes(48).toString('base64')"
     "ticket_key": "yzNUDktR5KmA4wX9g9kDSzEn...true randomness",
 
-    // **Optional** Ticket timeout in milli seconds, default: 300
+    // **Optional** Ticket timeout in seconds, default: 300
     "ticket_timeout": 300,
 
     // **Optional** NPN protocols to advertise
