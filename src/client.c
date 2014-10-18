@@ -916,7 +916,7 @@ bud_client_error_t bud_client_shutdown(bud_client_t* client,
 
   /* Do not shutdown not-connected socket */
   if (side == &client->backend && client->connect != kBudProgressDone)
-    return bud_client_ok(side);
+    return bud_client_error(bud_error(kBudErrClientShutdownNoConn), side);
 
   /* Try cycling data to figure out if there is still something to send */
   cerr = bud_client_cycle(client);

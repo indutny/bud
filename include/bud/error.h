@@ -107,6 +107,7 @@ enum bud_error_code_e {
   kBudErrClientProxyline = 0x810,
   kBudErrClientNoBackendInSNI = 0x811,
   kBudErrClientXForwardInsert = 0x812,
+  kBudErrClientShutdownNoConn = 0x813,
 
   /* IPC */
   kBudErrIPCPipeInit = 0x900,
