@@ -5,13 +5,13 @@ A TLS terminator for superheroes.
 ## What is bud?
 
 Bud is a TLS terminating proxy, a babel fish decoding incoming TLS traffic and
-sending it in a plain text to your backend servers. Not only it does it, but
-does it well and with a lot of useful features!
+sending it in a plain text to your backend servers.
+Not only does it do this well, bud has a lot of useful features!
 
 ## Install
 
 ### Requirements
-You must have gcc installed. Chances are that you do, but on the off chance you don't:
+You must have gcc installed. Chances are that you do, but in case you don't:
 
 ```bash
 # OSX
@@ -55,7 +55,7 @@ The result will be located at: `./out/Release/bud`.
 
 ## Starting
 
-To start bud - create configuration file using this template and:
+To start bud - create a configuration file using this template and then:
 
 ```bash
 bud --conf conf.json
@@ -77,14 +77,14 @@ options:
 ## Configuration
 
 Bud is using [JSON][0] as a configuration format. Run `bud --default-config`
-to get default configuration options (with comments and description below):
+to get the default configuration options (with comments and description below):
 
 ```javascript
 {
   // Number of workers to use, if 0 - only one process will be spawned.
   "workers": 1,
 
-  // Timeout after which workers will be restarted (if they die)
+  // Timeout in milli seconds after which workers will be restarted (if they die)
   "restart_timeout": 250,
 
   // Logging configuration
@@ -113,10 +113,10 @@ to get default configuration options (with comments and description below):
     // Time between retries
     "retry_interval": 250,
 
-    // How long backend should not be responding until considered to be dead
+    // How long backend should not be responding until considered to be dead -- milli seconds
     "death_timeout": 1000,
 
-    // Timeout after which it should be revived
+    // Timeout in milli seconds after which it should be revived
     "revive_interval": 2500
   },
 
@@ -168,7 +168,7 @@ to get default configuration options (with comments and description below):
     // node -pe "require('crypto').randomBytes(48).toString('base64')"
     "ticket_key": "yzNUDktR5KmA4wX9g9kDSzEn...true randomness",
 
-    // **Optional** Ticket timeout, default: 300
+    // **Optional** Ticket timeout in milli seconds, default: 300
     "ticket_timeout": 300,
 
     // **Optional** NPN protocols to advertise
@@ -317,7 +317,7 @@ to get default configuration options (with comments and description below):
 }
 ```
 
-To start bud - create configuration file using this template and:
+To start bud - create a configuration file using this template:
 
 ```bash
 bud --conf conf.json
@@ -333,9 +333,9 @@ kill -SIGHUP <bud-master's-pid>
 ### X-Forwarded-For
 
 Setting `backend.*.x-forward` will cause an `X-Forwarded-For` header to be
-injected into the first request seen on a socket. However, subsequent request
-using the same socket (via Keep-Alive), will not receive this header from `bud`
-. To remedy this, you should associate this header with the underlying socket
+injected into the first request seen on a socket. However, subsequent requests
+using the same socket (via Keep-Alive), will not receive this header from `bud`.
+To remedy this, you should associate this header with the underlying socket
 or connection, and not expect it to be present with every HTTP request. A
 possible implementation in Node.JS would look like:
 
@@ -409,12 +409,12 @@ Main difference is that 2 requests to OCSP Stapling server could be made by bud:
 2. `POST /stapling_url/<stapling_id>` with [JSON][0] body:
    `{"url":"http://some.ocsp.server.com/","ocsp":"base64-encoded-data"}`.
 
-For first request, if backend has cached OCSP response for given
+For the first request, if backend has cached OCSP response for given
 `<stapling_id>`, backend should respond with following [JSON][0]:
 
 `{"response":"base64-encoded-response"}`
 
-Or with 404 status code and any other [JSON][0].
+Or with a 404 status code and any other [JSON][0].
 
 For the second request, backend should send a POST request to the OCSP server
 given in the [JSON][0] body. This request should have Content-Type header set
@@ -441,8 +441,8 @@ of your choice. They'll ask you to upload your key file, and the `.crt` file
 generated below:
 
 ```bash
-# you'll be asked for a bunch of info. The important one is "common name"
-# this must match your domain exactly. e.g.
+# you'll be asked for a bunch of info. The most important one is "common name"
+# and this must match your domain exactly. e.g.
 # example.com
 # if you've bought a wildcard cert, you should use
 # *.example.com
@@ -450,9 +450,9 @@ openssl req -new -key server.key -out server.csr
 openssl x509 -req -days 9999 -in server.csr -signkey server.key -out server.crt
 ```
 
-You'll upload the .crt and .key files to the cert provider. What you want back
+You'll need to upload the .crt and .key files to the cert provider. What you want back
 from them is a .pem file that has their entire cert chain. Then in your bud
-config:
+config set it like this:
 
 ```json
 {
