@@ -32,6 +32,7 @@
         # seeing this extension.
         'OPENSSL_NO_HEARTBEATS',
         'OPENSSL_NO_SSL2',
+        'OPENSSL_NO_SSL3',
       ],
       'sources': [
         'openssl/ssl/bio_ssl.c',
