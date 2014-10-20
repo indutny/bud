@@ -6,6 +6,7 @@
     "bud": "./npm/bud"
   },
   "main": "./lib/bud.js",
+  "preferGlobal": true,
   "scripts": {
     "preinstall": "node-gyp configure && node-gyp rebuild && node npm/locate.js",
     "test": "mocha --reporter spec test/*-test.js"
