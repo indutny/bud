@@ -31,7 +31,7 @@ You must have gcc installed. Chances are that you do, but in case you don't:
 Bud can easily be installed using [npm](http://npmjs.org)
 
 ``` bash
-[sudo] npm install bud-tls
+[sudo] npm install -g bud-tls
 ```
 
 This will install the command line tool `bud`.  Optionally, you can build
