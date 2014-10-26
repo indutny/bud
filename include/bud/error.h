@@ -44,6 +44,7 @@ enum bud_error_code_e {
   kBudErrDLOpen = 0x118,
   kBudErrDLSym = 0x119,
   kBudErrDLVersion = 0x11a,
+  kBudErrMultipleConfigs = 0x11b,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,

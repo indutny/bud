@@ -307,8 +307,10 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   bud_error_t err;
   bud_config_t* config;
   int i;
+  int j;
   int r;
   uv_process_options_t options;
+  char* aux_argv[] = {"--worker", NULL, NULL, NULL};
 
   config = worker->config;
   ASSERT(config != NULL, "Worker config absent");
@@ -335,17 +337,41 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   options.file = config->exepath;
   options.stdio_count = 3;
   options.stdio = calloc(options.stdio_count, sizeof(*options.stdio));
-  options.args = calloc(config->argc + 2, sizeof(*options.args));
+
+  /* config was piped to master's stdin, now inline it for the workers */
+  if (config->piped) {
+    aux_argv[1] = "-i";
+    aux_argv[2] = config->path;
+  }
+
+  options.args = calloc(config->argc + ARRAY_SIZE(aux_argv),
+                        sizeof(*options.args));
+
   if (options.stdio == NULL || options.args == NULL) {
     err = bud_error(kBudErrNoMem);
     goto done;
   }
 
-  /* args = { config.argv, "--worker" } */
-  for (i = 0; i < config->argc; i++)
-    options.args[i] = config->argv[i];
-  options.args[i] = "--worker";
-  options.args[i + 1] = NULL;
+  /* Cases:
+   * if piped_index <= 0:
+   *    args = { config.argv, "--worker" }
+   * otherwise:
+   *    args = { config.argv, "--worker", "-i", <config> }
+   */
+  if (config->piped_index <= 0) {
+    for (j = 0; j < config->argc; j++)
+      options.args[j] = config->argv[j];
+  } else {
+    /* Goal is to skip piped_index, thus excluding --piped-config argument: */
+    for (i = 0, j = 0; i < config->piped_index; i++, j++)
+      options.args[j++] = config->argv[i];
+
+    for (i = config->piped_index + 1; i < config->argc; i++, j++)
+      options.args[j] = config->argv[i];
+  }
+
+  for (r = 0; r < (int) ARRAY_SIZE(aux_argv); r++, j++)
+    options.args[j] = aux_argv[r];
 
   r = uv_timer_init(config->loop, &worker->restart_timer);
   if (r != 0) {
