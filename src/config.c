@@ -96,6 +96,7 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   int index;
   int is_daemon;
   int is_worker;
+  int config_count;
   size_t path_len;
   bud_config_t* config;
 
@@ -116,6 +117,8 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   config = NULL;
   is_daemon = 0;
   is_worker = 0;
+  config_count = 0;
+
   do {
     index = 0;
     c = getopt_long(argc, argv, "vi:c:dp", long_options, &index);
@@ -127,12 +130,16 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
       case 'p':
       case 'i':
       case 'c':
+        ASSERT(config_count == 0, "Please pass in only one configuration!");
+
         config = bud_config_load(c == 'p' ? NULL : optarg, c == 'i', err);
         if (config == NULL) {
           ASSERT(!bud_is_ok(*err), "Config load failed without error");
           c = -1;
           break;
         }
+
+        config_count += 1;
         if (is_daemon)
           config->is_daemon = 1;
         if (is_worker)
@@ -163,7 +170,20 @@ bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
   } while (c != -1);
 
   if (config != NULL) {
+    int i;
     int r;
+
+    if (!config->piped)
+      config->piped_index = -1;
+    else {
+      // get_opt does not provide the argc offset so must manually retrieve it
+      for (i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "--piped-config")== 0 ||strcmp(argv[i], "-p")== 0) {
+          config->piped_index = i;
+          break;
+        }
+      }
+    }
 
     /* CLI options */
     config->argc = argc;
@@ -256,12 +276,15 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
     goto failed_get_object;
   }
 
-  if (path != NULL) /* Copy path or inlined config value */
+  if (path != NULL) {
+    /* Copy path orinlined config value */
+    config->piped = 0;
     config->path = strdup(path);
-  else {
+  } else {
     if (str_from_file != NULL) {
       /* Was already allocated, reuse that memory with the assumption that destruction 
          of config will  free this path mem: similar to the strdup(...) call above */
+      config->piped = 1;
       config->path = str_from_file;
     } else {
       *err = bud_error_str(kBudErrNoMem, "bud_config_t null config passed in");

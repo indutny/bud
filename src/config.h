@@ -218,7 +218,9 @@ struct bud_config_s {
   bud_config_balance_t balance_e;
 
   /* Options from config file */
-  int inlined;
+  int piped_index;
+  unsigned int piped:1;
+  unsigned int inlined:1;
   char* path;
 
   int worker_count;
