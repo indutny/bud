@@ -176,9 +176,9 @@ bud_error_t bud_parse_tls_client_hello(const uint8_t* data,
 
   ext_off = extension_offset + 2;
 
-  // Parse known extensions
+  /* Parse known extensions */
   while (ext_off < size) {
-    // Extension OOB
+    /* Extension OOB */
     if (ext_off + 4 > size)
       return bud_error_str(kBudErrParserErr, "Extension header OOB");
 
@@ -186,7 +186,7 @@ bud_error_t bud_parse_tls_client_hello(const uint8_t* data,
     ext_len = (data[ext_off + 2] << 8) + data[ext_off + 3];
     ext_off += 4;
 
-    // Extension OOB
+    /* Extension OOB */
     if (ext_off + ext_len > size)
       return bud_error_str(kBudErrParserErr, "Extension body OOB");
 
@@ -200,7 +200,7 @@ bud_error_t bud_parse_tls_client_hello(const uint8_t* data,
     ext_off += ext_len;
   }
 
-  // Extensions OOB failure
+  /* Extensions OOB failure */
   if (ext_off > size)
     return bud_error_str(kBudErrParserErr, "Extensions OOB");
 

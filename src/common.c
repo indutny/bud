@@ -105,7 +105,7 @@ size_t bud_base64_encode(const char* src,
                          size_t slen,
                          char* dst,
                          size_t dlen) {
-  // We know how much we'll write, just make sure that there's space.
+  /* We know how much we'll write, just make sure that there's space. */
   ASSERT(dlen >= bud_base64_encoded_size(slen),
          "not enough space provided for base64 encode");
 
