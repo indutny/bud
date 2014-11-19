@@ -3,6 +3,6 @@
 
 #define BUD_VERSION_MAJOR 0
 #define BUD_VERSION_MINOR 32
-#define BUD_VERSION_PATCH 7
+#define BUD_VERSION_PATCH 8
 
 #endif  /* SRC_VERSION_H_ */
