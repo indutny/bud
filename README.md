@@ -42,7 +42,10 @@ Bud from source with the steps below.
 Preparing:
 ```bash
 git submodule update --init --recursive
-svn co http://gyp.googlecode.com/svn/trunk tools/gyp
+Then:
+git clone https://chromium.googlesource.com/external/gyp.git tools/gyp
+OR
+svn co http://gyp.googlecode.com/svn/trunk tools/gyp tools/gyp
 ```
 
 Building:
