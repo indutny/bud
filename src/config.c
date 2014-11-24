@@ -1288,6 +1288,7 @@ bud_error_t bud_context_load_key(bud_context_t* context,
                                  const char* key_pass) {
   BIO* key_bio;
   EVP_PKEY* pkey;
+  int r;
 
   key_bio = BIO_new_file(key_file, "r");
   if (key_bio == NULL) {
@@ -1302,8 +1303,10 @@ bud_error_t bud_context_load_key(bud_context_t* context,
   if (pkey == NULL)
     return bud_error_dstr(kBudErrParseKey, key_file);
 
-  SSL_CTX_use_PrivateKey(context->ctx, pkey);
+  r = SSL_CTX_use_PrivateKey(context->ctx, pkey);
   EVP_PKEY_free(pkey);
+  if (!r)
+    return bud_error_str(kBudErrLoadKey, "key doesn't match certificate");
 
   return bud_ok();
 }
