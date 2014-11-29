@@ -75,6 +75,10 @@ fixtures.getServers = function getServers(options) {
               res.setHeader('X-Got-Forwarded-For',
                             req.headers['x-forwarded-for']);
             }
+            if (req.headers['x-forwarded-proto']) {
+              res.setHeader('X-Got-Forwarded-Proto',
+                            req.headers['x-forwarded-proto']);
+            }
             if (req.url === '/hello')
               res.end('hello world');
             else

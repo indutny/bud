@@ -100,6 +100,7 @@ describe('Bud TLS Terminator', function() {
       request(sh, '/hello', function(res, body) {
         assert.equal(sh.backends[0].requests, 1);
         assert.equal(res.headers['x-got-forwarded-for'], '127.0.0.1');
+        assert.equal(res.headers['x-got-forwarded-proto'], 'https');
         cb();
       });
     });
