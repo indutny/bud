@@ -91,7 +91,7 @@ bud_client_error_t bud_client_http_xforward(bud_client_t* client) {
   /* Format header */
   r = snprintf(xforward,
                sizeof(xforward),
-               "X-Forwarded-For: %.*s\r\n",
+               "X-Forwarded-For: %.*s\r\nX-Forwarded-Proto: https\r\n",
                client->remote.host_len,
                client->remote.host);
 

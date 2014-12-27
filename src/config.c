@@ -1131,10 +1131,18 @@ void bud_config_set_defaults(bud_config_t* config) {
     int j;
 
     ctx = &config->contexts[i];
-    if (ctx->cert_files == NULL)
-      DEFAULT(ctx->cert_file, NULL, "keys/cert.pem");
-    if (ctx->key_files == NULL)
-      DEFAULT(ctx->key_file, NULL, "keys/key.pem");
+    DEFAULT(ctx->cert_file, NULL, "keys/cert.pem");
+    DEFAULT(ctx->key_file, NULL, "keys/key.pem");
+    DEFAULT(ctx->ciphers,
+            NULL,
+            "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA256:"
+            "ECDHE-RSA-AES256-SHA256:DHE-RSA-AES256-GCM-SHA384:"
+            "DHE-RSA-AES256-GCM-SHA256:DHE-RSA-AES256-SHA256:"
+            "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-SHA256:"
+            "ECDHE-RSA-AES128-SHA:DHE-RSA-AES128-GCM-SHA256:"
+            "DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:AES256-GCM-SHA384:"
+            "AES256-SHA256:AES128-GCM-SHA256:AES128-SHA256:AES128-SHA:"
+            "DES-CBC3-SHA");
     DEFAULT(ctx->ticket_timeout, -1, 300);
     for (j = 0; j < ctx->backend.count; j++)
       bud_config_set_backend_defaults(&ctx->backend.list[j]);
@@ -1288,6 +1296,7 @@ bud_error_t bud_context_load_key(bud_context_t* context,
                                  const char* key_pass) {
   BIO* key_bio;
   EVP_PKEY* pkey;
+  int r;
 
   key_bio = BIO_new_file(key_file, "r");
   if (key_bio == NULL) {
@@ -1302,8 +1311,10 @@ bud_error_t bud_context_load_key(bud_context_t* context,
   if (pkey == NULL)
     return bud_error_dstr(kBudErrParseKey, key_file);
 
-  SSL_CTX_use_PrivateKey(context->ctx, pkey);
+  r = SSL_CTX_use_PrivateKey(context->ctx, pkey);
   EVP_PKEY_free(pkey);
+  if (!r)
+    return bud_error_str(kBudErrLoadKey, "key doesn't match certificate");
 
   return bud_ok();
 }
