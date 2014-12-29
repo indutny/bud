@@ -364,7 +364,7 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   } else {
     /* Goal is to skip piped_index, thus excluding --piped-config argument: */
     for (i = 0, j = 0; i < config->piped_index; i++, j++)
-      options.args[j++] = config->argv[i];
+      options.args[j] = config->argv[i];
 
     for (i = config->piped_index + 1; i < config->argc; i++, j++)
       options.args[j] = config->argv[i];
