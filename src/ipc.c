@@ -1,4 +1,5 @@
 #include <stdlib.h>  /* malloc, free, NULL */
+#include <string.h>  /* memcpy */
 
 #include "uv.h"
 
@@ -50,6 +51,7 @@ bud_error_t bud_ipc_init(bud_ipc_t* ipc, bud_config_t* config) {
   ipc->state = kBudIPCType;
   ipc->waiting = 1;
   ipc->client_cb = NULL;
+  ipc->msg_cb = NULL;
 
   return bud_ok();
 
@@ -114,9 +116,19 @@ void bud_ipc_read_cb(uv_stream_t* stream,
   bud_ipc_t* ipc;
   int r;
 
-  /* This should not really happen */
-  ASSERT(nread != UV_EOF, "Unexpected EOF on ipc pipe");
   ipc = stream->data;
+
+  /* This should not really happen */
+  if (nread == UV_EOF) {
+    bud_ipc_msg_t msg;
+
+    msg.type = kBudIPCEOF;
+    msg.size = 0;
+
+    ASSERT(ipc->msg_cb != NULL, "ipc msg_cb not initialized");
+    ipc->msg_cb(ipc, &msg);
+    return;
+  }
 
   /* Error, must close the stream */
   if (nread < 0) {
@@ -175,11 +187,62 @@ void bud_ipc_parse(bud_ipc_t* ipc) {
         }
         break;
       case kBudIPCHeader:
+        {
+          size_t r;
+          char buf[BUD_IPC_HEADER_SIZE];
+
+          r = ringbuffer_read_into(&ipc->buffer, buf, sizeof(buf));
+          ASSERT(r == ipc->waiting, "Read less than expected");
+
+          ipc->pending.type = *(uint8_t*) buf;
+          ipc->pending.size = *(uint32_t*) &buf[1];
+          ipc->pending.size = bud_read_uint32(buf, 1);
+
+          ipc->waiting = ipc->pending.size;
+          ipc->state = kBudIPCBody;
+        }
         break;
       case kBudIPCBody:
+        {
+          bud_ipc_msg_t* msg;
+          size_t r;
+
+          msg = malloc(sizeof(*msg) + ipc->waiting - 1);
+
+          /* Can't read, just skip */
+          if (msg == NULL) {
+            ringbuffer_read_skip(&ipc->buffer, ipc->waiting);
+            continue;
+          }
+
+          memcpy(msg, &ipc->pending, sizeof(*msg));
+          r = ringbuffer_read_into(&ipc->buffer,
+                                   (char*) msg->data,
+                                   ipc->waiting);
+          ASSERT(r == ipc->waiting, "Read less than expected");
+
+          ASSERT(ipc->msg_cb != NULL, "ipc msg_cb not initialized");
+          ipc->msg_cb(ipc, msg);
+
+          ipc->waiting = 1;
+          ipc->state = kBudIPCType;
+        }
         break;
     }
   }
+}
+
+
+void bud_ipc_wait(bud_ipc_t* ipc) {
+  ipc->ready = 0;
+  do
+    uv_run(ipc->config->loop, UV_RUN_ONCE);
+  while (ipc->ready == 0);
+}
+
+
+void bud_ipc_continue(bud_ipc_t* ipc) {
+  ipc->ready = 1;
 }
 
 
@@ -235,6 +298,48 @@ failed_accept:
 
 failed_tcp_init:
   free(handle);
+
+failed_malloc:
+  return err;
+}
+
+
+bud_error_t bud_ipc_send(bud_ipc_t* ipc,
+                         bud_ipc_msg_header_t* header,
+                         const char* body) {
+  bud_error_t err;
+  uv_write_t* req;
+  uv_buf_t buf;
+  int r;
+
+  /* Allocate space for a IPC write request */
+  req = malloc(sizeof(*req) + BUD_IPC_HEADER_SIZE + header->size);
+  if (req == NULL) {
+    err = bud_error_str(kBudErrNoMem, "uv_write_t (ipc)");
+    goto failed_malloc;
+  }
+
+  buf = uv_buf_init((char*) req + sizeof(*req),
+                    BUD_IPC_HEADER_SIZE + header->size);
+
+  buf.base[0] = header->type;
+  bud_write_uint32(buf.base, header->size, 1);
+  memcpy(buf.base + BUD_IPC_HEADER_SIZE, body, header->size);
+
+  r = uv_write(req,
+               (uv_stream_t*) ipc->handle,
+               &buf,
+               1,
+               (uv_write_cb) free);
+  if (r != 0) {
+    err = bud_error_num(kBudErrIPCSend, r);
+    goto failed_write;
+  }
+
+  return bud_ok();
+
+failed_write:
+  free(req);
 
 failed_malloc:
   return err;

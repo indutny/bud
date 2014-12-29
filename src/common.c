@@ -1,4 +1,3 @@
-#include <errno.h>
 #include <stdint.h>
 #include "openssl/ssl.h"
 
@@ -259,6 +258,9 @@ bud_error_t bud_hashmap_init(bud_hashmap_t* hashmap, unsigned int size) {
 
 
 void bud_hashmap_destroy(bud_hashmap_t* hashmap) {
+  if (hashmap->space == NULL)
+    return;
+
   free(hashmap->space);
   hashmap->space = NULL;
 }
@@ -284,14 +286,14 @@ static bud_hashmap_item_t* bud_hashmap_get_int(bud_hashmap_t* hashmap,
     for (iter = 0;
          iter < BUD_HASHMAP_MAX_ITER;
          iter++, i = (i + 1) % hashmap->size) {
+      if (hashmap->space[i].key == NULL)
+        break;
       if (!insert) {
         if (hashmap->space[i].key_len == key_len &&
             memcmp(hashmap->space[i].key, key, key_len) == 0) {
           break;
         }
       }
-      if (hashmap->space[i].key == NULL)
-        break;
     }
 
     if (!insert && hashmap->space[i].key == NULL)
@@ -368,7 +370,50 @@ void* bud_hashmap_get(bud_hashmap_t* hashmap,
 }
 
 
-bud_error_t bud_read_file_by_fd(int fd, char** out) {
+bud_error_t bud_hashmap_iterate(bud_hashmap_t* hashmap,
+                                bud_hashmap_iterate_cb cb,
+                                void* arg) {
+  bud_error_t err;
+  unsigned int i;
+
+  if (hashmap->space == NULL)
+    return bud_ok();
+
+  for (i = 0; i < hashmap->size; i++) {
+    if (hashmap->space[i].key != NULL) {
+      err = cb(&hashmap->space[i], arg);
+      if (!bud_is_ok(err))
+        return err;
+    }
+  }
+
+  return bud_ok();
+}
+
+
+bud_error_t bud_read_file_by_path(uv_loop_t* loop,
+                                  const char* path,
+                                  char** out) {
+  int r;
+  uv_file file;
+  bud_error_t err;
+  uv_fs_t req;
+
+  r = uv_fs_open(loop, &req, path, O_RDONLY, 0, NULL);
+  file = req.result;
+  uv_fs_req_cleanup(&req);
+
+  if (r < 0)
+    return bud_error_dstr(kBudErrLoadFile, path);
+
+  err = bud_read_file_by_fd(loop, file, out);
+  uv_fs_close(loop, &req, file, NULL);
+  uv_fs_req_cleanup(&req);
+  return err;
+}
+
+
+bud_error_t bud_read_file_by_fd(uv_loop_t* loop, uv_file fd, char** out) {
   ssize_t r;
   char* tmp;
   char* buffer;
@@ -387,21 +432,24 @@ bud_error_t bud_read_file_by_fd(int fd, char** out) {
   offset = 0;
 
   while (1) {
-    do
-      r = read(fd, buffer + offset, buffer_len - offset);
-    while (r == -1 && errno == EINTR);
+    uv_fs_t req;
+    uv_buf_t buf;
+
+    buf = uv_buf_init(buffer + offset, buffer_len - offset);
+    r = uv_fs_read(loop, &req, fd, &buf, 1, -1, NULL);
+    uv_fs_req_cleanup(&req);
 
     if (r < 0) {
-      err = bud_error_str(errno, strerror(errno));
+      err = bud_error_num(kBudErrFSRead, r);
       goto read_failed;
-    } else if (r == 0) { /* EOF Encountered */
+    } else if (req.result == 0) { /* EOF Encountered */
       break;
     } else {
-      offset += r;
+      offset += req.result;
 
       if (offset >= buffer_len) {
         buffer_len += BUF_STEP_LEN;
-        tmp = realloc((void*) buffer, buffer_len);
+        tmp = realloc(buffer, buffer_len);
         if (tmp == NULL) {
           err = bud_error_str(kBudErrNoMem, "attempt_realloc");
           goto read_failed;
@@ -422,4 +470,23 @@ read_failed:
     free(buffer);
 
   return err;
+}
+
+
+void bud_write_uint32(void* mem, uint32_t value, off_t offset) {
+  uint8_t* d;
+
+  d = (uint8_t*) ((char*) mem + offset);
+  d[0] = (value >> 24) & 0xff;
+  d[1] = (value >> 16) & 0xff;
+  d[2] = (value >> 8) & 0xff;
+  d[3] = value & 0xff;
+}
+
+
+uint32_t bud_read_uint32(void* mem, off_t offset) {
+  uint8_t* d;
+
+  d = (uint8_t*) ((char*) mem + offset);
+  return (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3];
 }

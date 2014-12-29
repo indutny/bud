@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "uv.h"
 #include "error.h"
 
 #define ASSERT__COMMON(expr, desc, ...)                                       \
@@ -51,6 +52,9 @@ const char* bud_sslerror_str(int err);
 
 typedef struct bud_hashmap_s bud_hashmap_t;
 typedef struct bud_hashmap_item_s bud_hashmap_item_t;
+typedef void (*bud_hashmap_free_cb)(void*);
+typedef bud_error_t (*bud_hashmap_iterate_cb)(bud_hashmap_item_t* item,
+                                              void* arg);
 
 struct bud_hashmap_s {
   bud_hashmap_item_t* space;
@@ -73,6 +77,16 @@ bud_error_t bud_hashmap_insert(bud_hashmap_t* hashmap,
 void* bud_hashmap_get(bud_hashmap_t* hashmap,
                       const char* key,
                       unsigned int key_len);
+bud_error_t bud_hashmap_iterate(bud_hashmap_t* hashmap,
+                                bud_hashmap_iterate_cb cb,
+                                void* arg);
 
-bud_error_t bud_read_file_by_fd(int fd, char** buffer);
+bud_error_t bud_read_file_by_path(uv_loop_t* loop,
+                                  const char* path,
+                                  char** buffer);
+bud_error_t bud_read_file_by_fd(uv_loop_t* loop, uv_file fd, char** buffer);
+
+void bud_write_uint32(void* mem, uint32_t value, off_t offset);
+uint32_t bud_read_uint32(void* mem, off_t offset);
+
 #endif  /* SRC_COMMON_H_ */

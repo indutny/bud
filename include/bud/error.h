@@ -15,6 +15,7 @@ enum bud_error_code_e {
 
   /* General errors */
   kBudErrNoMem = 0x001,
+  kBudErrSkip = 0x002,
 
   /* Config errors */
   kBudErrJSONParse = 0x100,
@@ -45,6 +46,9 @@ enum bud_error_code_e {
   kBudErrDLSym = 0x119,
   kBudErrDLVersion = 0x11a,
   kBudErrMultipleConfigs = 0x11b,
+  kBudErrLoadFile = 0x11c,
+  kBudErrNoConfig = 0x11d,
+  kBudErrFSRead = 0x11e,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,
@@ -116,7 +120,8 @@ enum bud_error_code_e {
   kBudErrIPCReadStart = 0x902,
   kBudErrIPCBalanceInit = 0x903,
   kBudErrIPCBalanceAccept = 0x904,
-  kBudErrIPCBalanceWrite = 0x905
+  kBudErrIPCBalanceWrite = 0x905,
+  kBudErrIPCSend = 0x906
 };
 
 struct bud_error_s {
