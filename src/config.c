@@ -1,9 +1,11 @@
+#include <fcntl.h>  /* open */
 #include <getopt.h>  /* getopt */
 #include <limits.h>  /* ULLONG_MAX */
 #include <stdio.h>  /* fprintf */
 #include <stdlib.h>  /* NULL */
 #include <string.h>  /* memset, strlen, strncmp */
 #include <strings.h>  /* strcasecmp */
+#include <unistd.h>  /* close */
 
 #ifndef _WIN32
 #include <sys/types.h>  /* uid_t, gid_t */
@@ -35,6 +37,9 @@ static bud_error_t bud_config_init_tracing(bud_config_trace_t* trace);
 static void bud_config_trace_free(bud_config_trace_t* trace);
 static void bud_config_load_addr(JSON_Object* obj,
                                  bud_config_addr_t* addr);
+static bud_error_t bud_config_load_file(bud_config_t* config,
+                                        const char* path,
+                                        const char** out);
 static bud_error_t bud_config_load_ca_arr(X509_STORE** store,
                                           const JSON_Array* ca);
 static bud_error_t bud_config_load_ca_file(X509_STORE** store,
@@ -82,6 +87,8 @@ static bud_error_t bud_config_load_backend(
     bud_hashmap_t* map,
     unsigned int* ext_count);
 static bud_config_balance_t bud_config_balance_to_enum(const char* balance);
+static void bud_config_files_reduce_size(bud_hashmap_item_t* item, void* arg);
+static void bud_config_files_reduce_copy(bud_hashmap_item_t* item, void* arg);
 
 
 int kBudSSLConfigIndex = -1;
@@ -89,156 +96,129 @@ int kBudSSLClientIndex = -1;
 int kBudSSLSNIIndex = -1;
 static const int kBudDefaultKeepalive = 3600;
 static const int kBudBackendMapSize = 1024;
+static const int kBudFileCacheSize = 64;
+
+static const char* bud_long_flags = "vi:c:dp";
+static struct option bud_long_options[] = {
+  { "version", 0, NULL, 'v' },
+  { "config", 1, NULL, 'c' },
+  { "piped-config", 0, NULL, 'p' },
+  { "inline-config", 1, NULL, 'i' },
+#ifndef _WIN32
+  { "daemonize", 0, NULL, 'd' },
+#endif  /* !_WIN32 */
+  { "worker", 0, NULL, 1000 },
+  { "default-config", 0, NULL, 1001 },
+  { NULL, 0, NULL, 0 }
+};
 
 
-bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err) {
+bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out) {
+  bud_error_t err;
+  bud_config_t* config;
+  int i;
+  int r;
+  size_t path_len;
   int c;
   int index;
-  int is_daemon;
-  int is_worker;
-  size_t path_len;
-  bud_config_t* config;
 
-  struct option long_options[] = {
-    { "version", 0, NULL, 'v' },
-    { "config", 1, NULL, 'c' },
-    { "piped-config", 0, NULL, 'p' },
-    { "inline-config", 1, NULL, 'i' },
-#ifndef _WIN32
-    { "daemonize", 0, NULL, 'd' },
-#endif  /* !_WIN32 */
-    { "worker", 0, NULL, 1000 },
-    { "default-config", 0, NULL, 1001 },
-    { NULL, 0, NULL, 0 }
-  };
-
-  *err = bud_ok();
-  config = NULL;
-  is_daemon = 0;
-  is_worker = 0;
+  config = calloc(1, sizeof(*config));
+  if (config == NULL)
+    return bud_error_str(kBudErrNoMem, "bud_config_t");
 
   do {
     index = 0;
-    c = getopt_long(argc, argv, "vi:c:dp", long_options, &index);
+    c = getopt_long(argc, argv, bud_long_flags, bud_long_options, &index);
     switch (c) {
       case 'v':
         bud_print_version();
-        c = -1;
+        goto no_config;
+#ifndef _WIN32
+      case 'd':
+        config->is_daemon = 1;
+#endif  /* !_WIN32 */
         break;
       case 'p':
       case 'i':
       case 'c':
-        if (config != NULL) {
-          bud_config_free(config);
-          config = NULL;
-          *err = bud_error(kBudErrMultipleConfigs);
-          return NULL;
+        if (config->path != NULL || config->inlined || config->piped) {
+          err = bud_error(kBudErrMultipleConfigs);
+          goto fatal;
         }
-
-        config = bud_config_load(c == 'p' ? NULL : optarg, c == 'i', err);
-        if (config == NULL) {
-          ASSERT(!bud_is_ok(*err), "Config load failed without error");
-          c = -1;
-          break;
+        if (c == 'p') {
+          config->piped = 1;
+          config->path = "!config";
+        } else {
+          config->piped = 0;
+          config->path = optarg;
+          config->inlined = c == 'i';
         }
-
-        if (is_daemon)
-          config->is_daemon = 1;
-        if (is_worker)
-          config->is_worker = 1;
-        break;
-#ifndef _WIN32
-      case 'd':
-        is_daemon = 1;
-        if (config != NULL)
-          config->is_daemon = 1;
-#endif  /* !_WIN32 */
         break;
       case 1000:
-        is_worker = 1;
-        if (config != NULL)
-          config->is_worker = 1;
+        config->is_worker = 1;
         break;
       case 1001:
         bud_config_print_default();
-        c = -1;
-        break;
+        goto no_config;
       default:
-        if (config == NULL)
-          bud_print_help(argc, argv);
-        c = -1;
-        break;
+        if (config->path != NULL || config->inlined || config->piped)
+          break;
+
+        bud_print_help(argc, argv);
+        goto no_config;
     }
   } while (c != -1);
 
-  if (config != NULL) {
-    int i;
-    int r;
-
-    if (!config->piped) {
-      config->piped_index = -1;
-    } else {
-      /* get_opt does not provide the argc offset so must manually retrieve it
-       */
-      for (i = 0; i < argc; i++) {
-        if (strcmp(argv[i], "--piped-config") == 0 ||
-            strcmp(argv[i], "-p") == 0) {
-          config->piped_index = i;
-          break;
-        }
+  if (!config->piped) {
+    config->piped_index = -1;
+  } else {
+    /* get_opt does not provide the argc offset so must manually retrieve it
+     */
+    for (i = 0; i < argc; i++) {
+      if (strcmp(argv[i], "--piped-config") == 0 ||
+          strcmp(argv[i], "-p") == 0) {
+        config->piped_index = i;
+        break;
       }
     }
-
-    /* CLI options */
-    config->argc = argc;
-    config->argv = argv;
-
-    /* Get executable path */
-    path_len = sizeof(config->exepath);
-    r = uv_exepath(config->exepath, &path_len);
-    ASSERT(path_len < sizeof(config->exepath), "Exepath OOB");
-
-    config->exepath[path_len] = 0;
-    if (r != 0) {
-      bud_config_free(config);
-      config = NULL;
-      *err = bud_error_num(kBudErrExePath, r);
-    }
-
-    /* Initialize config */
-    *err = bud_config_init(config);
-    if (!bud_is_ok(*err)) {
-      bud_config_free(config);
-      return NULL;
-    }
   }
 
-  return config;
-}
+  /* CLI options */
+  config->argc = argc;
+  config->argv = argv;
 
+  /* Get executable path */
+  path_len = sizeof(config->exepath);
+  r = uv_exepath(config->exepath, &path_len);
+  ASSERT(path_len < sizeof(config->exepath), "Exepath OOB");
 
-bud_error_t bud_config_verify_all_strings(const JSON_Array* arr,
-                                          const char* name) {
-  int i;
-  int count;
-
-  if (arr == NULL)
-    return bud_ok();
-
-  count = json_array_get_count(arr);
-  for (i = 0; i < count; i++) {
-    if (json_value_get_type(json_array_get_value(arr, i)) == JSONString)
-      continue;
-    return bud_error_dstr(kBudErrNonString, name);
+  config->exepath[path_len] = 0;
+  if (r != 0) {
+    bud_config_free(config);
+    config = NULL;
+    return bud_error_num(kBudErrExePath, r);
   }
 
+  err = bud_hashmap_init(&config->files.hashmap, kBudFileCacheSize);
+  if (!bud_is_ok(err))
+    goto fatal;
+
+  *out = config;
   return bud_ok();
+
+no_config:
+  free(config);
+  return bud_error(kBudErrNoConfig);
+
+fatal:
+  free(config);
+  return err;
 }
 
 
-bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
+bud_error_t bud_config_load(bud_config_t* config) {
   int i;
-  char* str_from_file;
+  bud_error_t err;
   JSON_Value* json;
   JSON_Value* val;
   JSON_Object* frontend;
@@ -246,69 +226,50 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
   JSON_Object* log;
   JSON_Object* avail;
   JSON_Array* contexts;
-  bud_config_t* config;
 
-  str_from_file = NULL;
+  if (config->piped) {
+    char* content;
 
-  if (path == NULL) {
-    *err = bud_read_file_by_fd(0, &str_from_file);
-    if (!bud_is_ok(*err)) {
+    err = bud_read_file_by_fd(0, &content);
+    if (!bud_is_ok(err))
       goto end;
-    } else {
-      json = json_parse_string(str_from_file);
+
+    err = bud_hashmap_insert(&config->files.hashmap,
+                             "!config",
+                             7,
+                             (void*) content);
+    if (!bud_is_ok(err)) {
+      free(content);
+      goto end;
     }
-  } else if (inlined) {
-    json = json_parse_string(path);
+
+    json = json_parse_string(content);
+  } else if (config->inlined) {
+    json = json_parse_string(config->path);
   } else {
-    json = json_parse_file(path);
+    const char* contents;
+
+    err = bud_config_load_file(config, config->path, &contents);
+    if (!bud_is_ok(err))
+      goto end;
+    json = json_parse_string(contents);
   }
 
   if (json == NULL) {
-    *err = bud_error_dstr(kBudErrJSONParse, path);
+    err = bud_error_dstr(kBudErrJSONParse, config->path);
     goto end;
   }
 
   obj = json_value_get_object(json);
   if (obj == NULL) {
-    *err = bud_error(kBudErrJSONNonObjectRoot);
-    goto failed_get_object;
-  }
-
-  config = calloc(1, sizeof(*config));
-  if (config == NULL) {
-    *err = bud_error_str(kBudErrNoMem, "bud_config_t");
-    goto failed_get_object;
-  }
-
-  if (path != NULL) {
-    /* Copy path or inlined config value */
-    config->piped = 0;
-    config->path = strdup(path);
-  } else {
-    if (str_from_file != NULL) {
-      /* Was already allocated, reuse that memory with the assumption
-       * that destruction of config will free this path mem: similar to the
-       * strdup(...) call above
-       */
-      config->piped = 1;
-      config->path = str_from_file;
-    } else {
-      *err = bud_error_str(kBudErrNoMem, "bud_config_t null config passed in");
-      goto end;
-    }
-  }
-
-  if (config->path == NULL) {
-    *err = bud_error_str(kBudErrNoMem, "bud_config_t strcpy(path)");
+    err = bud_error(kBudErrJSONNonObjectRoot);
     goto failed_alloc_path;
   }
 
-  *err = bud_config_load_tracing(&config->trace,
-                                 json_object_get_object(obj, "tracing"));
-  if (!bud_is_ok(*err))
-    goto failed_load_tracing;
-
-  config->inlined = inlined;
+  err = bud_config_load_tracing(&config->trace,
+                                json_object_get_object(obj, "tracing"));
+  if (!bud_is_ok(err))
+    goto failed_alloc_path;
 
   /* Allocate contexts and backends */
   contexts = json_object_get_array(obj, "contexts");
@@ -316,7 +277,7 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
   config->contexts = calloc(config->context_count + 1,
                             sizeof(*config->contexts));
   if (config->contexts == NULL) {
-    *err = bud_error_str(kBudErrNoMem, "bud_context_t");
+    err = bud_error_str(kBudErrNoMem, "bud_context_t");
     goto failed_alloc_contexts;
   }
 
@@ -371,21 +332,21 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
 
   /* Frontend configuration */
   frontend = json_object_get_object(obj, "frontend");
-  *err = bud_config_load_frontend(frontend, &config->frontend);
-  if (!bud_is_ok(*err))
+  err = bud_config_load_frontend(frontend, &config->frontend);
+  if (!bud_is_ok(err))
     goto failed_alloc_contexts;
 
   /* Load frontend's context */
-  *err = bud_context_load(frontend, &config->contexts[0]);
-  if (!bud_is_ok(*err))
+  err = bud_context_load(frontend, &config->contexts[0]);
+  if (!bud_is_ok(err))
     goto failed_alloc_contexts;
 
   /* Backend configuration */
   config->balance = json_object_get_string(obj, "balance");
-  *err = bud_config_load_backend_list(config,
+  err = bud_config_load_backend_list(config,
                                       obj,
                                       &config->contexts[0].backend);
-  if (!bud_is_ok(*err))
+  if (!bud_is_ok(err))
     goto failed_alloc_contexts;
 
   /* User and group configuration */
@@ -408,23 +369,22 @@ bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err) {
     ctx = &config->contexts[i + 1];
     obj = json_array_get_object(contexts, i);
     if (obj == NULL) {
-      *err = bud_error(kBudErrJSONNonObjectCtx);
+      err = bud_error(kBudErrJSONNonObjectCtx);
       goto failed_load_context;
     }
 
-    *err = bud_context_load(obj, ctx);
-    if (!bud_is_ok(*err))
+    err = bud_context_load(obj, ctx);
+    if (!bud_is_ok(err))
       goto failed_load_context;
 
-    *err = bud_config_load_backend_list(config, obj, &ctx->backend);
-    if (!bud_is_ok(*err))
+    err = bud_config_load_backend_list(config, obj, &ctx->backend);
+    if (!bud_is_ok(err))
       goto failed_load_context;
   }
 
   bud_config_set_defaults(config);
 
-  *err = bud_ok();
-  return config;
+  return bud_config_init(config);
 
 failed_load_context:
   /* Deinitalize contexts */
@@ -442,18 +402,31 @@ failed_alloc_contexts:
   free(config->trace.dso);
   config->trace.dso = NULL;
 
-failed_load_tracing:
-  free(config->path);
-  config->path = NULL;
-
 failed_alloc_path:
-  free(config);
-
-failed_get_object:
   json_value_free(json);
+  config->json = NULL;
 
 end:
-  return NULL;
+  return err;
+}
+
+
+bud_error_t bud_config_verify_all_strings(const JSON_Array* arr,
+                                          const char* name) {
+  int i;
+  int count;
+
+  if (arr == NULL)
+    return bud_ok();
+
+  count = json_array_get_count(arr);
+  for (i = 0; i < count; i++) {
+    if (json_value_get_type(json_array_get_value(arr, i)) == JSONString)
+      continue;
+    return bud_error_dstr(kBudErrNonString, name);
+  }
+
+  return bud_ok();
 }
 
 
@@ -875,11 +848,14 @@ void bud_config_destroy(bud_config_t* config) {
   bud_logger_free(config->logger);
   config->logger = NULL;
 
+  /* NOTE: Using the fact that config was calloc-ed */
+  bud_hashmap_destroy(&config->files.hashmap, free);
+
   json_value_free(config->json);
   config->json = NULL;
 
-  free(config->path);
-  config->path = NULL;
+  free(config->files.str);
+  config->files.str = NULL;
 
   bud_config_trace_free(&config->trace);
 }
@@ -913,7 +889,7 @@ void bud_context_free(bud_context_t* context) {
     }
   }
 
-  bud_hashmap_destroy(&context->backend.external_map);
+  bud_hashmap_destroy(&context->backend.external_map, NULL);
 
   SSL_CTX_free(context->ctx);
   if (context->cert != NULL)
@@ -1222,6 +1198,46 @@ char* bud_config_encode_npn(bud_config_t* config,
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 
 
+bud_error_t bud_config_load_file(bud_config_t* config,
+                                 const char* path,
+                                 const char** out) {
+  bud_error_t err;
+  int fd;
+  char* content;
+
+  /* Check if we already have cache entry */
+  content = bud_hashmap_get(&config->files.hashmap, path, strlen(path));
+  if (content != NULL) {
+    *out = content;
+    return bud_ok();
+  }
+
+  /* TODO(indutny): windows support */
+  fd = open(path, O_RDONLY, 0);
+  if (fd == -1)
+    return bud_error_dstr(kBudErrLoadFile, path);
+
+  err = bud_read_file_by_fd(fd, &content);
+  if (!bud_is_ok(err))
+    goto fatal;
+
+  err = bud_hashmap_insert(&config->files.hashmap,
+                           path,
+                           strlen(path),
+                           content);
+  if (!bud_is_ok(err)) {
+    free(content);
+    goto fatal;
+  }
+
+  *out = content;
+
+fatal:
+  close(fd);
+  return err;
+}
+
+
 bud_error_t bud_config_load_ca_arr(X509_STORE** store,
                                    const JSON_Array* ca) {
   int i;
@@ -1245,7 +1261,7 @@ bud_error_t bud_config_load_ca_arr(X509_STORE** store,
     cert = json_array_get_string(ca, i);
     b = BIO_new_mem_buf((void*) cert, -1);
     if (b == NULL)
-      return bud_error_str(kBudErrNoMem, "CA store bio");
+      return bud_error_str(kBudErrNoMem, "BIO_new_mem_buf:CA store bio");
 
     while ((x509 = PEM_read_bio_X509(b, NULL, NULL, NULL)) != NULL) {
       if (x509 == NULL) {
@@ -1271,16 +1287,19 @@ bud_error_t bud_config_load_ca_arr(X509_STORE** store,
 
 bud_error_t bud_context_load_cert(bud_context_t* context,
                                   const char* cert_file) {
+  bud_error_t err;
   BIO* cert_bio;
+  const char* content;
   int r;
 
-  cert_bio = BIO_new_file(cert_file, "r");
-  if (cert_bio == NULL) {
-    /* Hm... not a file, let's try parsing it as a raw string */
+  err = bud_config_load_file(context->config, cert_file, &content);
+  if (bud_is_ok(err))
+    cert_bio = BIO_new_mem_buf((void*) content, strlen(content));
+  /* Hm... not a file, let's try parsing it as a raw string */
+  else
     cert_bio = BIO_new_mem_buf((void*) cert_file, strlen(cert_file));
-    if (cert_bio == NULL)
-      return bud_error_str(kBudErrNoMem, "BIO_new_mem_buf:cert");
-  }
+  if (cert_bio == NULL)
+    return bud_error_str(kBudErrNoMem, "BIO_new_mem_buf:cert");
 
   r = bud_context_use_certificate_chain(context, cert_bio);
   BIO_free_all(cert_bio);
@@ -1294,17 +1313,20 @@ bud_error_t bud_context_load_cert(bud_context_t* context,
 bud_error_t bud_context_load_key(bud_context_t* context,
                                  const char* key_file,
                                  const char* key_pass) {
+  bud_error_t err;
   BIO* key_bio;
   EVP_PKEY* pkey;
   int r;
+  const char* content;
 
-  key_bio = BIO_new_file(key_file, "r");
-  if (key_bio == NULL) {
-    /* Hm... not a file, let's try parsing it as a raw string */
+  err = bud_config_load_file(context->config, key_file, &content);
+  if (bud_is_ok(err))
+    key_bio = BIO_new_mem_buf((void*) content, strlen(content));
+  /* Hm... not a file, let's try parsing it as a raw string */
+  else
     key_bio = BIO_new_mem_buf((void*) key_file, strlen(key_file));
-    if (key_bio == NULL)
-      return bud_error_str(kBudErrNoMem, "BIO_new_mem_buf:key");
-  }
+  if (key_bio == NULL)
+    return bud_error_str(kBudErrNoMem, "BIO_new_mem_buf:key");
 
   pkey = PEM_read_bio_PrivateKey(key_bio, NULL, NULL, (void*) key_pass);
   BIO_free_all(key_bio);
@@ -1387,6 +1409,8 @@ bud_error_t bud_context_init(bud_config_t* config,
   int options;
   const char* ticket_key;
   size_t max_len;
+
+  context->config = config;
 
   /* Decode ticket_key */
   ticket_key = context->ticket_key == NULL ? config->contexts[0].ticket_key :
@@ -1493,10 +1517,17 @@ bud_error_t bud_context_init(bud_config_t* config,
     BIO* dh_bio;
     DH* dh;
     int r;
+    const char* content;
 
-    dh_bio = BIO_new_file(context->dh_file, "r");
-    if (dh_bio == NULL) {
+    err = bud_config_load_file(context->config, context->dh_file, &content);
+    if (!bud_is_ok(err)) {
       err = bud_error_dstr(kBudErrLoadDH, context->dh_file);
+      goto fatal;
+    }
+
+    dh_bio = BIO_new_mem_buf((void*) content, strlen(content));
+    if (dh_bio == NULL) {
+      err = bud_error_str(kBudErrNoMem, "BIO_new_mem_buf:DH");
       goto fatal;
     }
 
@@ -1719,7 +1750,8 @@ bud_error_t bud_config_init(bud_config_t* config) {
   /* At least one backend should be present for non-SNI balancing */
   if (config->contexts[0].backend.count == 0 &&
       config->balance_e != kBudBalanceSNI) {
-    return bud_error(kBudErrNoBackend);
+    err = bud_error(kBudErrNoBackend);
+    goto fatal;
   }
 
   /* Get indexes for SSL_set_ex_data()/SSL_get_ex_data() */
@@ -2103,6 +2135,106 @@ int bud_config_verify_cert(int status, X509_STORE_CTX* s) {
   X509_STORE_CTX_cleanup(&store_ctx);
 
   return r;
+}
+
+
+void bud_config_files_reduce_size(bud_hashmap_item_t* item, void* arg) {
+  size_t* size;
+
+  size = arg;
+  (*size) += item->key_len + 1 + strlen((char*) item->value) + 1;
+}
+
+
+void bud_config_files_reduce_copy(bud_hashmap_item_t* item, void* arg) {
+  char** res;
+  int len;
+
+  res = arg;
+
+  /* Copy key */
+  memcpy(*res, item->key, item->key_len);
+  (*res) += item->key_len;
+  (*res)[0] = '\0';
+  (*res)++;
+
+  len = strlen((char*) item->value);
+  memcpy(*res, item->value, len + 1);
+  (*res) += len + 1;
+}
+
+
+bud_error_t bud_config_get_files(bud_config_t* config,
+                                 const char** files,
+                                 size_t* size) {
+  char* res;
+  char* pres;
+
+  if (config->files.str != NULL)
+    goto done;
+
+  /* Calculate size */
+  *size = 0;
+  bud_hashmap_iterate(&config->files.hashmap,
+                      bud_config_files_reduce_size,
+                      size);
+
+  res = malloc(*size);
+  if (res == NULL)
+    return bud_error_str(kBudErrNoMem, "config files list");
+
+  /* Copy data in */
+  pres = res;
+  bud_hashmap_iterate(&config->files.hashmap,
+                      bud_config_files_reduce_copy,
+                      &pres);
+
+  config->files.str = res;
+  config->files.len = *size;
+
+done:
+  *files = config->files.str;
+  *size = config->files.len;
+  return bud_ok();
+}
+
+
+bud_error_t bud_config_set_files(bud_config_t* config,
+                                 const char* files,
+                                 size_t size) {
+  bud_error_t err;
+  const char* end;
+
+  end = files + size;
+  while (files < end) {
+    char* key;
+    int key_len;
+    const char* value;
+
+    key = strdup(files);
+    if (key == NULL) {
+      return bud_error_str(kBudErrNoMem, "Failed to dup key");
+    }
+    key_len = strlen(key);
+    files += key_len + 1;
+    ASSERT(files < end, "Config file cache key OOB");
+    value = strdup(files);
+    if (value == NULL) {
+      free(key);
+      return bud_error_str(kBudErrNoMem, "Failed to dup value");
+    }
+    files += strlen(value) + 1;
+    ASSERT(files <= end, "Config file cache value OOB");
+
+    err = bud_hashmap_insert(&config->files.hashmap,
+                             key,
+                             key_len,
+                             (void*) value);
+    if (!bud_is_ok(err))
+      return err;
+  }
+
+  return bud_ok();
 }
 
 

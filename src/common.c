@@ -258,7 +258,18 @@ bud_error_t bud_hashmap_init(bud_hashmap_t* hashmap, unsigned int size) {
 }
 
 
-void bud_hashmap_destroy(bud_hashmap_t* hashmap) {
+void bud_hashmap_destroy(bud_hashmap_t* hashmap, bud_hashmap_free_cb cb) {
+  unsigned int i;
+
+  if (hashmap->space == NULL)
+    return;
+
+  /* Free hashmap items */
+  if (cb != NULL)
+    for (i = 0; i < hashmap->size; i++)
+      if (hashmap->space[i].key != NULL)
+        cb(hashmap->space[i].value);
+
   free(hashmap->space);
   hashmap->space = NULL;
 }
@@ -284,14 +295,14 @@ static bud_hashmap_item_t* bud_hashmap_get_int(bud_hashmap_t* hashmap,
     for (iter = 0;
          iter < BUD_HASHMAP_MAX_ITER;
          iter++, i = (i + 1) % hashmap->size) {
+      if (hashmap->space[i].key == NULL)
+        break;
       if (!insert) {
         if (hashmap->space[i].key_len == key_len &&
             memcmp(hashmap->space[i].key, key, key_len) == 0) {
           break;
         }
       }
-      if (hashmap->space[i].key == NULL)
-        break;
     }
 
     if (!insert && hashmap->space[i].key == NULL)
@@ -365,6 +376,17 @@ void* bud_hashmap_get(bud_hashmap_t* hashmap,
     return NULL;
 
   return item->value;
+}
+
+
+void bud_hashmap_iterate(bud_hashmap_t* hashmap,
+                         bud_hashmap_iterate_cb cb,
+                         void* arg) {
+  unsigned int i;
+
+  for (i = 0; i < hashmap->size; i++)
+    if (hashmap->space[i].key != NULL)
+      cb(&hashmap->space[i], arg);
 }
 
 

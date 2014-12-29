@@ -120,6 +120,8 @@ enum bud_config_balance_e {
 #undef BUD_CONFIG_ADDR_FIELDS
 
 struct bud_context_s {
+  bud_config_t* config;
+
   /* From config file */
   const char* servername;
   size_t servername_len;
@@ -195,6 +197,16 @@ struct bud_config_s {
   struct bud_logger_s* logger;
   uint64_t client_id;
 
+  /*
+   * Map with a contents of every loaded file.
+   * Primary used for syncing the files between master and workers
+   */
+  struct {
+    bud_hashmap_t hashmap;
+    char* str;
+    size_t len;
+  } files;
+
   /* Master state */
   struct {
     uv_signal_t* sigterm;
@@ -221,7 +233,7 @@ struct bud_config_s {
   int piped_index;
   unsigned int piped:1;
   unsigned int inlined:1;
-  char* path;
+  const char* path;
 
   int worker_count;
   int restart_timeout;
@@ -256,9 +268,17 @@ struct bud_config_s {
   bud_config_trace_t trace;
 };
 
-bud_config_t* bud_config_cli_load(int argc, char** argv, bud_error_t* err);
-bud_config_t* bud_config_load(const char* path, int inlined, bud_error_t* err);
+bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out);
+bud_error_t bud_config_load(bud_config_t* config);
 void bud_config_free(bud_config_t* config);
+
+/* Getting/Setting file cache */
+bud_error_t bud_config_get_files(bud_config_t* config,
+                                 const char** files,
+                                 size_t* size);
+bud_error_t bud_config_set_files(bud_config_t* config,
+                                 const char* files,
+                                 size_t size);
 
 /* Helper for loading SNI */
 bud_error_t bud_context_load(JSON_Object* obj,

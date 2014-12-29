@@ -35,10 +35,10 @@ int main(int argc, char** argv) {
 
   bud_init_openssl();
 
-  config = bud_config_cli_load(argc, argv, &err);
+  err = bud_config_new(argc, argv, &config);
 
   /* NOTE: bud_config_load will print everything itself */
-  if (config == NULL)
+  if (!bud_is_ok(err))
     goto fatal;
 
   if (config->is_worker)
@@ -61,7 +61,8 @@ int main(int argc, char** argv) {
       err = ierr;
   }
 
-  uv_run(config->loop, UV_RUN_NOWAIT);
+  if (config->loop != NULL)
+    uv_run(config->loop, UV_RUN_NOWAIT);
 
 fatal:
   if (config != NULL)

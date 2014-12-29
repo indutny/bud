@@ -139,6 +139,10 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
                 err.ret)                                                      \
     case kBudErrMultipleConfigs:                                              \
       BUD_ERROR("Please pass one config file, not multiple")                  \
+    case kBudErrLoadFile:                                                     \
+      BUD_ERROR("open(%s) failed", err.str)                                   \
+    case kBudErrNoConfig:                                                     \
+      BUD_ERROR("no configuration was loaded")                                \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \
@@ -253,6 +257,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_UV_ERROR("bud_ipc_balance() uv_accept", err)                        \
     case kBudErrIPCBalanceWrite:                                              \
       BUD_UV_ERROR("bud_ipc_balance()", err)                                  \
+    case kBudErrIPCSend:                                                      \
+      BUD_UV_ERROR("bud_ipc_send()", err)                                     \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }
