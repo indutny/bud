@@ -222,7 +222,7 @@ static uint32_t bud_murmur3(const char* key, uint32_t len) {
   chunk_count *= 4;
   for (i = len - 1; i >= chunk_count; i--) {
     tail <<= 8;
-    tail += chunks[i];
+    tail += key[i];
   }
   if (tail != 0) {
     tail *= BUD_MURMUR3_C1;
