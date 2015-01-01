@@ -344,7 +344,7 @@ bud_error_t bud_master_get_spawn_args(bud_config_t* config, char*** out) {
   /* config was piped to master's stdin, now inline it for the workers */
   if (config->piped) {
     aux_argv[1] = "-c";
-    aux_argv[2] = "!config";
+    aux_argv[2] = kPipedConfigPath;
   }
 
   /* Cases:

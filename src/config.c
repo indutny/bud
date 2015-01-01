@@ -111,7 +111,7 @@ static struct option bud_long_options[] = {
   { "default-config", 0, NULL, 1001 },
   { NULL, 0, NULL, 0 }
 };
-static const char* kPipedConfigPath = "!config";
+const char* kPipedConfigPath = "!config";
 
 
 bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out) {

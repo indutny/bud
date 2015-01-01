@@ -36,6 +36,7 @@ int kBudSSLConfigIndex;
 int kBudSSLClientIndex;
 int kBudSSLSNIIndex;
 int kBudSSLTicketKeyIndex;
+const char* kPipedConfigPath;
 
 struct bud_config_http_pool_s {
   int enabled;
