@@ -132,7 +132,8 @@ bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out) {
     switch (c) {
       case 'v':
         bud_print_version();
-        goto no_config;
+        err = bud_error(kBudErrSkip);
+        goto fatal;
 #ifndef _WIN32
       case 'd':
         config->is_daemon = 1;
@@ -159,7 +160,8 @@ bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out) {
         break;
       case 1001:
         bud_config_print_default();
-        goto no_config;
+        err = bud_error(kBudErrSkip);
+        goto fatal;
       default:
         if (config->path != NULL || config->inlined || config->piped)
           break;

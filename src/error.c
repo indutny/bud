@@ -67,6 +67,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("No error")                                                   \
     case kBudErrNoMem:                                                        \
       BUD_ERROR("Allocation failed: %s", err.str)                             \
+    case kBudErrSkip:                                                         \
+      BUD_ERROR("Just skip me")                                               \
     case kBudErrJSONParse:                                                    \
       BUD_ERROR("Failed to load or parse JSON: %s", err.str)                  \
     case kBudErrJSONNonObjectRoot:                                            \

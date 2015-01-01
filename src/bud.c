@@ -68,6 +68,9 @@ fatal:
   if (config != NULL)
     bud_config_free(config);
 
+  if (err.code == kBudErrSkip)
+    return 0;
+
   if (!bud_is_ok(err)) {
     bud_error_print(stderr, err);
     return -1;
