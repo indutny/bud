@@ -111,6 +111,7 @@ static struct option bud_long_options[] = {
   { "default-config", 0, NULL, 1001 },
   { NULL, 0, NULL, 0 }
 };
+static const char* kPipedConfigPath = "!config";
 
 
 bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out) {
@@ -148,7 +149,7 @@ bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out) {
         }
         if (c == 'p') {
           config->piped = 1;
-          config->path = "!config";
+          config->path = kPipedConfigPath;
         } else {
           config->piped = 0;
           config->path = optarg;
@@ -237,8 +238,8 @@ bud_error_t bud_config_load(bud_config_t* config) {
       goto end;
 
     err = bud_hashmap_insert(&config->files.hashmap,
-                             "!config",
-                             7,
+                             kPipedConfigPath,
+                             strlen(kPipedConfigPath),
                              (void*) content);
     if (!bud_is_ok(err)) {
       free(content);
