@@ -21,6 +21,8 @@ static bud_error_t bud_master_init_signals(bud_config_t* config);
 static void bud_master_signal_close_cb(uv_handle_t* handle);
 static void bud_master_signal_cb(uv_signal_t* handle, int signum);
 #endif  /* !_WIN32 */
+static bud_error_t bud_master_get_spawn_args(bud_config_t* config,
+                                             const char*** out);
 static bud_error_t bud_master_spawn_workers(bud_config_t* config);
 static bud_error_t bud_master_finalize_reload(bud_worker_t* worker);
 static bud_error_t bud_master_spawn_worker(bud_worker_t* worker);
@@ -330,9 +332,9 @@ bud_error_t bud_master_finalize_reload(bud_worker_t* worker) {
 }
 
 
-bud_error_t bud_master_get_spawn_args(bud_config_t* config, char*** out) {
-  char** args;
-  char* aux_argv[] = {"--worker", NULL, NULL, NULL};
+bud_error_t bud_master_get_spawn_args(bud_config_t* config, const char*** out) {
+  const char** args;
+  const char* aux_argv[] = {"--worker", NULL, NULL, NULL};
   int i;
   int j;
 
@@ -397,7 +399,7 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
     goto done;
   }
 
-  err = bud_master_get_spawn_args(config, &options.args);
+  err = bud_master_get_spawn_args(config, (const char***) &options.args);
   if (!bud_is_ok(err))
     goto done;
 

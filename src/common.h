@@ -80,4 +80,8 @@ void bud_hashmap_iterate(bud_hashmap_t* hashmap,
                          void* arg);
 
 bud_error_t bud_read_file_by_fd(int fd, char** buffer);
+
+void bud_write_uint32(void* mem, uint32_t value, off_t offset);
+uint32_t bud_read_uint32(void* mem, off_t offset);
+
 #endif  /* SRC_COMMON_H_ */

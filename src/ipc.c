@@ -186,6 +186,7 @@ void bud_ipc_parse(bud_ipc_t* ipc) {
 
           ipc->pending.type = *(uint8_t*) buf;
           ipc->pending.size = *(uint32_t*) &buf[1];
+          ipc->pending.size = bud_read_uint32(buf, 1);
 
           ipc->waiting = ipc->pending.size;
           ipc->state = kBudIPCBody;
@@ -312,7 +313,7 @@ bud_error_t bud_ipc_send(bud_ipc_t* ipc,
                     BUD_IPC_HEADER_SIZE + header->size);
 
   buf.base[0] = header->type;
-  *(uint32_t*) &buf.base[1] = header->size;
+  bud_write_uint32(buf.base, header->size, 1);
   memcpy(buf.base + BUD_IPC_HEADER_SIZE, body, header->size);
 
   r = uv_write(req,

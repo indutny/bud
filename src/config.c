@@ -98,7 +98,7 @@ static const int kBudDefaultKeepalive = 3600;
 static const int kBudBackendMapSize = 1024;
 static const int kBudFileCacheSize = 64;
 
-static const char* bud_long_flags = "vi:c:dp";
+static const char bud_long_flags[] = "vi:c:dp";
 static struct option bud_long_options[] = {
   { "version", 0, NULL, 'v' },
   { "config", 1, NULL, 'c' },
@@ -195,7 +195,6 @@ bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out) {
   r = uv_exepath(config->exepath, &path_len);
   ASSERT(path_len < sizeof(config->exepath), "Exepath OOB");
 
-  config->exepath[path_len] = 0;
   if (r != 0) {
     bud_config_free(config);
     config = NULL;
@@ -240,7 +239,7 @@ bud_error_t bud_config_load(bud_config_t* config) {
     err = bud_hashmap_insert(&config->files.hashmap,
                              kPipedConfigPath,
                              strlen(kPipedConfigPath),
-                             (void*) content);
+                             content);
     if (!bud_is_ok(err)) {
       free(content);
       goto end;

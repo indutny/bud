@@ -445,3 +445,22 @@ read_failed:
 
   return err;
 }
+
+
+void bud_write_uint32(void* mem, uint32_t value, off_t offset) {
+  uint8_t* d;
+
+  d = (uint8_t*) ((char*) mem + offset);
+  d[0] = (value >> 24) & 0xff;
+  d[1] = (value >> 16) & 0xff;
+  d[2] = (value >> 8) & 0xff;
+  d[3] = value & 0xff;
+}
+
+
+uint32_t bud_read_uint32(void* mem, off_t offset) {
+  uint8_t* d;
+
+  d = (uint8_t*) ((char*) mem + offset);
+  return (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3];
+}
