@@ -236,7 +236,8 @@ bud_error_t bud_config_load(bud_config_t* config) {
   if (config->piped) {
     char* content;
 
-    err = bud_read_file_by_fd(0, &content);
+    ASSERT(config->loop != NULL, "Loop should be present");
+    err = bud_read_file_by_fd(config->loop, 0, &content);
     if (!bud_is_ok(err))
       goto end;
 
@@ -1223,7 +1224,8 @@ bud_error_t bud_config_load_file(bud_config_t* config,
     return bud_ok();
   }
 
-  err = bud_read_file_by_path(path, &content);
+  ASSERT(config->loop != NULL, "Loop should be present");
+  err = bud_read_file_by_path(config->loop, path, &content);
   if (!bud_is_ok(err))
     return err;
 
@@ -2253,9 +2255,14 @@ bud_error_t bud_config_files_reduce_reload(bud_hashmap_item_t* item,
 
   config = arg;
 
-  err = bud_read_file_by_path(item->key, &content);
+  ASSERT(config->loop != NULL, "Loop should be present");
+  err = bud_read_file_by_path(config->loop, item->key, &content);
+  /*
+   * Ignore file read errors, it might be a permission problem
+   * after dropping the privileges
+   */
   if (!bud_is_ok(err))
-    return err;
+    return bud_ok();
 
   free(item->value);
   item->value = content;

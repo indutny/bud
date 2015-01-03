@@ -145,6 +145,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("open(%s) failed", err.str)                                   \
     case kBudErrNoConfig:                                                     \
       BUD_ERROR("no configuration was loaded")                                \
+    case kBudErrFSRead:                                                       \
+      BUD_UV_ERROR("uv_fs_read(fd)", err)                                     \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
     case kBudErrSetsidFailed:                                                 \

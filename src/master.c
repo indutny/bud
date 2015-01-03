@@ -42,22 +42,11 @@ bud_error_t bud_master(bud_config_t* config) {
   int i;
   bud_error_t err;
 
-  err = bud_config_load(config);
-  if (!bud_is_ok(err))
-    goto fatal;
-
-  bud_clog(config, kBudLogDebug, "master starting");
-
 #ifndef _WIN32
   if (config->is_daemon)
     if (bud_daemonize(&err) != 0)
       goto fatal;
 #endif  /* !_WIN32 */
-
-  /* Drop privileges */
-  err = bud_config_drop_privileges(config);
-  if (!bud_is_ok(err))
-    goto fatal;
 
   /* Create loop after forking */
   config->loop = uv_default_loop();
@@ -65,6 +54,17 @@ bud_error_t bud_master(bud_config_t* config) {
     err = bud_error_str(kBudErrNoMem, "config->loop");
     goto fatal;
   }
+
+  err = bud_config_load(config);
+  if (!bud_is_ok(err))
+    goto fatal;
+
+  bud_clog(config, kBudLogDebug, "master starting");
+
+  /* Drop privileges */
+  err = bud_config_drop_privileges(config);
+  if (!bud_is_ok(err))
+    goto fatal;
 
 #ifndef _WIN32
   /* Initialize signal watchers */

@@ -1,7 +1,4 @@
-#include <fcntl.h>  /* open */
-#include <errno.h>
 #include <stdint.h>
-#include <unistd.h>  /* close */
 #include "openssl/ssl.h"
 
 #include "common.h"
@@ -394,23 +391,29 @@ bud_error_t bud_hashmap_iterate(bud_hashmap_t* hashmap,
 }
 
 
-/* TODO(indutny): windows support */
-bud_error_t bud_read_file_by_path(const char* path, char** out) {
-  int fd;
+bud_error_t bud_read_file_by_path(uv_loop_t* loop,
+                                  const char* path,
+                                  char** out) {
+  int r;
+  uv_file file;
   bud_error_t err;
+  uv_fs_t req;
 
-  fd = open(path, O_RDONLY, 0);
-  if (fd == -1)
+  r = uv_fs_open(loop, &req, path, O_RDONLY, 0, NULL);
+  file = req.result;
+  uv_fs_req_cleanup(&req);
+
+  if (r == -1)
     return bud_error_dstr(kBudErrLoadFile, path);
 
-  err = bud_read_file_by_fd(fd, out);
-  close(fd);
+  err = bud_read_file_by_fd(loop, file, out);
+  uv_fs_close(loop, &req, file, NULL);
+  uv_fs_req_cleanup(&req);
   return err;
 }
 
 
-/* TODO(indutny): windows support */
-bud_error_t bud_read_file_by_fd(int fd, char** out) {
+bud_error_t bud_read_file_by_fd(uv_loop_t* loop, uv_file fd, char** out) {
   ssize_t r;
   char* tmp;
   char* buffer;
@@ -429,21 +432,24 @@ bud_error_t bud_read_file_by_fd(int fd, char** out) {
   offset = 0;
 
   while (1) {
-    do
-      r = read(fd, buffer + offset, buffer_len - offset);
-    while (r == -1 && errno == EINTR);
+    uv_fs_t req;
+    uv_buf_t buf;
+
+    buf = uv_buf_init(buffer + offset, buffer_len - offset);
+    r = uv_fs_read(loop, &req, fd, &buf, 1, -1, NULL);
+    uv_fs_req_cleanup(&req);
 
     if (r < 0) {
-      err = bud_error_str(errno, strerror(errno));
+      err = bud_error_num(kBudErrFSRead, r);
       goto read_failed;
-    } else if (r == 0) { /* EOF Encountered */
+    } else if (req.result == 0) { /* EOF Encountered */
       break;
     } else {
-      offset += r;
+      offset += req.result;
 
       if (offset >= buffer_len) {
         buffer_len += BUF_STEP_LEN;
-        tmp = realloc((void*) buffer, buffer_len);
+        tmp = realloc(buffer, buffer_len);
         if (tmp == NULL) {
           err = bud_error_str(kBudErrNoMem, "attempt_realloc");
           goto read_failed;
