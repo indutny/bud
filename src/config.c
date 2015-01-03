@@ -1,11 +1,9 @@
-#include <fcntl.h>  /* open */
 #include <getopt.h>  /* getopt */
 #include <limits.h>  /* ULLONG_MAX */
 #include <stdio.h>  /* fprintf */
 #include <stdlib.h>  /* NULL */
 #include <string.h>  /* memset, strlen, strncmp */
 #include <strings.h>  /* strcasecmp */
-#include <unistd.h>  /* close */
 
 #ifndef _WIN32
 #include <sys/types.h>  /* uid_t, gid_t */
@@ -87,8 +85,14 @@ static bud_error_t bud_config_load_backend(
     bud_hashmap_t* map,
     unsigned int* ext_count);
 static bud_config_balance_t bud_config_balance_to_enum(const char* balance);
-static void bud_config_files_reduce_size(bud_hashmap_item_t* item, void* arg);
-static void bud_config_files_reduce_copy(bud_hashmap_item_t* item, void* arg);
+static bud_error_t bud_config_files_reduce_size(bud_hashmap_item_t* item,
+                                                void* arg);
+static bud_error_t bud_config_files_reduce_copy(bud_hashmap_item_t* item,
+                                                void* arg);
+static bud_error_t bud_config_files_reduce_reload(bud_hashmap_item_t* item,
+                                                  void* arg);
+static bud_error_t bud_config_free_files(bud_hashmap_item_t* item,
+                                         void* arg);
 
 
 int kBudSSLConfigIndex = -1;
@@ -850,8 +854,8 @@ void bud_config_destroy(bud_config_t* config) {
   bud_logger_free(config->logger);
   config->logger = NULL;
 
-  /* NOTE: Using the fact that config was calloc-ed */
-  bud_hashmap_destroy(&config->files.hashmap, free);
+  bud_hashmap_iterate(&config->files.hashmap, bud_config_free_files, NULL);
+  bud_hashmap_destroy(&config->files.hashmap);
 
   json_value_free(config->json);
   config->json = NULL;
@@ -860,6 +864,12 @@ void bud_config_destroy(bud_config_t* config) {
   config->files.str = NULL;
 
   bud_config_trace_free(&config->trace);
+}
+
+
+bud_error_t bud_config_free_files(bud_hashmap_item_t* item, void* arg) {
+  free(item->value);
+  return bud_ok();
 }
 
 
@@ -891,7 +901,7 @@ void bud_context_free(bud_context_t* context) {
     }
   }
 
-  bud_hashmap_destroy(&context->backend.external_map, NULL);
+  bud_hashmap_destroy(&context->backend.external_map);
 
   SSL_CTX_free(context->ctx);
   if (context->cert != NULL)
@@ -1204,7 +1214,6 @@ bud_error_t bud_config_load_file(bud_config_t* config,
                                  const char* path,
                                  const char** out) {
   bud_error_t err;
-  int fd;
   char* content;
 
   /* Check if we already have cache entry */
@@ -1214,14 +1223,9 @@ bud_error_t bud_config_load_file(bud_config_t* config,
     return bud_ok();
   }
 
-  /* TODO(indutny): windows support */
-  fd = open(path, O_RDONLY, 0);
-  if (fd == -1)
-    return bud_error_dstr(kBudErrLoadFile, path);
-
-  err = bud_read_file_by_fd(fd, &content);
+  err = bud_read_file_by_path(path, &content);
   if (!bud_is_ok(err))
-    goto fatal;
+    return err;
 
   err = bud_hashmap_insert(&config->files.hashmap,
                            path,
@@ -1229,14 +1233,11 @@ bud_error_t bud_config_load_file(bud_config_t* config,
                            content);
   if (!bud_is_ok(err)) {
     free(content);
-    goto fatal;
+    return err;
   }
 
   *out = content;
-
-fatal:
-  close(fd);
-  return err;
+  return bud_ok();
 }
 
 
@@ -2140,15 +2141,17 @@ int bud_config_verify_cert(int status, X509_STORE_CTX* s) {
 }
 
 
-void bud_config_files_reduce_size(bud_hashmap_item_t* item, void* arg) {
+bud_error_t bud_config_files_reduce_size(bud_hashmap_item_t* item, void* arg) {
   size_t* size;
 
   size = arg;
   (*size) += item->key_len + 1 + strlen((char*) item->value) + 1;
+
+  return bud_ok();
 }
 
 
-void bud_config_files_reduce_copy(bud_hashmap_item_t* item, void* arg) {
+bud_error_t bud_config_files_reduce_copy(bud_hashmap_item_t* item, void* arg) {
   char** res;
   int len;
 
@@ -2163,6 +2166,8 @@ void bud_config_files_reduce_copy(bud_hashmap_item_t* item, void* arg) {
   len = strlen((char*) item->value);
   memcpy(*res, item->value, len + 1);
   (*res) += len + 1;
+
+  return bud_ok();
 }
 
 
@@ -2236,6 +2241,44 @@ bud_error_t bud_config_set_files(bud_config_t* config,
       return err;
   }
 
+  return bud_ok();
+}
+
+
+bud_error_t bud_config_files_reduce_reload(bud_hashmap_item_t* item,
+                                           void* arg) {
+  bud_error_t err;
+  bud_config_t* config;
+  char* content;
+
+  config = arg;
+
+  err = bud_read_file_by_path(item->key, &content);
+  if (!bud_is_ok(err))
+    return err;
+
+  free(item->value);
+  item->value = content;
+
+  return bud_ok();
+}
+
+
+
+
+bud_error_t bud_config_reload_files(bud_config_t* config) {
+  bud_error_t err;
+
+  err = bud_hashmap_iterate(&config->files.hashmap,
+                            bud_config_files_reduce_reload,
+                            config);
+  if (!bud_is_ok(err))
+    return err;
+
+  /* Reset files string */
+  free(config->files.str);
+  config->files.str = NULL;
+  config->files.len = 0;
   return bud_ok();
 }
 

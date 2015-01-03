@@ -280,6 +280,7 @@ bud_error_t bud_config_get_files(bud_config_t* config,
 bud_error_t bud_config_set_files(bud_config_t* config,
                                  const char* files,
                                  size_t size);
+bud_error_t bud_config_reload_files(bud_config_t* config);
 
 /* Helper for loading SNI */
 bud_error_t bud_context_load(JSON_Object* obj,

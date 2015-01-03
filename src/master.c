@@ -259,6 +259,13 @@ void bud_master_signal_cb(uv_signal_t* handle, int signum) {
            "master got SIGHUP, broadcasting to workers");
   stale = config->workers;
 
+  /* Reload all files */
+  err = bud_config_reload_files(config);
+  if (!bud_is_ok(err)) {
+    bud_error_print(stderr, err);
+    return;
+  }
+
   /* Allocate new workers array and start them */
   config->workers = calloc(config->worker_count, sizeof(*config->workers));
   if (config->workers == NULL) {

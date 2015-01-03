@@ -1,5 +1,7 @@
+#include <fcntl.h>  /* open */
 #include <errno.h>
 #include <stdint.h>
+#include <unistd.h>  /* close */
 #include "openssl/ssl.h"
 
 #include "common.h"
@@ -258,17 +260,9 @@ bud_error_t bud_hashmap_init(bud_hashmap_t* hashmap, unsigned int size) {
 }
 
 
-void bud_hashmap_destroy(bud_hashmap_t* hashmap, bud_hashmap_free_cb cb) {
-  unsigned int i;
-
+void bud_hashmap_destroy(bud_hashmap_t* hashmap) {
   if (hashmap->space == NULL)
     return;
-
-  /* Free hashmap items */
-  if (cb != NULL)
-    for (i = 0; i < hashmap->size; i++)
-      if (hashmap->space[i].key != NULL)
-        cb(hashmap->space[i].value);
 
   free(hashmap->space);
   hashmap->space = NULL;
@@ -379,17 +373,43 @@ void* bud_hashmap_get(bud_hashmap_t* hashmap,
 }
 
 
-void bud_hashmap_iterate(bud_hashmap_t* hashmap,
-                         bud_hashmap_iterate_cb cb,
-                         void* arg) {
+bud_error_t bud_hashmap_iterate(bud_hashmap_t* hashmap,
+                                bud_hashmap_iterate_cb cb,
+                                void* arg) {
+  bud_error_t err;
   unsigned int i;
 
-  for (i = 0; i < hashmap->size; i++)
-    if (hashmap->space[i].key != NULL)
-      cb(&hashmap->space[i], arg);
+  if (hashmap->space == NULL)
+    return bud_ok();
+
+  for (i = 0; i < hashmap->size; i++) {
+    if (hashmap->space[i].key != NULL) {
+      err = cb(&hashmap->space[i], arg);
+      if (!bud_is_ok(err))
+        return err;
+    }
+  }
+
+  return bud_ok();
 }
 
 
+/* TODO(indutny): windows support */
+bud_error_t bud_read_file_by_path(const char* path, char** out) {
+  int fd;
+  bud_error_t err;
+
+  fd = open(path, O_RDONLY, 0);
+  if (fd == -1)
+    return bud_error_dstr(kBudErrLoadFile, path);
+
+  err = bud_read_file_by_fd(fd, out);
+  close(fd);
+  return err;
+}
+
+
+/* TODO(indutny): windows support */
 bud_error_t bud_read_file_by_fd(int fd, char** out) {
   ssize_t r;
   char* tmp;

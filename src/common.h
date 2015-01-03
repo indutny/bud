@@ -52,7 +52,8 @@ const char* bud_sslerror_str(int err);
 typedef struct bud_hashmap_s bud_hashmap_t;
 typedef struct bud_hashmap_item_s bud_hashmap_item_t;
 typedef void (*bud_hashmap_free_cb)(void*);
-typedef void (*bud_hashmap_iterate_cb)(bud_hashmap_item_t* item, void* arg);
+typedef bud_error_t (*bud_hashmap_iterate_cb)(bud_hashmap_item_t* item,
+                                              void* arg);
 
 struct bud_hashmap_s {
   bud_hashmap_item_t* space;
@@ -66,7 +67,7 @@ struct bud_hashmap_item_s {
 };
 
 bud_error_t bud_hashmap_init(bud_hashmap_t* hashmap, unsigned int size);
-void bud_hashmap_destroy(bud_hashmap_t* hashmap, bud_hashmap_free_cb cb);
+void bud_hashmap_destroy(bud_hashmap_t* hashmap);
 
 bud_error_t bud_hashmap_insert(bud_hashmap_t* hashmap,
                                const char* key,
@@ -75,10 +76,11 @@ bud_error_t bud_hashmap_insert(bud_hashmap_t* hashmap,
 void* bud_hashmap_get(bud_hashmap_t* hashmap,
                       const char* key,
                       unsigned int key_len);
-void bud_hashmap_iterate(bud_hashmap_t* hashmap,
-                         bud_hashmap_iterate_cb cb,
-                         void* arg);
+bud_error_t bud_hashmap_iterate(bud_hashmap_t* hashmap,
+                                bud_hashmap_iterate_cb cb,
+                                void* arg);
 
+bud_error_t bud_read_file_by_path(const char* path, char** buffer);
 bud_error_t bud_read_file_by_fd(int fd, char** buffer);
 
 void bud_write_uint32(void* mem, uint32_t value, off_t offset);
