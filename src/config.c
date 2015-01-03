@@ -44,7 +44,6 @@ static bud_error_t bud_config_load_ca_file(X509_STORE** store,
                                            const char* filename);
 static bud_error_t bud_config_load_frontend(JSON_Object* obj,
                                             bud_config_frontend_t* frontend);
-static void bud_config_destroy(bud_config_t* config);
 static void bud_config_set_defaults(bud_config_t* config);
 static void bud_config_set_backend_defaults(bud_config_backend_t* backend);
 static void bud_print_help(int argc, char** argv);
@@ -126,11 +125,13 @@ bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out) {
   size_t path_len;
   int c;
   int index;
+  int loaded;
 
   config = calloc(1, sizeof(*config));
   if (config == NULL)
     return bud_error_str(kBudErrNoMem, "bud_config_t");
 
+  loaded = 0;
   do {
     index = 0;
     c = getopt_long(argc, argv, bud_long_flags, bud_long_options, &index);
@@ -147,10 +148,12 @@ bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out) {
       case 'p':
       case 'i':
       case 'c':
-        if (config->path != NULL || config->inlined || config->piped) {
+        if (loaded) {
           err = bud_error(kBudErrMultipleConfigs);
           goto fatal;
         }
+        loaded = 1;
+
         if (c == 'p') {
           config->piped = 1;
           config->path = kPipedConfigPath;
@@ -168,7 +171,7 @@ bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out) {
         err = bud_error(kBudErrSkip);
         goto fatal;
       default:
-        if (config->path != NULL || config->inlined || config->piped)
+        if (loaded)
           break;
 
         bud_print_help(argc, argv);
@@ -179,8 +182,7 @@ bud_error_t bud_config_new(int argc, char** argv, bud_config_t** out) {
   if (!config->piped) {
     config->piped_index = -1;
   } else {
-    /* get_opt does not provide the argc offset so must manually retrieve it
-     */
+    /* get_opt does not provide the argc offset so must manually retrieve it */
     for (i = 0; i < argc; i++) {
       if (strcmp(argv[i], "--piped-config") == 0 ||
           strcmp(argv[i], "-p") == 0) {
@@ -840,9 +842,16 @@ void bud_config_finalize(bud_config_t* config) {
 }
 
 
-void bud_config_destroy(bud_config_t* config) {
+bud_error_t bud_config_free_files(bud_hashmap_item_t* item, void* arg) {
+  free(item->value);
+  return bud_ok();
+}
+
+
+void bud_config_free(bud_config_t* config) {
   int i;
 
+  /* Free all reload-dependent resources */
   bud_config_finalize(config);
   if (config->loop != NULL)
     uv_run(config->loop, UV_RUN_NOWAIT);
@@ -865,18 +874,6 @@ void bud_config_destroy(bud_config_t* config) {
   config->files.str = NULL;
 
   bud_config_trace_free(&config->trace);
-}
-
-
-bud_error_t bud_config_free_files(bud_hashmap_item_t* item, void* arg) {
-  free(item->value);
-  return bud_ok();
-}
-
-
-void bud_config_free(bud_config_t* config) {
-  /* Free all reload-dependent resources */
-  bud_config_destroy(config);
 
   /* Free rest */
   free(config->workers);
