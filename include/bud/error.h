@@ -126,12 +126,15 @@ enum bud_error_code_e {
 
 struct bud_error_s {
   bud_error_code_t code;
-  const char* str;
-  int ret;
+  union {
+    const char* str;
+    int ret;
+  } data;
 };
 
+#define bud_is_ok(err) ((err).code == kBudOk)
+
 BUD_EXPORT bud_error_t bud_ok();
-BUD_EXPORT int bud_is_ok(bud_error_t err);
 BUD_EXPORT bud_error_t bud_error(bud_error_code_t code);
 BUD_EXPORT bud_error_t bud_error_str(bud_error_code_t code, const char* str);
 BUD_EXPORT bud_error_t bud_error_dstr(bud_error_code_t code, const char* str);
