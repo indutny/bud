@@ -260,7 +260,7 @@ void bud_client_close(bud_client_t* client, bud_client_error_t err) {
   side = err.side;
   if (bud_is_ok(err.err) ||
       (err.err.code == kBudErrClientSSLRead &&
-           err.err.ret == SSL_ERROR_ZERO_RETURN)) {
+           err.err.data.ret == SSL_ERROR_ZERO_RETURN)) {
     DBG_LN(side, "bud_client_close()");
   } else if (side == &client->backend) {
     WARNING(side, "closed because: %s", bud_error_to_str(err.err));

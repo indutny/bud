@@ -95,6 +95,6 @@ struct bud_trace_module_s {
 
 /* Convenient define for a module declaration */
 #define BUD_TRACE_MODULE bud_trace_module_t bud_trace_module
-#define BUD_TRACE_VERSION 2
+#define BUD_TRACE_VERSION 3
 
 #endif  /* INCLUDE_BUD_TRACING_H_ */
