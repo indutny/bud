@@ -15,6 +15,7 @@ enum bud_error_code_e {
 
   /* General errors */
   kBudErrNoMem = 0x001,
+  kBudErrSkip = 0x002,
 
   /* Config errors */
   kBudErrJSONParse = 0x100,
@@ -45,6 +46,9 @@ enum bud_error_code_e {
   kBudErrDLSym = 0x119,
   kBudErrDLVersion = 0x11a,
   kBudErrMultipleConfigs = 0x11b,
+  kBudErrLoadFile = 0x11c,
+  kBudErrNoConfig = 0x11d,
+  kBudErrFSRead = 0x11e,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,
@@ -116,17 +120,21 @@ enum bud_error_code_e {
   kBudErrIPCReadStart = 0x902,
   kBudErrIPCBalanceInit = 0x903,
   kBudErrIPCBalanceAccept = 0x904,
-  kBudErrIPCBalanceWrite = 0x905
+  kBudErrIPCBalanceWrite = 0x905,
+  kBudErrIPCSend = 0x906
 };
 
 struct bud_error_s {
   bud_error_code_t code;
-  const char* str;
-  int ret;
+  union {
+    const char* str;
+    int ret;
+  } data;
 };
 
-BUD_EXPORT bud_error_t bud_ok();
-BUD_EXPORT int bud_is_ok(bud_error_t err);
+#define bud_is_ok(err) ((err).code == kBudOk)
+#define bud_ok() ((bud_error_t) { .code = kBudOk, .data = { .ret = 0 } })
+
 BUD_EXPORT bud_error_t bud_error(bud_error_code_t code);
 BUD_EXPORT bud_error_t bud_error_str(bud_error_code_t code, const char* str);
 BUD_EXPORT bud_error_t bud_error_dstr(bud_error_code_t code, const char* str);

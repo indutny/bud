@@ -10,16 +10,6 @@
 #include "common.h"
 #include "logger.h"
 
-bud_error_t bud_ok() {
-  return bud_error(kBudOk);
-}
-
-
-int bud_is_ok(bud_error_t err) {
-  return err.code == kBudOk;
-}
-
-
 bud_error_t bud_error(bud_error_code_t code) {
   return bud_error_str(code, NULL);
 }
@@ -29,8 +19,7 @@ bud_error_t bud_error_str(bud_error_code_t code, const char* str) {
   bud_error_t err;
 
   err.code = code;
-  err.str = str;
-  err.ret = 0;
+  err.data.str = str;
   return err;
 }
 
@@ -41,13 +30,12 @@ bud_error_t bud_error_dstr(bud_error_code_t code, const char* str) {
 
   if (str != NULL) {
     strncpy(st, str, sizeof(st));
-    err.str = st;
+    err.data.str = st;
   } else {
-    err.str = NULL;
+    err.data.str = NULL;
   }
 
   err.code = code;
-  err.ret = 0;
   return err;
 }
 
@@ -56,8 +44,7 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
   bud_error_t err;
 
   err.code = code;
-  err.str = NULL;
-  err.ret = ret;
+  err.data.ret = ret;
   return err;
 }
 
@@ -66,39 +53,41 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
     case kBudOk:                                                              \
       BUD_ERROR("No error")                                                   \
     case kBudErrNoMem:                                                        \
-      BUD_ERROR("Allocation failed: %s", err.str)                             \
+      BUD_ERROR("Allocation failed: %s", err.data.str)                        \
+    case kBudErrSkip:                                                         \
+      BUD_ERROR("Just skip me")                                               \
     case kBudErrJSONParse:                                                    \
-      BUD_ERROR("Failed to load or parse JSON: %s", err.str)                  \
+      BUD_ERROR("Failed to load or parse JSON: %s", err.data.str)             \
     case kBudErrJSONNonObjectRoot:                                            \
       BUD_ERROR("Invalid json, root should be an object")                     \
     case kBudErrJSONNonObjectCtx:                                             \
       BUD_ERROR("Invalid json, each context should be an object")             \
     case kBudErrLoadCert:                                                     \
       BUD_ERROR("Failed to load cert %s reason: %s",                          \
-                err.str,                                                      \
+                err.data.str,                                                 \
                 ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrParseCert:                                                    \
       BUD_ERROR("Failed to load/parse cert %s reason: %s",                    \
-                err.str,                                                      \
+                err.data.str,                                                 \
                 ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrLoadKey:                                                      \
       BUD_ERROR("Failed to load key %s, reason: %s",                          \
-                err.str,                                                      \
+                err.data.str,                                                 \
                 ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrParseKey:                                                     \
       BUD_ERROR("Failed to load/parse key %s reason: %s",                     \
-                err.str,                                                      \
+                err.data.str,                                                 \
                 ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrSNINotSupported:                                              \
       BUD_ERROR("SNI not supported, but multiple contexts were given")        \
     case kBudErrNonString:                                                    \
-      BUD_ERROR("%s array should contain only strings", err.str)              \
+      BUD_ERROR("%s array should contain only strings", err.data.str)         \
     case kBudErrNPNNotSupported:                                              \
       BUD_ERROR("NPN not supported, but present in config")                   \
     case kBudErrExePath:                                                      \
       BUD_UV_ERROR("uv_exe_path()", err)                                      \
     case kBudErrECDHNotFound:                                                 \
-      BUD_ERROR("ECDH curve \"%s\" not found", err.str)                       \
+      BUD_ERROR("ECDH curve \"%s\" not found", err.data.str)                  \
     case kBudErrNoBackend:                                                    \
       BUD_ERROR("Empty \"backend\" array, or \"backend\" is not array")       \
     case kBudErrNoSSLIndex:                                                   \
@@ -108,27 +97,27 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
     case kBudErrAddCert:                                                      \
       BUD_ERROR("X509_STORE_add_cert() failure")                              \
     case kBudErrProxyline:                                                    \
-      BUD_ERROR("Invalid proxyline value: %s", err.str)                       \
+      BUD_ERROR("Invalid proxyline value: %s", err.data.str)                  \
     case kBudErrInvalidUser:                                                  \
-      BUD_ERROR("Invalid user name supplied: %s", err.str)                    \
+      BUD_ERROR("Invalid user name supplied: %s", err.data.str)               \
     case kBudErrInvalidGroup:                                                 \
-      BUD_ERROR("Invalid group name supplied: %s", err.str)                   \
+      BUD_ERROR("Invalid group name supplied: %s", err.data.str)              \
     case kBudErrSetuid:                                                       \
-      BUD_ERROR("setuid() failed: %d", err.ret)                               \
+      BUD_ERROR("setuid() failed: %d", err.data.ret)                          \
     case kBudErrSetgid:                                                       \
-      BUD_ERROR("setgid() failed: %d", err.ret)                               \
+      BUD_ERROR("setgid() failed: %d", err.data.ret)                          \
     case kBudErrLoadDH:                                                       \
       BUD_ERROR("Failed to load DH params from %s, reason: %s",               \
-                err.str,                                                      \
+                err.data.str,                                                 \
                 ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrParseDH:                                                      \
       BUD_ERROR("Failed to load/parse DH params from %s reason: %s",          \
-                err.str,                                                      \
+                err.data.str,                                                 \
                 ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrInvalidBalance:                                               \
       BUD_ERROR("Invalid balance, should be `round-robin` or `on-fail`, "     \
                     "not `%s`",                                               \
-                err.str)                                                      \
+                err.data.str)                                                 \
     case kBudErrDLOpen:                                                       \
       BUD_UV_ERROR("uv_dlopen(file)", err)                                    \
     case kBudErrDLSym:                                                        \
@@ -136,15 +125,21 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
     case kBudErrDLVersion:                                                    \
       BUD_ERROR("Tracing DSO version mismatch, expected %d got %d",           \
                 BUD_TRACE_VERSION,                                            \
-                err.ret)                                                      \
+                err.data.ret)                                                 \
     case kBudErrMultipleConfigs:                                              \
       BUD_ERROR("Please pass one config file, not multiple")                  \
+    case kBudErrLoadFile:                                                     \
+      BUD_ERROR("open(%s) failed", err.data.str)                              \
+    case kBudErrNoConfig:                                                     \
+      BUD_ERROR("no configuration was loaded")                                \
+    case kBudErrFSRead:                                                       \
+      BUD_UV_ERROR("uv_fs_read(fd)", err)                                     \
     case kBudErrForkFailed:                                                   \
-      BUD_ERROR("fork() failed, errno: %d\n", err.ret)                        \
+      BUD_ERROR("fork() failed, errno: %d\n", err.data.ret)                   \
     case kBudErrSetsidFailed:                                                 \
-      BUD_ERROR("setsid() failed, errno: %d\n", err.ret)                      \
+      BUD_ERROR("setsid() failed, errno: %d\n", err.data.ret)                 \
     case kBudErrChdirFailed:                                                  \
-      BUD_ERROR("chdir() failed, errno: %d\n", err.ret)                       \
+      BUD_ERROR("chdir() failed, errno: %d\n", err.data.ret)                  \
     case kBudErrIPCPipeInit:                                                  \
       BUD_UV_ERROR("uv_pipe_init(ipc)", err)                                  \
     case kBudErrIPCPipeOpen:                                                  \
@@ -176,7 +171,7 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
     case kBudErrParserNeedMore:                                               \
       BUD_ERROR("client hello parser needs more data")                        \
     case kBudErrParserErr:                                                    \
-      BUD_ERROR("client hello parser failure: %s", err.str)                   \
+      BUD_ERROR("client hello parser failure: %s", err.data.str)              \
     case kBudErrHttpTcpInit:                                                  \
       BUD_UV_ERROR("uv_tcp_init(http_req)", err)                              \
     case kBudErrHttpTcpConnect:                                               \
@@ -192,7 +187,7 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
     case kBudErrHttpReadCb:                                                   \
       BUD_UV_ERROR("http_req's read_cb", err)                                 \
     case kBudErrHttpParse:                                                    \
-      BUD_ERROR("http_req's body parse failed %s", err.str)                   \
+      BUD_ERROR("http_req's body parse failed %s", err.data.str)              \
     case kBudErrHttpEof:                                                      \
       BUD_ERROR("http_req's unexpected eof")                                  \
     case kBudErrStaplingSetData:                                              \
@@ -223,11 +218,11 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("SSL_set_ex_data() for SNI")                                  \
     case kBudErrClientSSLWrite:                                               \
       BUD_ERROR("SSL_write(client) - %d (%s)",                                \
-                err.ret,                                                      \
+                err.data.ret,                                                 \
                 ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrClientSSLRead:                                                \
       BUD_ERROR("SSL_read(client) - %d (%s)",                                 \
-                err.ret,                                                      \
+                err.data.ret,                                                 \
                 ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrClientThrottle:                                               \
       BUD_ERROR("throttle(client) **NOT A ERROR**")                           \
@@ -253,6 +248,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_UV_ERROR("bud_ipc_balance() uv_accept", err)                        \
     case kBudErrIPCBalanceWrite:                                              \
       BUD_UV_ERROR("bud_ipc_balance()", err)                                  \
+    case kBudErrIPCSend:                                                      \
+      BUD_UV_ERROR("bud_ipc_send()", err)                                     \
     default:                                                                  \
       UNEXPECTED;                                                             \
   }
@@ -265,8 +262,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
     bud_clog(config,                                                          \
             level,                                                            \
             msg " returned %d, reason: %s",                                   \
-            err.ret,                                                          \
-            uv_strerror(err.ret));                                            \
+            err.data.ret,                                                     \
+            uv_strerror(err.data.ret));                                       \
     break;
 
 void bud_error_log(bud_config_t* config,
@@ -284,8 +281,8 @@ void bud_error_log(bud_config_t* config,
     break;
 
 #define BUD_UV_ERROR(msg, err)                                                \
-    fprintf(fp, msg " returned %d\n", err.ret);                               \
-    fprintf(fp, "%s\n", uv_strerror(err.ret));                                \
+    fprintf(fp, msg " returned %d\n", err.data.ret);                               \
+    fprintf(fp, "%s\n", uv_strerror(err.data.ret));                                \
     break;
 
 void bud_error_print(FILE* fp, bud_error_t err) {
@@ -303,8 +300,8 @@ void bud_error_print(FILE* fp, bud_error_t err) {
     snprintf(storage,                                                         \
              sizeof(storage),                                                 \
              msg " returned %d (%s)",                                         \
-             err.ret,                                                         \
-             uv_strerror(err.ret));                                           \
+             err.data.ret,                                                    \
+             uv_strerror(err.data.ret));                                      \
     break;
 
 
