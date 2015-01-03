@@ -10,11 +10,6 @@
 #include "common.h"
 #include "logger.h"
 
-bud_error_t bud_ok() {
-  return bud_error(kBudOk);
-}
-
-
 bud_error_t bud_error(bud_error_code_t code) {
   return bud_error_str(code, NULL);
 }

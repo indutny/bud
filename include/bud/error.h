@@ -133,8 +133,8 @@ struct bud_error_s {
 };
 
 #define bud_is_ok(err) ((err).code == kBudOk)
+#define bud_ok() ((bud_error_t) { .code = kBudOk, .data = { .ret = 0 } })
 
-BUD_EXPORT bud_error_t bud_ok();
 BUD_EXPORT bud_error_t bud_error(bud_error_code_t code);
 BUD_EXPORT bud_error_t bud_error_str(bud_error_code_t code, const char* str);
 BUD_EXPORT bud_error_t bud_error_dstr(bud_error_code_t code, const char* str);
