@@ -195,7 +195,6 @@ void bud_ipc_parse(bud_ipc_t* ipc) {
           ASSERT(r == ipc->waiting, "Read less than expected");
 
           ipc->pending.type = *(uint8_t*) buf;
-          ipc->pending.size = *(uint32_t*) &buf[1];
           ipc->pending.size = bud_read_uint32(buf, 1);
 
           ipc->waiting = ipc->pending.size;
