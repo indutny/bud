@@ -201,6 +201,7 @@ static uint32_t bud_murmur3(const char* key, uint32_t len) {
 
   hash = 0;
 
+  /* FIXME(indutny): this leads to unaligned loads for some keys */
   chunks = (const uint32_t*) key;
   chunk_count = len / 4;
   for (i = 0; i < chunk_count; i++) {
