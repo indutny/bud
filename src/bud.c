@@ -35,6 +35,7 @@ int main(int argc, char** argv) {
 
   bud_init_openssl();
 
+  config = NULL;
   err = bud_config_new(argc, argv, &config);
 
   /* NOTE: bud_config_load will print everything itself */
