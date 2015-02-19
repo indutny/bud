@@ -436,7 +436,6 @@ mont_reduce:
 
 	call	MULADD_128x512
 
-
 	movq	384(%rsp),%rax
 
 
@@ -480,7 +479,6 @@ mont_reduce:
 	movq	8(%rcx),%r9
 
 	call	MULADD_128x512
-
 
 
 

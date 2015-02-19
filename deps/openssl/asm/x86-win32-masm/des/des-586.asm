@@ -2,7 +2,7 @@ TITLE	des-586.asm
 IF @Version LT 800
 ECHO MASM version 8.00 or later is strongly recommended.
 ENDIF
-.686
+.486
 .MODEL	FLAT
 OPTION	DOTNAME
 IF @Version LT 800
@@ -1013,7 +1013,7 @@ $L_DES_encrypt1_begin::
 	call	$L000pic_point
 $L000pic_point:
 	pop	ebp
-	lea	ebp,DWORD PTR (_DES_SPtrans-$L000pic_point)[ebp]
+	lea	ebp,DWORD PTR ($Ldes_sptrans-$L000pic_point)[ebp]
 	mov	ecx,DWORD PTR 24[esp]
 	cmp	ebx,0
 	je	$L001decrypt
@@ -1095,7 +1095,7 @@ $L_DES_encrypt2_begin::
 	call	$L003pic_point
 $L003pic_point:
 	pop	ebp
-	lea	ebp,DWORD PTR (_DES_SPtrans-$L003pic_point)[ebp]
+	lea	ebp,DWORD PTR ($Ldes_sptrans-$L003pic_point)[ebp]
 	mov	ecx,DWORD PTR 24[esp]
 	cmp	ebx,0
 	je	$L004decrypt
@@ -1746,6 +1746,7 @@ ALIGN	64
 _DES_ede3_cbc_encrypt ENDP
 ALIGN	64
 _DES_SPtrans::
+$Ldes_sptrans::
 DD	34080768,524288,33554434,34080770
 DD	33554432,526338,524290,33554434
 DD	526338,34080768,34078720,2050

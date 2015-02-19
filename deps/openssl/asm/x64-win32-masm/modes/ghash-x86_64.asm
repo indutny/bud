@@ -1,5 +1,6 @@
 OPTION	DOTNAME
-.text$	SEGMENT ALIGN(64) 'CODE'
+.text$	SEGMENT ALIGN(256) 'CODE'
+EXTERN	OPENSSL_ia32cap_P:NEAR
 
 PUBLIC	gcm_gmult_4bit
 
@@ -683,6 +684,11 @@ PUBLIC	gcm_init_clmul
 
 ALIGN	16
 gcm_init_clmul	PROC PUBLIC
+$L$_init_clmul::
+$L$SEH_begin_gcm_init_clmul::
+
+DB	048h,083h,0ech,018h
+DB	00fh,029h,034h,024h
 	movdqu	xmm2,XMMWORD PTR[rdx]
 	pshufd	xmm2,xmm2,78
 
@@ -701,15 +707,15 @@ gcm_init_clmul	PROC PUBLIC
 	pxor	xmm2,xmm5
 
 
+	pshufd	xmm6,xmm2,78
 	movdqa	xmm0,xmm2
+	pxor	xmm6,xmm2
 	movdqa	xmm1,xmm0
 	pshufd	xmm3,xmm0,78
-	pshufd	xmm4,xmm2,78
 	pxor	xmm3,xmm0
-	pxor	xmm4,xmm2
 DB	102,15,58,68,194,0
 DB	102,15,58,68,202,17
-DB	102,15,58,68,220,0
+DB	102,15,58,68,222,0
 	pxor	xmm3,xmm0
 	pxor	xmm3,xmm1
 
@@ -719,44 +725,137 @@ DB	102,15,58,68,220,0
 	pxor	xmm1,xmm3
 	pxor	xmm0,xmm4
 
+	movdqa	xmm4,xmm0
 	movdqa	xmm3,xmm0
+	psllq	xmm0,5
+	pxor	xmm3,xmm0
 	psllq	xmm0,1
 	pxor	xmm0,xmm3
-	psllq	xmm0,5
-	pxor	xmm0,xmm3
 	psllq	xmm0,57
-	movdqa	xmm4,xmm0
+	movdqa	xmm3,xmm0
 	pslldq	xmm0,8
-	psrldq	xmm4,8
-	pxor	xmm0,xmm3
-	pxor	xmm1,xmm4
+	psrldq	xmm3,8
+	pxor	xmm0,xmm4
+	pxor	xmm1,xmm3
 
 
 	movdqa	xmm4,xmm0
+	psrlq	xmm0,1
+	pxor	xmm1,xmm4
+	pxor	xmm4,xmm0
 	psrlq	xmm0,5
 	pxor	xmm0,xmm4
 	psrlq	xmm0,1
-	pxor	xmm0,xmm4
-	pxor	xmm4,xmm1
-	psrlq	xmm0,1
-	pxor	xmm0,xmm4
+	pxor	xmm0,xmm1
+	pshufd	xmm3,xmm2,78
+	pshufd	xmm4,xmm0,78
+	pxor	xmm3,xmm2
 	movdqu	XMMWORD PTR[rcx],xmm2
+	pxor	xmm4,xmm0
 	movdqu	XMMWORD PTR[16+rcx],xmm0
+DB	102,15,58,15,227,8
+	movdqu	XMMWORD PTR[32+rcx],xmm4
+	movdqa	xmm1,xmm0
+	pshufd	xmm3,xmm0,78
+	pxor	xmm3,xmm0
+DB	102,15,58,68,194,0
+DB	102,15,58,68,202,17
+DB	102,15,58,68,222,0
+	pxor	xmm3,xmm0
+	pxor	xmm3,xmm1
+
+	movdqa	xmm4,xmm3
+	psrldq	xmm3,8
+	pslldq	xmm4,8
+	pxor	xmm1,xmm3
+	pxor	xmm0,xmm4
+
+	movdqa	xmm4,xmm0
+	movdqa	xmm3,xmm0
+	psllq	xmm0,5
+	pxor	xmm3,xmm0
+	psllq	xmm0,1
+	pxor	xmm0,xmm3
+	psllq	xmm0,57
+	movdqa	xmm3,xmm0
+	pslldq	xmm0,8
+	psrldq	xmm3,8
+	pxor	xmm0,xmm4
+	pxor	xmm1,xmm3
+
+
+	movdqa	xmm4,xmm0
+	psrlq	xmm0,1
+	pxor	xmm1,xmm4
+	pxor	xmm4,xmm0
+	psrlq	xmm0,5
+	pxor	xmm0,xmm4
+	psrlq	xmm0,1
+	pxor	xmm0,xmm1
+	movdqa	xmm5,xmm0
+	movdqa	xmm1,xmm0
+	pshufd	xmm3,xmm0,78
+	pxor	xmm3,xmm0
+DB	102,15,58,68,194,0
+DB	102,15,58,68,202,17
+DB	102,15,58,68,222,0
+	pxor	xmm3,xmm0
+	pxor	xmm3,xmm1
+
+	movdqa	xmm4,xmm3
+	psrldq	xmm3,8
+	pslldq	xmm4,8
+	pxor	xmm1,xmm3
+	pxor	xmm0,xmm4
+
+	movdqa	xmm4,xmm0
+	movdqa	xmm3,xmm0
+	psllq	xmm0,5
+	pxor	xmm3,xmm0
+	psllq	xmm0,1
+	pxor	xmm0,xmm3
+	psllq	xmm0,57
+	movdqa	xmm3,xmm0
+	pslldq	xmm0,8
+	psrldq	xmm3,8
+	pxor	xmm0,xmm4
+	pxor	xmm1,xmm3
+
+
+	movdqa	xmm4,xmm0
+	psrlq	xmm0,1
+	pxor	xmm1,xmm4
+	pxor	xmm4,xmm0
+	psrlq	xmm0,5
+	pxor	xmm0,xmm4
+	psrlq	xmm0,1
+	pxor	xmm0,xmm1
+	pshufd	xmm3,xmm5,78
+	pshufd	xmm4,xmm0,78
+	pxor	xmm3,xmm5
+	movdqu	XMMWORD PTR[48+rcx],xmm5
+	pxor	xmm4,xmm0
+	movdqu	XMMWORD PTR[64+rcx],xmm0
+DB	102,15,58,15,227,8
+	movdqu	XMMWORD PTR[80+rcx],xmm4
+	movaps	xmm6,XMMWORD PTR[rsp]
+	lea	rsp,QWORD PTR[24+rsp]
+$L$SEH_end_gcm_init_clmul::
 	DB	0F3h,0C3h		;repret
 gcm_init_clmul	ENDP
 PUBLIC	gcm_gmult_clmul
 
 ALIGN	16
 gcm_gmult_clmul	PROC PUBLIC
+$L$_gmult_clmul::
 	movdqu	xmm0,XMMWORD PTR[rcx]
 	movdqa	xmm5,XMMWORD PTR[$L$bswap_mask]
 	movdqu	xmm2,XMMWORD PTR[rdx]
+	movdqu	xmm4,XMMWORD PTR[32+rdx]
 DB	102,15,56,0,197
 	movdqa	xmm1,xmm0
 	pshufd	xmm3,xmm0,78
-	pshufd	xmm4,xmm2,78
 	pxor	xmm3,xmm0
-	pxor	xmm4,xmm2
 DB	102,15,58,68,194,0
 DB	102,15,58,68,202,17
 DB	102,15,58,68,220,0
@@ -769,215 +868,393 @@ DB	102,15,58,68,220,0
 	pxor	xmm1,xmm3
 	pxor	xmm0,xmm4
 
+	movdqa	xmm4,xmm0
 	movdqa	xmm3,xmm0
+	psllq	xmm0,5
+	pxor	xmm3,xmm0
 	psllq	xmm0,1
 	pxor	xmm0,xmm3
-	psllq	xmm0,5
-	pxor	xmm0,xmm3
 	psllq	xmm0,57
-	movdqa	xmm4,xmm0
+	movdqa	xmm3,xmm0
 	pslldq	xmm0,8
-	psrldq	xmm4,8
-	pxor	xmm0,xmm3
-	pxor	xmm1,xmm4
+	psrldq	xmm3,8
+	pxor	xmm0,xmm4
+	pxor	xmm1,xmm3
 
 
 	movdqa	xmm4,xmm0
+	psrlq	xmm0,1
+	pxor	xmm1,xmm4
+	pxor	xmm4,xmm0
 	psrlq	xmm0,5
 	pxor	xmm0,xmm4
 	psrlq	xmm0,1
-	pxor	xmm0,xmm4
-	pxor	xmm4,xmm1
-	psrlq	xmm0,1
-	pxor	xmm0,xmm4
+	pxor	xmm0,xmm1
 DB	102,15,56,0,197
 	movdqu	XMMWORD PTR[rcx],xmm0
 	DB	0F3h,0C3h		;repret
 gcm_gmult_clmul	ENDP
 PUBLIC	gcm_ghash_clmul
 
-ALIGN	16
+ALIGN	32
 gcm_ghash_clmul	PROC PUBLIC
+$L$_ghash_clmul::
+	lea	rax,QWORD PTR[((-136))+rsp]
 $L$SEH_begin_gcm_ghash_clmul::
 
-DB	048h,083h,0ech,058h
-
-DB	00fh,029h,034h,024h
-
-DB	00fh,029h,07ch,024h,010h
-
-DB	044h,00fh,029h,044h,024h,020h
-
-DB	044h,00fh,029h,04ch,024h,030h
-
-DB	044h,00fh,029h,054h,024h,040h
-
-	movdqa	xmm5,XMMWORD PTR[$L$bswap_mask]
+DB	048h,08dh,060h,0e0h
+DB	00fh,029h,070h,0e0h
+DB	00fh,029h,078h,0f0h
+DB	044h,00fh,029h,000h
+DB	044h,00fh,029h,048h,010h
+DB	044h,00fh,029h,050h,020h
+DB	044h,00fh,029h,058h,030h
+DB	044h,00fh,029h,060h,040h
+DB	044h,00fh,029h,068h,050h
+DB	044h,00fh,029h,070h,060h
+DB	044h,00fh,029h,078h,070h
+	movdqa	xmm10,XMMWORD PTR[$L$bswap_mask]
 
 	movdqu	xmm0,XMMWORD PTR[rcx]
 	movdqu	xmm2,XMMWORD PTR[rdx]
-DB	102,15,56,0,197
+	movdqu	xmm7,XMMWORD PTR[32+rdx]
+DB	102,65,15,56,0,194
 
 	sub	r9,010h
 	jz	$L$odd_tail
 
-	movdqu	xmm8,XMMWORD PTR[16+rdx]
+	movdqu	xmm6,XMMWORD PTR[16+rdx]
+	mov	eax,DWORD PTR[((OPENSSL_ia32cap_P+4))]
+	cmp	r9,030h
+	jb	$L$skip4x
+
+	and	eax,71303168
+	cmp	eax,4194304
+	je	$L$skip4x
+
+	sub	r9,030h
+	mov	rax,0A040608020C0E000h
+	movdqu	xmm14,XMMWORD PTR[48+rdx]
+	movdqu	xmm15,XMMWORD PTR[64+rdx]
 
 
 
 
+	movdqu	xmm3,XMMWORD PTR[48+r8]
+	movdqu	xmm11,XMMWORD PTR[32+r8]
+DB	102,65,15,56,0,218
+DB	102,69,15,56,0,218
+	movdqa	xmm5,xmm3
+	pshufd	xmm4,xmm3,78
+	pxor	xmm4,xmm3
+DB	102,15,58,68,218,0
+DB	102,15,58,68,234,17
+DB	102,15,58,68,231,0
 
-	movdqu	xmm3,XMMWORD PTR[r8]
-	movdqu	xmm6,XMMWORD PTR[16+r8]
-DB	102,15,56,0,221
-DB	102,15,56,0,245
-	pxor	xmm0,xmm3
-	movdqa	xmm7,xmm6
-	pshufd	xmm3,xmm6,78
-	pshufd	xmm4,xmm2,78
-	pxor	xmm3,xmm6
-	pxor	xmm4,xmm2
-DB	102,15,58,68,242,0
-DB	102,15,58,68,250,17
-DB	102,15,58,68,220,0
-	pxor	xmm3,xmm6
-	pxor	xmm3,xmm7
+	movdqa	xmm13,xmm11
+	pshufd	xmm12,xmm11,78
+	pxor	xmm12,xmm11
+DB	102,68,15,58,68,222,0
+DB	102,68,15,58,68,238,17
+DB	102,68,15,58,68,231,16
+	xorps	xmm3,xmm11
+	xorps	xmm5,xmm13
+	movups	xmm7,XMMWORD PTR[80+rdx]
+	xorps	xmm4,xmm12
 
-	movdqa	xmm4,xmm3
-	psrldq	xmm3,8
-	pslldq	xmm4,8
-	pxor	xmm7,xmm3
-	pxor	xmm6,xmm4
+	movdqu	xmm11,XMMWORD PTR[16+r8]
+	movdqu	xmm8,XMMWORD PTR[r8]
+DB	102,69,15,56,0,218
+DB	102,69,15,56,0,194
+	movdqa	xmm13,xmm11
+	pshufd	xmm12,xmm11,78
+	pxor	xmm0,xmm8
+	pxor	xmm12,xmm11
+DB	102,69,15,58,68,222,0
 	movdqa	xmm1,xmm0
-	pshufd	xmm3,xmm0,78
-	pshufd	xmm4,xmm8,78
-	pxor	xmm3,xmm0
-	pxor	xmm4,xmm8
+	pshufd	xmm8,xmm0,78
+	pxor	xmm8,xmm0
+DB	102,69,15,58,68,238,17
+DB	102,68,15,58,68,231,0
+	xorps	xmm3,xmm11
+	xorps	xmm5,xmm13
 
-	lea	r8,QWORD PTR[32+r8]
-	sub	r9,020h
-	jbe	$L$even_tail
+	lea	r8,QWORD PTR[64+r8]
+	sub	r9,040h
+	jc	$L$tail4x
 
-$L$mod_loop::
-DB	102,65,15,58,68,192,0
-DB	102,65,15,58,68,200,17
-DB	102,15,58,68,220,0
-	pxor	xmm3,xmm0
-	pxor	xmm3,xmm1
+	jmp	$L$mod4_loop
+ALIGN	32
+$L$mod4_loop::
+DB	102,65,15,58,68,199,0
+	xorps	xmm4,xmm12
+	movdqu	xmm11,XMMWORD PTR[48+r8]
+DB	102,69,15,56,0,218
+DB	102,65,15,58,68,207,17
+	xorps	xmm0,xmm3
+	movdqu	xmm3,XMMWORD PTR[32+r8]
+	movdqa	xmm13,xmm11
+DB	102,68,15,58,68,199,16
+	pshufd	xmm12,xmm11,78
+	xorps	xmm1,xmm5
+	pxor	xmm12,xmm11
+DB	102,65,15,56,0,218
+	movups	xmm7,XMMWORD PTR[32+rdx]
+	xorps	xmm8,xmm4
+DB	102,68,15,58,68,218,0
+	pshufd	xmm4,xmm3,78
 
-	movdqa	xmm4,xmm3
-	psrldq	xmm3,8
-	pslldq	xmm4,8
-	pxor	xmm1,xmm3
-	pxor	xmm0,xmm4
-	movdqu	xmm3,XMMWORD PTR[r8]
-	pxor	xmm0,xmm6
-	pxor	xmm1,xmm7
+	pxor	xmm8,xmm0
+	movdqa	xmm5,xmm3
+	pxor	xmm8,xmm1
+	pxor	xmm4,xmm3
+	movdqa	xmm9,xmm8
+DB	102,68,15,58,68,234,17
+	pslldq	xmm8,8
+	psrldq	xmm9,8
+	pxor	xmm0,xmm8
+	movdqa	xmm8,XMMWORD PTR[$L$7_mask]
+	pxor	xmm1,xmm9
+DB	102,76,15,110,200
 
-	movdqu	xmm6,XMMWORD PTR[16+r8]
-DB	102,15,56,0,221
-DB	102,15,56,0,245
+	pand	xmm8,xmm0
+DB	102,69,15,56,0,200
+	pxor	xmm9,xmm0
+DB	102,68,15,58,68,231,0
+	psllq	xmm9,57
+	movdqa	xmm8,xmm9
+	pslldq	xmm9,8
+DB	102,15,58,68,222,0
+	psrldq	xmm8,8
+	pxor	xmm0,xmm9
+	pxor	xmm1,xmm8
+	movdqu	xmm8,XMMWORD PTR[r8]
 
-	movdqa	xmm7,xmm6
-	pshufd	xmm9,xmm6,78
-	pshufd	xmm10,xmm2,78
-	pxor	xmm9,xmm6
-	pxor	xmm10,xmm2
-	pxor	xmm1,xmm3
+	movdqa	xmm9,xmm0
+	psrlq	xmm0,1
+DB	102,15,58,68,238,17
+	xorps	xmm3,xmm11
+	movdqu	xmm11,XMMWORD PTR[16+r8]
+DB	102,69,15,56,0,218
+DB	102,15,58,68,231,16
+	xorps	xmm5,xmm13
+	movups	xmm7,XMMWORD PTR[80+rdx]
+DB	102,69,15,56,0,194
+	pxor	xmm1,xmm9
+	pxor	xmm9,xmm0
+	psrlq	xmm0,5
 
+	movdqa	xmm13,xmm11
+	pxor	xmm4,xmm12
+	pshufd	xmm12,xmm11,78
+	pxor	xmm0,xmm9
+	pxor	xmm1,xmm8
+	pxor	xmm12,xmm11
+DB	102,69,15,58,68,222,0
+	psrlq	xmm0,1
+	pxor	xmm0,xmm1
+	movdqa	xmm1,xmm0
+DB	102,69,15,58,68,238,17
+	xorps	xmm3,xmm11
+	pshufd	xmm8,xmm0,78
+	pxor	xmm8,xmm0
+
+DB	102,68,15,58,68,231,0
+	xorps	xmm5,xmm13
+
+	lea	r8,QWORD PTR[64+r8]
+	sub	r9,040h
+	jnc	$L$mod4_loop
+
+$L$tail4x::
+DB	102,65,15,58,68,199,0
+DB	102,65,15,58,68,207,17
+DB	102,68,15,58,68,199,16
+	xorps	xmm4,xmm12
+	xorps	xmm0,xmm3
+	xorps	xmm1,xmm5
+	pxor	xmm1,xmm0
+	pxor	xmm8,xmm4
+
+	pxor	xmm8,xmm1
+	pxor	xmm1,xmm0
+
+	movdqa	xmm9,xmm8
+	psrldq	xmm8,8
+	pslldq	xmm9,8
+	pxor	xmm1,xmm8
+	pxor	xmm0,xmm9
+
+	movdqa	xmm4,xmm0
 	movdqa	xmm3,xmm0
+	psllq	xmm0,5
+	pxor	xmm3,xmm0
 	psllq	xmm0,1
 	pxor	xmm0,xmm3
-	psllq	xmm0,5
-	pxor	xmm0,xmm3
-DB	102,15,58,68,242,0
 	psllq	xmm0,57
-	movdqa	xmm4,xmm0
+	movdqa	xmm3,xmm0
 	pslldq	xmm0,8
-	psrldq	xmm4,8
-	pxor	xmm0,xmm3
-	pxor	xmm1,xmm4
+	psrldq	xmm3,8
+	pxor	xmm0,xmm4
+	pxor	xmm1,xmm3
 
-DB	102,15,58,68,250,17
+
 	movdqa	xmm4,xmm0
+	psrlq	xmm0,1
+	pxor	xmm1,xmm4
+	pxor	xmm4,xmm0
 	psrlq	xmm0,5
 	pxor	xmm0,xmm4
 	psrlq	xmm0,1
-	pxor	xmm0,xmm4
-	pxor	xmm4,xmm1
-	psrlq	xmm0,1
-	pxor	xmm0,xmm4
+	pxor	xmm0,xmm1
+	add	r9,040h
+	jz	$L$done
+	movdqu	xmm7,XMMWORD PTR[32+rdx]
+	sub	r9,010h
+	jz	$L$odd_tail
+$L$skip4x::
 
-DB	102,69,15,58,68,202,0
-	movdqa	xmm1,xmm0
-	pshufd	xmm3,xmm0,78
-	pshufd	xmm4,xmm8,78
-	pxor	xmm3,xmm0
-	pxor	xmm4,xmm8
 
-	pxor	xmm9,xmm6
-	pxor	xmm9,xmm7
-	movdqa	xmm10,xmm9
-	psrldq	xmm9,8
-	pslldq	xmm10,8
-	pxor	xmm7,xmm9
-	pxor	xmm6,xmm10
+
+
+
+	movdqu	xmm8,XMMWORD PTR[r8]
+	movdqu	xmm3,XMMWORD PTR[16+r8]
+DB	102,69,15,56,0,194
+DB	102,65,15,56,0,218
+	pxor	xmm0,xmm8
+
+	movdqa	xmm5,xmm3
+	pshufd	xmm4,xmm3,78
+	pxor	xmm4,xmm3
+DB	102,15,58,68,218,0
+DB	102,15,58,68,234,17
+DB	102,15,58,68,231,0
 
 	lea	r8,QWORD PTR[32+r8]
+	nop
+	sub	r9,020h
+	jbe	$L$even_tail
+	nop
+	jmp	$L$mod_loop
+
+ALIGN	32
+$L$mod_loop::
+	movdqa	xmm1,xmm0
+	movdqa	xmm8,xmm4
+	pshufd	xmm4,xmm0,78
+	pxor	xmm4,xmm0
+
+DB	102,15,58,68,198,0
+DB	102,15,58,68,206,17
+DB	102,15,58,68,231,16
+
+	pxor	xmm0,xmm3
+	pxor	xmm1,xmm5
+	movdqu	xmm9,XMMWORD PTR[r8]
+	pxor	xmm8,xmm0
+DB	102,69,15,56,0,202
+	movdqu	xmm3,XMMWORD PTR[16+r8]
+
+	pxor	xmm8,xmm1
+	pxor	xmm1,xmm9
+	pxor	xmm4,xmm8
+DB	102,65,15,56,0,218
+	movdqa	xmm8,xmm4
+	psrldq	xmm8,8
+	pslldq	xmm4,8
+	pxor	xmm1,xmm8
+	pxor	xmm0,xmm4
+
+	movdqa	xmm5,xmm3
+
+	movdqa	xmm9,xmm0
+	movdqa	xmm8,xmm0
+	psllq	xmm0,5
+	pxor	xmm8,xmm0
+DB	102,15,58,68,218,0
+	psllq	xmm0,1
+	pxor	xmm0,xmm8
+	psllq	xmm0,57
+	movdqa	xmm8,xmm0
+	pslldq	xmm0,8
+	psrldq	xmm8,8
+	pxor	xmm0,xmm9
+	pshufd	xmm4,xmm5,78
+	pxor	xmm1,xmm8
+	pxor	xmm4,xmm5
+
+	movdqa	xmm9,xmm0
+	psrlq	xmm0,1
+DB	102,15,58,68,234,17
+	pxor	xmm1,xmm9
+	pxor	xmm9,xmm0
+	psrlq	xmm0,5
+	pxor	xmm0,xmm9
+	lea	r8,QWORD PTR[32+r8]
+	psrlq	xmm0,1
+DB	102,15,58,68,231,0
+	pxor	xmm0,xmm1
+
 	sub	r9,020h
 	ja	$L$mod_loop
 
 $L$even_tail::
-DB	102,65,15,58,68,192,0
-DB	102,65,15,58,68,200,17
-DB	102,15,58,68,220,0
-	pxor	xmm3,xmm0
-	pxor	xmm3,xmm1
+	movdqa	xmm1,xmm0
+	movdqa	xmm8,xmm4
+	pshufd	xmm4,xmm0,78
+	pxor	xmm4,xmm0
 
-	movdqa	xmm4,xmm3
-	psrldq	xmm3,8
+DB	102,15,58,68,198,0
+DB	102,15,58,68,206,17
+DB	102,15,58,68,231,16
+
+	pxor	xmm0,xmm3
+	pxor	xmm1,xmm5
+	pxor	xmm8,xmm0
+	pxor	xmm8,xmm1
+	pxor	xmm4,xmm8
+	movdqa	xmm8,xmm4
+	psrldq	xmm8,8
 	pslldq	xmm4,8
-	pxor	xmm1,xmm3
+	pxor	xmm1,xmm8
 	pxor	xmm0,xmm4
-	pxor	xmm0,xmm6
-	pxor	xmm1,xmm7
 
+	movdqa	xmm4,xmm0
 	movdqa	xmm3,xmm0
+	psllq	xmm0,5
+	pxor	xmm3,xmm0
 	psllq	xmm0,1
 	pxor	xmm0,xmm3
-	psllq	xmm0,5
-	pxor	xmm0,xmm3
 	psllq	xmm0,57
-	movdqa	xmm4,xmm0
+	movdqa	xmm3,xmm0
 	pslldq	xmm0,8
-	psrldq	xmm4,8
-	pxor	xmm0,xmm3
-	pxor	xmm1,xmm4
+	psrldq	xmm3,8
+	pxor	xmm0,xmm4
+	pxor	xmm1,xmm3
 
 
 	movdqa	xmm4,xmm0
+	psrlq	xmm0,1
+	pxor	xmm1,xmm4
+	pxor	xmm4,xmm0
 	psrlq	xmm0,5
 	pxor	xmm0,xmm4
 	psrlq	xmm0,1
-	pxor	xmm0,xmm4
-	pxor	xmm4,xmm1
-	psrlq	xmm0,1
-	pxor	xmm0,xmm4
+	pxor	xmm0,xmm1
 	test	r9,r9
 	jnz	$L$done
 
 $L$odd_tail::
-	movdqu	xmm3,XMMWORD PTR[r8]
-DB	102,15,56,0,221
-	pxor	xmm0,xmm3
+	movdqu	xmm8,XMMWORD PTR[r8]
+DB	102,69,15,56,0,194
+	pxor	xmm0,xmm8
 	movdqa	xmm1,xmm0
 	pshufd	xmm3,xmm0,78
-	pshufd	xmm4,xmm2,78
 	pxor	xmm3,xmm0
-	pxor	xmm4,xmm2
 DB	102,15,58,68,194,0
 DB	102,15,58,68,202,17
-DB	102,15,58,68,220,0
+DB	102,15,58,68,223,0
 	pxor	xmm3,xmm0
 	pxor	xmm3,xmm1
 
@@ -987,44 +1264,72 @@ DB	102,15,58,68,220,0
 	pxor	xmm1,xmm3
 	pxor	xmm0,xmm4
 
+	movdqa	xmm4,xmm0
 	movdqa	xmm3,xmm0
+	psllq	xmm0,5
+	pxor	xmm3,xmm0
 	psllq	xmm0,1
 	pxor	xmm0,xmm3
-	psllq	xmm0,5
-	pxor	xmm0,xmm3
 	psllq	xmm0,57
-	movdqa	xmm4,xmm0
+	movdqa	xmm3,xmm0
 	pslldq	xmm0,8
-	psrldq	xmm4,8
-	pxor	xmm0,xmm3
-	pxor	xmm1,xmm4
+	psrldq	xmm3,8
+	pxor	xmm0,xmm4
+	pxor	xmm1,xmm3
 
 
 	movdqa	xmm4,xmm0
+	psrlq	xmm0,1
+	pxor	xmm1,xmm4
+	pxor	xmm4,xmm0
 	psrlq	xmm0,5
 	pxor	xmm0,xmm4
 	psrlq	xmm0,1
-	pxor	xmm0,xmm4
-	pxor	xmm4,xmm1
-	psrlq	xmm0,1
-	pxor	xmm0,xmm4
+	pxor	xmm0,xmm1
 $L$done::
-DB	102,15,56,0,197
+DB	102,65,15,56,0,194
 	movdqu	XMMWORD PTR[rcx],xmm0
 	movaps	xmm6,XMMWORD PTR[rsp]
 	movaps	xmm7,XMMWORD PTR[16+rsp]
 	movaps	xmm8,XMMWORD PTR[32+rsp]
 	movaps	xmm9,XMMWORD PTR[48+rsp]
 	movaps	xmm10,XMMWORD PTR[64+rsp]
-	add	rsp,058h
-	DB	0F3h,0C3h		;repret
+	movaps	xmm11,XMMWORD PTR[80+rsp]
+	movaps	xmm12,XMMWORD PTR[96+rsp]
+	movaps	xmm13,XMMWORD PTR[112+rsp]
+	movaps	xmm14,XMMWORD PTR[128+rsp]
+	movaps	xmm15,XMMWORD PTR[144+rsp]
+	lea	rsp,QWORD PTR[168+rsp]
 $L$SEH_end_gcm_ghash_clmul::
+	DB	0F3h,0C3h		;repret
 gcm_ghash_clmul	ENDP
+PUBLIC	gcm_init_avx
+
+ALIGN	32
+gcm_init_avx	PROC PUBLIC
+	jmp	$L$_init_clmul
+gcm_init_avx	ENDP
+PUBLIC	gcm_gmult_avx
+
+ALIGN	32
+gcm_gmult_avx	PROC PUBLIC
+	jmp	$L$_gmult_clmul
+gcm_gmult_avx	ENDP
+PUBLIC	gcm_ghash_avx
+
+ALIGN	32
+gcm_ghash_avx	PROC PUBLIC
+	jmp	$L$_ghash_clmul
+gcm_ghash_avx	ENDP
 ALIGN	64
 $L$bswap_mask::
 DB	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
 $L$0x1c2_polynomial::
 DB	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0c2h
+$L$7_mask::
+	DD	7,0,7,0
+$L$7_mask_poly::
+	DD	7,0,450,0
 ALIGN	64
 
 $L$rem_4bit::
@@ -1126,7 +1431,6 @@ $L$in_prologue::
 	mov	ecx,154
 	DD	0a548f3fch
 
-
 	mov	rsi,r9
 	xor	rcx,rcx
 	mov	rdx,QWORD PTR[8+rsi]
@@ -1166,10 +1470,13 @@ ALIGN	4
 	DD	imagerel $L$SEH_end_gcm_ghash_4bit
 	DD	imagerel $L$SEH_info_gcm_ghash_4bit
 
+	DD	imagerel $L$SEH_begin_gcm_init_clmul
+	DD	imagerel $L$SEH_end_gcm_init_clmul
+	DD	imagerel $L$SEH_info_gcm_init_clmul
+
 	DD	imagerel $L$SEH_begin_gcm_ghash_clmul
 	DD	imagerel $L$SEH_end_gcm_ghash_clmul
 	DD	imagerel $L$SEH_info_gcm_ghash_clmul
-
 .pdata	ENDS
 .xdata	SEGMENT READONLY ALIGN(8)
 ALIGN	8
@@ -1177,26 +1484,27 @@ $L$SEH_info_gcm_gmult_4bit::
 DB	9,0,0,0
 	DD	imagerel se_handler
 	DD	imagerel $L$gmult_prologue,imagerel $L$gmult_epilogue
-
 $L$SEH_info_gcm_ghash_4bit::
 DB	9,0,0,0
 	DD	imagerel se_handler
 	DD	imagerel $L$ghash_prologue,imagerel $L$ghash_epilogue
-
-$L$SEH_info_gcm_ghash_clmul::
-DB	001h,01fh,00bh,000h
-DB	01fh,0a8h,004h,000h
-
-DB	019h,098h,003h,000h
-
-DB	013h,088h,002h,000h
-
-DB	00dh,078h,001h,000h
-
+$L$SEH_info_gcm_init_clmul::
+DB	001h,008h,003h,000h
 DB	008h,068h,000h,000h
-
-DB	004h,0a2h,000h,000h
-
+DB	004h,022h,000h,000h
+$L$SEH_info_gcm_ghash_clmul::
+DB	001h,033h,016h,000h
+DB	033h,0f8h,009h,000h
+DB	02eh,0e8h,008h,000h
+DB	029h,0d8h,007h,000h
+DB	024h,0c8h,006h,000h
+DB	01fh,0b8h,005h,000h
+DB	01ah,0a8h,004h,000h
+DB	015h,098h,003h,000h
+DB	010h,088h,002h,000h
+DB	00ch,078h,001h,000h
+DB	008h,068h,000h,000h
+DB	004h,001h,015h,000h
 
 .xdata	ENDS
 END

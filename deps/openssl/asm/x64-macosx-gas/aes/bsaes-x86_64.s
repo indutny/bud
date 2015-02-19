@@ -14,18 +14,18 @@ _bsaes_encrypt8:
 	movdqa	80(%r11),%xmm7
 	pxor	%xmm8,%xmm15
 	pxor	%xmm8,%xmm0
-.byte	102,68,15,56,0,255
 	pxor	%xmm8,%xmm1
-.byte	102,15,56,0,199
 	pxor	%xmm8,%xmm2
-.byte	102,15,56,0,207
+.byte	102,68,15,56,0,255
+.byte	102,15,56,0,199
 	pxor	%xmm8,%xmm3
-.byte	102,15,56,0,215
 	pxor	%xmm8,%xmm4
-.byte	102,15,56,0,223
+.byte	102,15,56,0,207
+.byte	102,15,56,0,215
 	pxor	%xmm8,%xmm5
-.byte	102,15,56,0,231
 	pxor	%xmm8,%xmm6
+.byte	102,15,56,0,223
+.byte	102,15,56,0,231
 .byte	102,15,56,0,239
 .byte	102,15,56,0,247
 _bsaes_encrypt8_bitslice:
@@ -122,21 +122,21 @@ _bsaes_encrypt8_bitslice:
 L$enc_loop:
 	pxor	0(%rax),%xmm15
 	pxor	16(%rax),%xmm0
-.byte	102,68,15,56,0,255
 	pxor	32(%rax),%xmm1
-.byte	102,15,56,0,199
 	pxor	48(%rax),%xmm2
-.byte	102,15,56,0,207
+.byte	102,68,15,56,0,255
+.byte	102,15,56,0,199
 	pxor	64(%rax),%xmm3
-.byte	102,15,56,0,215
 	pxor	80(%rax),%xmm4
-.byte	102,15,56,0,223
+.byte	102,15,56,0,207
+.byte	102,15,56,0,215
 	pxor	96(%rax),%xmm5
-.byte	102,15,56,0,231
 	pxor	112(%rax),%xmm6
+.byte	102,15,56,0,223
+.byte	102,15,56,0,231
 .byte	102,15,56,0,239
-	leaq	128(%rax),%rax
 .byte	102,15,56,0,247
+	leaq	128(%rax),%rax
 L$enc_sbox:
 	pxor	%xmm5,%xmm4
 	pxor	%xmm0,%xmm1
@@ -486,18 +486,18 @@ _bsaes_decrypt8:
 	movdqa	-48(%r11),%xmm7
 	pxor	%xmm8,%xmm15
 	pxor	%xmm8,%xmm0
-.byte	102,68,15,56,0,255
 	pxor	%xmm8,%xmm1
-.byte	102,15,56,0,199
 	pxor	%xmm8,%xmm2
-.byte	102,15,56,0,207
+.byte	102,68,15,56,0,255
+.byte	102,15,56,0,199
 	pxor	%xmm8,%xmm3
-.byte	102,15,56,0,215
 	pxor	%xmm8,%xmm4
-.byte	102,15,56,0,223
+.byte	102,15,56,0,207
+.byte	102,15,56,0,215
 	pxor	%xmm8,%xmm5
-.byte	102,15,56,0,231
 	pxor	%xmm8,%xmm6
+.byte	102,15,56,0,223
+.byte	102,15,56,0,231
 .byte	102,15,56,0,239
 .byte	102,15,56,0,247
 	movdqa	0(%r11),%xmm7
@@ -593,21 +593,21 @@ _bsaes_decrypt8:
 L$dec_loop:
 	pxor	0(%rax),%xmm15
 	pxor	16(%rax),%xmm0
-.byte	102,68,15,56,0,255
 	pxor	32(%rax),%xmm1
-.byte	102,15,56,0,199
 	pxor	48(%rax),%xmm2
-.byte	102,15,56,0,207
+.byte	102,68,15,56,0,255
+.byte	102,15,56,0,199
 	pxor	64(%rax),%xmm3
-.byte	102,15,56,0,215
 	pxor	80(%rax),%xmm4
-.byte	102,15,56,0,223
+.byte	102,15,56,0,207
+.byte	102,15,56,0,215
 	pxor	96(%rax),%xmm5
-.byte	102,15,56,0,231
 	pxor	112(%rax),%xmm6
+.byte	102,15,56,0,223
+.byte	102,15,56,0,231
 .byte	102,15,56,0,239
-	leaq	128(%rax),%rax
 .byte	102,15,56,0,247
+	leaq	128(%rax),%rax
 L$dec_sbox:
 	pxor	%xmm3,%xmm2
 
@@ -1286,7 +1286,6 @@ L$cbc_dec_one:
 	leaq	32(%rbp),%rsi
 	leaq	(%r15),%rdx
 	call	_asm_AES_decrypt
-
 	pxor	32(%rbp),%xmm14
 	movdqu	%xmm14,(%r13)
 	movdqa	%xmm15,%xmm14
@@ -1384,21 +1383,21 @@ L$ctr_enc_loop:
 	movdqa	-16(%r11),%xmm7
 	pxor	%xmm8,%xmm15
 	pxor	%xmm8,%xmm0
-.byte	102,68,15,56,0,255
 	pxor	%xmm8,%xmm1
-.byte	102,15,56,0,199
 	pxor	%xmm8,%xmm2
-.byte	102,15,56,0,207
+.byte	102,68,15,56,0,255
+.byte	102,15,56,0,199
 	pxor	%xmm8,%xmm3
-.byte	102,15,56,0,215
 	pxor	%xmm8,%xmm4
-.byte	102,15,56,0,223
+.byte	102,15,56,0,207
+.byte	102,15,56,0,215
 	pxor	%xmm8,%xmm5
-.byte	102,15,56,0,231
 	pxor	%xmm8,%xmm6
+.byte	102,15,56,0,223
+.byte	102,15,56,0,231
 .byte	102,15,56,0,239
-	leaq	L$BS0(%rip),%r11
 .byte	102,15,56,0,247
+	leaq	L$BS0(%rip),%r11
 	movl	%ebx,%r10d
 
 	call	_bsaes_encrypt8_bitslice
@@ -1537,7 +1536,6 @@ L$xts_enc_prologue:
 	leaq	32(%rbp),%rsi
 	leaq	(%r8),%rdx
 	call	_asm_AES_encrypt
-
 
 	movl	240(%r15),%eax
 	movq	%r14,%rbx
@@ -1908,7 +1906,6 @@ L$xts_enc_1:
 	leaq	32(%rbp),%rsi
 	leaq	(%r15),%rdx
 	call	_asm_AES_encrypt
-
 	pxor	32(%rbp),%xmm15
 
 
@@ -1942,7 +1939,6 @@ L$xts_enc_steal:
 	movdqa	%xmm15,32(%rbp)
 	leaq	(%r15),%rdx
 	call	_asm_AES_encrypt
-
 	pxor	32(%rbp),%xmm6
 	movdqu	%xmm6,-16(%r13)
 
@@ -1992,7 +1988,6 @@ L$xts_dec_prologue:
 	leaq	32(%rbp),%rsi
 	leaq	(%r8),%rdx
 	call	_asm_AES_encrypt
-
 
 	movl	240(%r15),%eax
 	movq	%r14,%rbx
@@ -2370,7 +2365,6 @@ L$xts_dec_1:
 	leaq	32(%rbp),%rsi
 	leaq	(%r15),%rdx
 	call	_asm_AES_decrypt
-
 	pxor	32(%rbp),%xmm15
 
 
@@ -2402,7 +2396,6 @@ L$xts_dec_done:
 	movdqa	%xmm15,32(%rbp)
 	leaq	(%r15),%rdx
 	call	_asm_AES_decrypt
-
 	pxor	32(%rbp),%xmm6
 	movq	%r13,%rdx
 	movdqu	%xmm6,(%r13)
@@ -2424,7 +2417,6 @@ L$xts_dec_steal:
 	movdqa	%xmm15,32(%rbp)
 	leaq	(%r15),%rdx
 	call	_asm_AES_decrypt
-
 	pxor	32(%rbp),%xmm5
 	movdqu	%xmm5,(%r13)
 

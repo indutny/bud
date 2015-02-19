@@ -45,8 +45,8 @@ $L_RC4_begin::
 	mov	ecx,DWORD PTR [eax*4+edi]
 	and	edx,-4
 	jz	$L002loop1
-	test	edx,-8
 	mov	DWORD PTR 32[esp],ebp
+	test	edx,-8
 	jz	$L003go4loop4
 	lea	ebp,DWORD PTR _OPENSSL_ia32cap_P
 	bt	DWORD PTR [ebp],26
@@ -383,6 +383,6 @@ ALIGN	64
 _RC4_options ENDP
 .text$	ENDS
 .bss	SEGMENT 'BSS'
-COMM	_OPENSSL_ia32cap_P:QWORD
+COMM	_OPENSSL_ia32cap_P:DWORD:4
 .bss	ENDS
 END

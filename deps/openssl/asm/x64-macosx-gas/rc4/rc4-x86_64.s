@@ -48,7 +48,7 @@ L$oop8_warmup:
 	movl	(%rdi,%rax,4),%edx
 	movl	(%rdi,%r10,4),%eax
 	xorb	(%r12),%dl
-	movb	%dl,(%r13,%r12,1)
+	movb	%dl,(%r12,%r13,1)
 	leaq	1(%r12),%r12
 	decq	%rbx
 	jnz	L$oop8_warmup
@@ -127,7 +127,7 @@ L$oop8:
 	subq	$8,%r11
 
 	xorq	(%r12),%r8
-	movq	%r8,(%r13,%r12,1)
+	movq	%r8,(%r12,%r13,1)
 	leaq	8(%r12),%r12
 
 	testq	$-8,%r11
@@ -153,7 +153,7 @@ L$oop16_warmup:
 	movl	(%rdi,%rax,4),%edx
 	movl	(%rdi,%r10,4),%eax
 	xorb	(%r12),%dl
-	movb	%dl,(%r13,%r12,1)
+	movb	%dl,(%r12,%r13,1)
 	leaq	1(%r12),%r12
 	decq	%rbx
 	jnz	L$oop16_warmup
@@ -190,7 +190,7 @@ L$oop16:
 	pxor	%xmm1,%xmm2
 	addb	%bl,%cl
 	pinsrw	$0,(%rdi,%rax,4),%xmm0
-	movdqu	%xmm2,(%r13,%r12,1)
+	movdqu	%xmm2,(%r12,%r13,1)
 	leaq	16(%r12),%r12
 L$oop16_enter:
 	movl	(%rdi,%rcx,4),%edx
@@ -326,7 +326,7 @@ L$oop16_enter:
 	psllq	$8,%xmm1
 	pxor	%xmm0,%xmm2
 	pxor	%xmm1,%xmm2
-	movdqu	%xmm2,(%r13,%r12,1)
+	movdqu	%xmm2,(%r12,%r13,1)
 	leaq	16(%r12),%r12
 
 	cmpq	$0,%r11
@@ -344,7 +344,7 @@ L$loop1:
 	movl	(%rdi,%rax,4),%edx
 	movl	(%rdi,%r10,4),%eax
 	xorb	(%r12),%dl
-	movb	%dl,(%r13,%r12,1)
+	movb	%dl,(%r12,%r13,1)
 	leaq	1(%r12),%r12
 	decq	%r11
 	jnz	L$loop1
@@ -370,7 +370,6 @@ L$cloop8:
 	cmpq	%rsi,%rcx
 	movb	%dl,(%rdi,%r10,1)
 	jne	L$cmov0
-
 	movq	%rax,%rbx
 L$cmov0:
 	addb	%al,%dl
@@ -385,7 +384,6 @@ L$cmov0:
 	cmpq	%r10,%rcx
 	movb	%dl,(%rdi,%rsi,1)
 	jne	L$cmov1
-
 	movq	%rbx,%rax
 L$cmov1:
 	addb	%bl,%dl
@@ -400,7 +398,6 @@ L$cmov1:
 	cmpq	%rsi,%rcx
 	movb	%dl,(%rdi,%r10,1)
 	jne	L$cmov2
-
 	movq	%rax,%rbx
 L$cmov2:
 	addb	%al,%dl
@@ -415,7 +412,6 @@ L$cmov2:
 	cmpq	%r10,%rcx
 	movb	%dl,(%rdi,%rsi,1)
 	jne	L$cmov3
-
 	movq	%rbx,%rax
 L$cmov3:
 	addb	%bl,%dl
@@ -430,7 +426,6 @@ L$cmov3:
 	cmpq	%rsi,%rcx
 	movb	%dl,(%rdi,%r10,1)
 	jne	L$cmov4
-
 	movq	%rax,%rbx
 L$cmov4:
 	addb	%al,%dl
@@ -445,7 +440,6 @@ L$cmov4:
 	cmpq	%r10,%rcx
 	movb	%dl,(%rdi,%rsi,1)
 	jne	L$cmov5
-
 	movq	%rbx,%rax
 L$cmov5:
 	addb	%bl,%dl
@@ -460,7 +454,6 @@ L$cmov5:
 	cmpq	%rsi,%rcx
 	movb	%dl,(%rdi,%r10,1)
 	jne	L$cmov6
-
 	movq	%rax,%rbx
 L$cmov6:
 	addb	%al,%dl
@@ -475,7 +468,6 @@ L$cmov6:
 	cmpq	%r10,%rcx
 	movb	%dl,(%rdi,%rsi,1)
 	jne	L$cmov7
-
 	movq	%rbx,%rax
 L$cmov7:
 	addb	%bl,%dl

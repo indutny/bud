@@ -271,7 +271,6 @@ L$edone:
 
 
 
-
 .globl	_Camellia_DecryptBlock
 
 .p2align	4
@@ -540,7 +539,6 @@ L$ddone:
 
 .byte	0xf3,0xc3
 
-
 .globl	_Camellia_Ekeygen
 
 .p2align	4
@@ -552,7 +550,7 @@ _Camellia_Ekeygen:
 	pushq	%r15
 L$key_prologue:
 
-	movq	%rdi,%r15
+	movl	%edi,%r15d
 	movq	%rdx,%r13
 
 	movl	0(%rsi),%r8d
@@ -1727,7 +1725,6 @@ L$cbc_enc_pushf:
 	movq	%r12,%rsi
 	leaq	8+24(%rsp),%rdi
 .long	0x9066A4F3
-
 	popfq
 L$cbc_enc_popf:
 
@@ -1735,7 +1732,6 @@ L$cbc_enc_popf:
 	leaq	16+24(%rsp),%rax
 	movq	%rax,8(%rsp)
 	jmp	L$cbc_eloop
-
 
 .p2align	4
 L$CBC_DECRYPT:
@@ -1819,7 +1815,6 @@ L$cbc_dec_pushf:
 	leaq	8+24(%rsp),%rsi
 	leaq	(%r13),%rdi
 .long	0x9066A4F3
-
 	popfq
 L$cbc_dec_popf:
 

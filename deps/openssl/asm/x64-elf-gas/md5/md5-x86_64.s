@@ -33,7 +33,6 @@ md5_block_asm_data_order:
 	je	.Lend
 
 
-
 .Lloop:
 	movl	%eax,%r8d
 	movl	%ebx,%r9d
@@ -651,7 +650,6 @@ md5_block_asm_data_order:
 	addq	$64,%rsi
 	cmpq	%rdi,%rsi
 	jb	.Lloop
-
 
 
 .Lend:

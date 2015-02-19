@@ -1029,7 +1029,7 @@ L_DES_encrypt1_begin:
 	call	L000pic_point
 L000pic_point:
 	popl	%ebp
-	leal	_DES_SPtrans-L000pic_point(%ebp),%ebp
+	leal	Ldes_sptrans-L000pic_point(%ebp),%ebp
 	movl	24(%esp),%ecx
 	cmpl	$0,%ebx
 	je	L001decrypt
@@ -1106,7 +1106,7 @@ L_DES_encrypt2_begin:
 	call	L003pic_point
 L003pic_point:
 	popl	%ebp
-	leal	_DES_SPtrans-L003pic_point(%ebp),%ebp
+	leal	Ldes_sptrans-L003pic_point(%ebp),%ebp
 	movl	24(%esp),%ecx
 	cmpl	$0,%ebx
 	je	L004decrypt
@@ -1743,6 +1743,7 @@ L035cbc_enc_jmp_table:
 .align	6,0x90
 .align	6,0x90
 _DES_SPtrans:
+Ldes_sptrans:
 .long	34080768,524288,33554434,34080770
 .long	33554432,526338,524290,33554434
 .long	526338,34080768,34078720,2050

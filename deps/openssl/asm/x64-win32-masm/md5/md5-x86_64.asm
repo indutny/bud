@@ -1,5 +1,5 @@
 OPTION	DOTNAME
-.text$	SEGMENT ALIGN(64) 'CODE'
+.text$	SEGMENT ALIGN(256) 'CODE'
 ALIGN	16
 
 PUBLIC	md5_block_asm_data_order
@@ -40,7 +40,6 @@ $L$prologue::
 
 	cmp	rsi,rdi
 	je	$L$end
-
 
 
 $L$loop::
@@ -662,7 +661,6 @@ $L$loop::
 	jb	$L$loop
 
 
-
 $L$end::
 	mov	DWORD PTR[rbp],eax
 	mov	DWORD PTR[4+rbp],ebx
@@ -733,7 +731,6 @@ $L$in_prologue::
 	mov	rsi,r8
 	mov	ecx,154
 	DD	0a548f3fch
-
 
 	mov	rsi,r9
 	xor	rcx,rcx
