@@ -118,20 +118,6 @@
 #include <openssl/buffer.h>
 #include <openssl/rand.h>
 
-#ifndef  EVP_CIPH_FLAG_TLS1_1_MULTIBLOCK
-# define EVP_CIPH_FLAG_TLS1_1_MULTIBLOCK 0
-#endif
-
-#if     defined(OPENSSL_SMALL_FOOTPRINT) || \
-        !(      defined(AES_ASM) &&     ( \
-                defined(__x86_64)       || defined(__x86_64__)  || \
-                defined(_M_AMD64)       || defined(_M_X64)      || \
-                defined(__INTEL__)      ) \
-        )
-# undef EVP_CIPH_FLAG_TLS1_1_MULTIBLOCK
-# define EVP_CIPH_FLAG_TLS1_1_MULTIBLOCK 0
-#endif
-
 static int do_ssl3_write(SSL *s, int type, const unsigned char *buf,
                          unsigned int len, int create_empty_fragment);
 static int ssl3_get_record(SSL *s);
@@ -197,7 +183,7 @@ int ssl3_read_n(SSL *s, int n, int max, int extend)
      * operation returns the whole packet at once (as long as it fits into
      * the buffer).
      */
-    if (SSL_IS_DTLS(s)) {
+    if (SSL_version(s) == DTLS1_VERSION || SSL_version(s) == DTLS1_BAD_VER) {
         if (left == 0 && extend)
             return 0;
         if (left > 0 && n > left)
@@ -231,7 +217,8 @@ int ssl3_read_n(SSL *s, int n, int max, int extend)
         return -1;
     }
 
-    if (!s->read_ahead)
+    /* We always act like read_ahead is set for DTLS */
+    if (!s->read_ahead && !SSL_IS_DTLS(s))
         /* ignore max parameter */
         max = n;
     else {
@@ -259,7 +246,9 @@ int ssl3_read_n(SSL *s, int n, int max, int extend)
 
         if (i <= 0) {
             rb->left = left;
-            if (s->mode & SSL_MODE_RELEASE_BUFFERS && !SSL_IS_DTLS(s))
+            if (s->mode & SSL_MODE_RELEASE_BUFFERS &&
+                SSL_version(s) != DTLS1_VERSION
+                && SSL_version(s) != DTLS1_BAD_VER)
                 if (len + left == 0)
                     ssl3_release_read_buffer(s);
             return (i);
@@ -270,7 +259,8 @@ int ssl3_read_n(SSL *s, int n, int max, int extend)
          * underlying transport protocol is message oriented as opposed to
          * byte oriented as in the TLS case.
          */
-        if (SSL_IS_DTLS(s)) {
+        if (SSL_version(s) == DTLS1_VERSION
+            || SSL_version(s) == DTLS1_BAD_VER) {
             if (n > left)
                 n = left;       /* makes the while condition false */
         }
@@ -341,9 +331,6 @@ static int ssl3_get_record(SSL *s)
         s->rstate = SSL_ST_READ_BODY;
 
         p = s->packet;
-        if (s->msg_callback)
-            s->msg_callback(0, 0, SSL3_RT_HEADER, p, 5, s,
-                            s->msg_callback_arg);
 
         /* Pull apart the header into the SSL3_RECORD */
         rr->type = *(p++);
@@ -623,13 +610,8 @@ int ssl3_do_compress(SSL *ssl)
 int ssl3_write_bytes(SSL *s, int type, const void *buf_, int len)
 {
     const unsigned char *buf = buf_;
-    int tot;
     unsigned int n, nw;
-#if !defined(OPENSSL_NO_MULTIBLOCK) && EVP_CIPH_FLAG_TLS1_1_MULTIBLOCK
-    unsigned int max_send_fragment;
-#endif
-    SSL3_BUFFER *wb = &(s->s3->wbuf);
-    int i;
+    int i, tot;
 
     s->rwstate = SSL_NOTHING;
     OPENSSL_assert(s->s3->wnum <= INT_MAX);
@@ -660,150 +642,6 @@ int ssl3_write_bytes(SSL *s, int type, const void *buf_, int len)
         return (-1);
     }
 
-    /*
-     * first check if there is a SSL3_BUFFER still being written out.  This
-     * will happen with non blocking IO
-     */
-    if (wb->left != 0) {
-        i = ssl3_write_pending(s, type, &buf[tot], s->s3->wpend_tot);
-        if (i <= 0) {
-            /* XXX should we ssl3_release_write_buffer if i<0? */
-            s->s3->wnum = tot;
-            return i;
-        }
-        tot += i;               /* this might be last fragment */
-    }
-#if !defined(OPENSSL_NO_MULTIBLOCK) && EVP_CIPH_FLAG_TLS1_1_MULTIBLOCK
-    /*
-     * Depending on platform multi-block can deliver several *times*
-     * better performance. Downside is that it has to allocate
-     * jumbo buffer to accomodate up to 8 records, but the
-     * compromise is considered worthy.
-     */
-    if (type == SSL3_RT_APPLICATION_DATA &&
-        len >= 4 * (int)(max_send_fragment = s->max_send_fragment) &&
-        s->compress == NULL && s->msg_callback == NULL &&
-        SSL_USE_EXPLICIT_IV(s) &&
-        EVP_CIPHER_flags(s->enc_write_ctx->cipher) &
-        EVP_CIPH_FLAG_TLS1_1_MULTIBLOCK) {
-        unsigned char aad[13];
-        EVP_CTRL_TLS1_1_MULTIBLOCK_PARAM mb_param;
-        int packlen;
-
-        /* minimize address aliasing conflicts */
-        if ((max_send_fragment & 0xfff) == 0)
-            max_send_fragment -= 512;
-
-        if (tot == 0 || wb->buf == NULL) { /* allocate jumbo buffer */
-            ssl3_release_write_buffer(s);
-
-            packlen = EVP_CIPHER_CTX_ctrl(s->enc_write_ctx,
-                                          EVP_CTRL_TLS1_1_MULTIBLOCK_MAX_BUFSIZE,
-                                          max_send_fragment, NULL);
-
-            if (len >= 8 * (int)max_send_fragment)
-                packlen *= 8;
-            else
-                packlen *= 4;
-
-            wb->buf = OPENSSL_malloc(packlen);
-            wb->len = packlen;
-        } else if (tot == len) { /* done? */
-            OPENSSL_free(wb->buf); /* free jumbo buffer */
-            wb->buf = NULL;
-            return tot;
-        }
-
-        n = (len - tot);
-        for (;;) {
-            if (n < 4 * max_send_fragment) {
-                OPENSSL_free(wb->buf); /* free jumbo buffer */
-                wb->buf = NULL;
-                break;
-            }
-
-            if (s->s3->alert_dispatch) {
-                i = s->method->ssl_dispatch_alert(s);
-                if (i <= 0) {
-                    s->s3->wnum = tot;
-                    return i;
-                }
-            }
-
-            if (n >= 8 * max_send_fragment)
-                nw = max_send_fragment * (mb_param.interleave = 8);
-            else
-                nw = max_send_fragment * (mb_param.interleave = 4);
-
-            memcpy(aad, s->s3->write_sequence, 8);
-            aad[8] = type;
-            aad[9] = (unsigned char)(s->version >> 8);
-            aad[10] = (unsigned char)(s->version);
-            aad[11] = 0;
-            aad[12] = 0;
-            mb_param.out = NULL;
-            mb_param.inp = aad;
-            mb_param.len = nw;
-
-            packlen = EVP_CIPHER_CTX_ctrl(s->enc_write_ctx,
-                                          EVP_CTRL_TLS1_1_MULTIBLOCK_AAD,
-                                          sizeof(mb_param), &mb_param);
-
-            if (packlen <= 0 || packlen > (int)wb->len) { /* never happens */
-                OPENSSL_free(wb->buf); /* free jumbo buffer */
-                wb->buf = NULL;
-                break;
-            }
-
-            mb_param.out = wb->buf;
-            mb_param.inp = &buf[tot];
-            mb_param.len = nw;
-
-            if (EVP_CIPHER_CTX_ctrl(s->enc_write_ctx,
-                                    EVP_CTRL_TLS1_1_MULTIBLOCK_ENCRYPT,
-                                    sizeof(mb_param), &mb_param) <= 0)
-                return -1;
-
-            s->s3->write_sequence[7] += mb_param.interleave;
-            if (s->s3->write_sequence[7] < mb_param.interleave) {
-                int j = 6;
-                while (j >= 0 && (++s->s3->write_sequence[j--]) == 0) ;
-            }
-
-            wb->offset = 0;
-            wb->left = packlen;
-
-            s->s3->wpend_tot = nw;
-            s->s3->wpend_buf = &buf[tot];
-            s->s3->wpend_type = type;
-            s->s3->wpend_ret = nw;
-
-            i = ssl3_write_pending(s, type, &buf[tot], nw);
-            if (i <= 0) {
-                if (i < 0) {
-                    OPENSSL_free(wb->buf);
-                    wb->buf = NULL;
-                }
-                s->s3->wnum = tot;
-                return i;
-            }
-            if (i == (int)n) {
-                OPENSSL_free(wb->buf); /* free jumbo buffer */
-                wb->buf = NULL;
-                return tot + i;
-            }
-            n -= i;
-            tot += i;
-        }
-    } else
-#endif
-    if (tot == len) {           /* done? */
-        if (s->mode & SSL_MODE_RELEASE_BUFFERS && !SSL_IS_DTLS(s))
-            ssl3_release_write_buffer(s);
-
-        return tot;
-    }
-
     n = (len - tot);
     for (;;) {
         if (n > s->max_send_fragment)
@@ -813,7 +651,6 @@ int ssl3_write_bytes(SSL *s, int type, const void *buf_, int len)
 
         i = do_ssl3_write(s, type, &(buf[tot]), nw, 0);
         if (i <= 0) {
-            /* XXX should we ssl3_release_write_buffer if i<0? */
             s->s3->wnum = tot;
             return i;
         }
@@ -826,10 +663,6 @@ int ssl3_write_bytes(SSL *s, int type, const void *buf_, int len)
              * in ciphersuites with known-IV weakness:
              */
             s->s3->empty_fragment_done = 0;
-
-            if ((i == (int)n) && s->mode & SSL_MODE_RELEASE_BUFFERS &&
-                !SSL_IS_DTLS(s))
-                ssl3_release_write_buffer(s);
 
             return tot + i;
         }
@@ -965,8 +798,8 @@ static int do_ssl3_write(SSL *s, int type, const unsigned char *buf,
     /* field where we are to write out packet length */
     plen = p;
     p += 2;
-    /* Explicit IV length, block ciphers appropriate version flag */
-    if (s->enc_write_ctx && SSL_USE_EXPLICIT_IV(s)) {
+    /* Explicit IV length, block ciphers and TLS version 1.1 or later */
+    if (s->enc_write_ctx && s->version >= TLS1_1_VERSION) {
         int mode = EVP_CIPHER_CTX_mode(s->enc_write_ctx);
         if (mode == EVP_CIPH_CBC_MODE) {
             eivlen = EVP_CIPHER_CTX_iv_length(s->enc_write_ctx);
@@ -1028,10 +861,6 @@ static int do_ssl3_write(SSL *s, int type, const unsigned char *buf,
 
     /* record length after mac and block padding */
     s2n(wr->length, plen);
-
-    if (s->msg_callback)
-        s->msg_callback(1, 0, SSL3_RT_HEADER, plen - 5, 5, s,
-                        s->msg_callback_arg);
 
     /*
      * we should now have wr->data pointing to the encrypted data, which is
@@ -1096,6 +925,10 @@ int ssl3_write_pending(SSL *s, int type, const unsigned char *buf,
         if (i == wb->left) {
             wb->left = 0;
             wb->offset += i;
+            if (s->mode & SSL_MODE_RELEASE_BUFFERS &&
+                SSL_version(s) != DTLS1_VERSION
+                && SSL_version(s) != DTLS1_BAD_VER)
+                ssl3_release_write_buffer(s);
             s->rwstate = SSL_NOTHING;
             return (s->s3->wpend_ret);
         } else if (i <= 0) {
@@ -1425,7 +1258,7 @@ int ssl3_read_bytes(SSL *s, int type, unsigned char *buf, int len, int peek)
             cb(s, SSL_CB_READ_ALERT, j);
         }
 
-        if (alert_level == 1) { /* warning */
+        if (alert_level == SSL3_AL_WARNING) {
             s->s3->warn_alert = alert_descr;
             if (alert_descr == SSL_AD_CLOSE_NOTIFY) {
                 s->shutdown |= SSL_RECEIVED_SHUTDOWN;
@@ -1448,7 +1281,7 @@ int ssl3_read_bytes(SSL *s, int type, unsigned char *buf, int len, int peek)
             else if (alert_descr == SSL_AD_MISSING_SRP_USERNAME)
                 return (0);
 #endif
-        } else if (alert_level == 2) { /* fatal */
+        } else if (alert_level == SSL3_AL_FATAL) {
             char tmp[16];
 
             s->rwstate = SSL_NOTHING;

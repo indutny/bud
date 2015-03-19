@@ -1,5 +1,5 @@
 OPTION	DOTNAME
-.text$	SEGMENT ALIGN(256) 'CODE'
+.text$	SEGMENT ALIGN(64) 'CODE'
 
 
 ALIGN	16
@@ -436,6 +436,7 @@ mont_reduce	PROC PRIVATE
 
 	call	MULADD_128x512
 
+
 	mov	rax,QWORD PTR[384+rsp]
 
 
@@ -479,6 +480,7 @@ mont_reduce	PROC PRIVATE
 	mov	r9,QWORD PTR[8+rcx]
 
 	call	MULADD_128x512
+
 
 
 
@@ -1840,6 +1842,7 @@ $L$in_prologue::
 	mov	rsi,r8
 	mov	ecx,154
 	DD	0a548f3fch
+
 
 	mov	rsi,r9
 	xor	rcx,rcx

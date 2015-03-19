@@ -33,6 +33,7 @@ L$prologue:
 	je	L$end
 
 
+
 L$loop:
 	movl	%eax,%r8d
 	movl	%ebx,%r9d
@@ -650,6 +651,7 @@ L$loop:
 	addq	$64,%rsi
 	cmpq	%rdi,%rsi
 	jb	L$loop
+
 
 
 L$end:

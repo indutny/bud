@@ -4,5 +4,4 @@
 #define CFLAGS "-C flags not included-"
 #define PLATFORM "google"
 #define DATE "Sun Jan 1 00:00:00 GMT 1970"
-static const char cflags[] = "compiler: '" CFLAGS "'";
 #endif
