@@ -309,7 +309,7 @@ static bud_hashmap_item_t* bud_hashmap_get_int(bud_hashmap_t* hashmap,
       return NULL;
 
     /* Grow and retry */
-    size = hashmap->size += BUD_HASHMAP_GROW_DELTA;
+    size = hashmap->size + BUD_HASHMAP_GROW_DELTA;
     space = calloc(size, sizeof(*space));
     if (space == NULL)
       return NULL;
