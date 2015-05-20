@@ -1117,8 +1117,10 @@ void bud_config_set_defaults(bud_config_t* config) {
     int j;
 
     ctx = &config->contexts[i];
-    DEFAULT(ctx->cert_file, NULL, "keys/cert.pem");
-    DEFAULT(ctx->key_file, NULL, "keys/key.pem");
+    if (ctx->cert_files == NULL)
+      DEFAULT(ctx->cert_file, NULL, "keys/cert.pem");
+    if (ctx->key_files == NULL)
+      DEFAULT(ctx->key_file, NULL, "keys/key.pem");
     DEFAULT(ctx->ciphers,
             NULL,
             "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA256:"
