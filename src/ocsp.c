@@ -65,7 +65,7 @@ bud_error_t bud_client_ocsp_stapling(bud_client_t* client) {
   if (!bud_is_ok(err))
     goto fatal;
 
-  client->hello_parse = kBudProgressRunning;
+  client->async_hello = kBudProgressRunning;
   return bud_ok();
 
 fatal:
@@ -93,7 +93,7 @@ void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
   config = client->config;
   context = SSL_get_ex_data(client->ssl, kBudSSLSNIIndex);
 
-  client->hello_parse = kBudProgressDone;
+  client->async_hello = kBudProgressDone;
   client->stapling_cache_req = NULL;
   json = NULL;
   ocsp = NULL;
@@ -152,7 +152,7 @@ void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
   if (!bud_is_ok(err))
     goto done;
 
-  client->hello_parse = kBudProgressRunning;
+  client->async_hello = kBudProgressRunning;
 
 done:
   free(ocsp);
@@ -170,7 +170,7 @@ void bud_client_stapling_req_cb(bud_http_request_t* req, bud_error_t err) {
 
   client = req->data;
   client->stapling_req = NULL;
-  client->hello_parse = kBudProgressDone;
+  client->async_hello = kBudProgressDone;
 
   if (!bud_is_ok(err)) {
     WARNING(&client->frontend,

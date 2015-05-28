@@ -5,7 +5,6 @@
 #include "openssl/ssl.h"
 
 #include "client-common.h"
-#include "hello-parser.h"
 #include "server.h"
 #include "http-pool.h"
 
@@ -46,9 +45,13 @@ struct bud_client_s {
   int recycle;
   int destroy_waiting;
 
-  /* Client hello parser */
-  bud_client_progress_t hello_parse;
-  bud_client_hello_t hello;
+  /* TLS Hello Data */
+  bud_client_progress_t async_hello;
+  struct {
+    const char* servername;
+    int servername_len;
+    int ocsp_request;
+  } hello;
 
   /* SNI */
   bud_http_request_t* sni_req;

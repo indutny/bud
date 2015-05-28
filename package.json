@@ -28,9 +28,12 @@
   },
   "homepage": "https://github.com/indutny/bud",
   "devDependencies": {
-    "mocha": "~1.18.2",
+    "asn1.js": "^2.0.3",
+    "asn1.js-rfc2560": "^2.1.0",
+    "mocha": "^1.18.2",
+    "ocsp": "^1.0.0",
     "semver": "^2.2.1",
-    "spdy": "~1.25.0",
-    "utile": "~0.2.1"
+    "spdy": "^1.25.0",
+    "utile": "^0.2.1"
   }
 }

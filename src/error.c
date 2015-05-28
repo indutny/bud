@@ -242,6 +242,10 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("failed to prepend x-forwarded-for header")                   \
     case kBudErrClientShutdownNoConn:                                         \
       BUD_ERROR("shutting down not-connected side")                           \
+    case kBudErrClientSetSNICert:                                             \
+      BUD_ERROR("SSL_set1_chain(client) - %d (%s)",                           \
+                err.data.ret,                                                 \
+                ERR_reason_error_string(ERR_get_error()))                     \
     case kBudErrIPCBalanceInit:                                               \
       BUD_UV_ERROR("bud_ipc_balance() uv_tcp_init", err)                      \
     case kBudErrIPCBalanceAccept:                                             \

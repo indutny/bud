@@ -13,7 +13,6 @@
 #include "common.h"
 #include "client.h"
 #include "client-common.h"
-#include "hello-parser.h"
 #include "http-pool.h"
 #include "logger.h"
 #include "sni.h"
@@ -27,7 +26,7 @@ static void bud_client_side_init(bud_client_side_t* side,
 static void bud_client_side_destroy(bud_client_side_t* side);
 static bud_client_side_t* bud_client_side_by_tcp(bud_client_t* client,
                                                  uv_tcp_t* tcp);
-static bud_client_error_t bud_client_parse_hello(bud_client_t* client);
+static bud_client_error_t bud_client_on_hello(bud_client_t* client);
 static void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err);
 static bud_client_error_t bud_client_backend_in(bud_client_t* client);
 static bud_client_error_t bud_client_backend_out(bud_client_t* client);
@@ -44,6 +43,7 @@ static bud_client_error_t bud_client_fill_host(bud_client_t* client,
                                                bud_client_host_t* host);
 static void bud_client_handshake_start_cb(const SSL* ssl);
 static void bud_client_handshake_done_cb(const SSL* ssl);
+static int bud_client_ssl_cert_cb(SSL* ssl, void* arg);
 static void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret);
 static const char* bud_client_get_peer_name(bud_client_t* client);
 
@@ -73,9 +73,9 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
 
   client->id = bud_config_get_client_id(config);
 
-  client->hello_parse = kBudProgressDone;
+  client->async_hello = kBudProgressDone;
   if (config->sni.enabled || config->stapling.enabled)
-    client->hello_parse = kBudProgressNone;
+    client->async_hello = kBudProgressNone;
 
   /* SNI */
   client->sni_req = NULL;
@@ -183,6 +183,7 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   if (!SSL_set_ex_data(client->ssl, kBudSSLClientIndex, client))
     goto failed_connect;
 
+  SSL_set_cert_cb(client->ssl, bud_client_ssl_cert_cb, client);
   SSL_set_info_callback(client->ssl, bud_client_ssl_info_cb);
 
   enc_in = bud_bio_new(&client->frontend.input);
@@ -427,9 +428,7 @@ bud_client_error_t bud_client_cycle(bud_client_t* client) {
   bud_client_error_t cerr;
 
   /* Parsing, must wait */
-  if (client->hello_parse != kBudProgressDone) {
-    return bud_client_parse_hello(client);
-  } else if (client->cycle == kBudProgressRunning) {
+  if (client->cycle == kBudProgressRunning) {
     /* Recursive call detected, ask cycle loop to run one more time */
     client->recycle++;
 
@@ -465,80 +464,21 @@ bud_client_error_t bud_client_cycle(bud_client_t* client) {
 }
 
 
-bud_client_error_t bud_client_parse_hello(bud_client_t* client) {
-  bud_config_t* config;
-  bud_error_t err;
-  char* data;
-  size_t size;
-
-  /* Already running, ignore */
-  if (client->hello_parse != kBudProgressNone)
-    return bud_client_ok(&client->frontend);
-
-  if (ringbuffer_is_empty(&client->frontend.input))
-    return bud_client_ok(&client->frontend);
-
-  config = client->config;
-  data = ringbuffer_read_next(&client->frontend.input, &size);
-  err = bud_parse_client_hello(data, (size_t) size, &client->hello);
-
-  /* Parser need more data, wait for it */
-  if (err.code == kBudErrParserNeedMore)
-    return bud_client_ok(&client->frontend);
-
-  if (!bud_is_ok(err)) {
-    NOTICE(&client->frontend,
-           "failed to parse hello: \"%s\"",
-           bud_error_to_str(err));
-    goto fatal;
-  }
-
-  /* Parse success, perform SNI lookup */
-  if (config->sni.enabled && client->hello.servername_len != 0) {
-    client->sni_req = bud_http_get(config->sni.pool,
-                                   config->sni.url,
-                                   client->hello.servername,
-                                   client->hello.servername_len,
-                                   bud_client_sni_cb,
-                                   &err);
-    client->sni_req->data = client;
-    if (!bud_is_ok(err)) {
-      NOTICE(&client->frontend,
-             "failed to request SNI: \"%s\"",
-             bud_error_to_str(err));
-      goto fatal;
-    }
-
-    client->hello_parse = kBudProgressRunning;
-  /* Perform OCSP stapling request */
-  } else if (config->stapling.enabled && client->hello.ocsp_request != 0) {
-    err = bud_client_ocsp_stapling(client);
-    if (!bud_is_ok(err))
-      goto fatal;
-  }
-
-  if (client->hello_parse != kBudProgressNone)
-    return bud_client_ok(&client->frontend);
-
-  client->hello_parse = kBudProgressDone;
-  return bud_client_cycle(client);
-
-fatal:
-  client->hello_parse = kBudProgressDone;
-  return bud_client_error(err, &client->frontend);
-}
-
-
 void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
   bud_client_t* client;
   bud_config_t* config;
   bud_client_error_t cerr;
+  int r;
+  STACK_OF(X509)* chain;
+  SSL_CTX* ctx;
+  X509* x509;
+  EVP_PKEY* pkey;
 
   client = req->data;
   config = client->config;
 
   client->sni_req = NULL;
-  client->hello_parse = kBudProgressDone;
+  client->async_hello = kBudProgressDone;
   if (!bud_is_ok(err)) {
     WARNING(&client->frontend, "SNI cb failed: \"%s\"", bud_error_to_str(err));
     goto fatal;
@@ -572,8 +512,25 @@ void bud_client_sni_cb(bud_http_request_t* req, bud_error_t err) {
     goto fatal;
   }
 
+  // NOTE: reference count is not increased by this API methods
+  ctx = client->sni_ctx.ctx;
+  x509 = SSL_CTX_get0_certificate(ctx);
+  pkey = SSL_CTX_get0_privatekey(ctx);
+
+  r = SSL_CTX_get0_chain_certs(ctx, &chain);
+  if (r == 1)
+    r = SSL_use_certificate(client->ssl, x509);
+  if (r == 1)
+    r = SSL_use_PrivateKey(client->ssl, pkey);
+  if (r == 1 && chain != NULL)
+    r = SSL_set1_chain(client->ssl, chain);
+  if (r != 1) {
+    err = bud_error(kBudErrClientSetSNICert);
+    goto fatal;
+  }
+
   /* Update context, may be needed for early ticket key generation */
-  SSL_set_SSL_CTX(client->ssl, client->sni_ctx.ctx);
+  SSL_set_SSL_CTX(client->ssl, ctx);
   client->ssl->options = client->sni_ctx.ctx->options;
 
 done:
@@ -585,7 +542,7 @@ done:
   }
   json_value_free(req->response);
 
-  if (client->hello_parse == kBudProgressDone) {
+  if (client->async_hello == kBudProgressDone) {
     cerr = bud_client_cycle(client);
     if (!bud_is_ok(cerr.err))
       bud_client_close(client, cerr);
@@ -634,8 +591,11 @@ bud_client_error_t bud_client_backend_in(bud_client_t* client) {
     return bud_client_ok(&client->backend);
 
   err = SSL_get_error(client->ssl, written);
-  if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
+  if (err == SSL_ERROR_WANT_READ ||
+      err == SSL_ERROR_WANT_WRITE ||
+      err == SSL_ERROR_WANT_X509_LOOKUP) {
     return bud_client_ok(&client->backend);
+  }
 
   return bud_client_error(bud_error_num(kBudErrClientSSLWrite, err),
                           &client->backend);
@@ -686,8 +646,11 @@ bud_client_error_t bud_client_backend_out(bud_client_t* client) {
     goto success;
 
   err = SSL_get_error(client->ssl, read);
-  if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
+  if (err == SSL_ERROR_WANT_READ ||
+      err == SSL_ERROR_WANT_WRITE ||
+      err == SSL_ERROR_WANT_X509_LOOKUP) {
     goto success;
+  }
 
   /* Close-notify, most likely */
   if (err == SSL_ERROR_ZERO_RETURN)
@@ -1182,6 +1145,82 @@ fatal:
     cerr = bud_client_prepend_proxyline(client);
   if (!bud_is_ok(cerr.err))
     bud_client_close(client, cerr);
+}
+
+
+int bud_client_ssl_cert_cb(SSL* ssl, void* arg) {
+  bud_client_t* client;
+  bud_client_error_t err;
+
+  client = (bud_client_t*) arg;
+
+  /* Finished, or no need to perform anything async */
+  if (client->async_hello == kBudProgressDone)
+    return 1;
+
+  /* Already running, please wait */
+  if (client->async_hello == kBudProgressRunning)
+    return -1;
+
+  /* Set hello */
+  SSL_SESSION* sess = SSL_get_session(ssl);
+  if (sess == NULL || sess->tlsext_hostname == NULL) {
+    client->hello.servername = NULL;
+    client->hello.servername_len = 0;
+  } else {
+    client->hello.servername = sess->tlsext_hostname;
+    client->hello.servername_len = strlen(sess->tlsext_hostname);
+  }
+  client->hello.ocsp_request =
+      ssl->tlsext_status_type == TLSEXT_STATUSTYPE_ocsp ? 1 : 0;
+
+  err = bud_client_on_hello(client);
+  if (!bud_is_ok(err.err))
+    return 0;
+
+  return -1;
+}
+
+
+bud_client_error_t bud_client_on_hello(bud_client_t* client) {
+  bud_config_t* config;
+  bud_error_t err;
+
+  config = client->config;
+
+  /* Perform SNI lookup */
+  if (config->sni.enabled && client->hello.servername_len != 0) {
+    client->sni_req = bud_http_get(config->sni.pool,
+                                   config->sni.url,
+                                   client->hello.servername,
+                                   client->hello.servername_len,
+                                   bud_client_sni_cb,
+                                   &err);
+    client->sni_req->data = client;
+    if (!bud_is_ok(err)) {
+      NOTICE(&client->frontend,
+             "failed to request SNI: \"%s\"",
+             bud_error_to_str(err));
+      goto fatal;
+    }
+
+    client->async_hello = kBudProgressRunning;
+  /* Perform OCSP stapling request */
+  } else if (config->stapling.enabled && client->hello.ocsp_request != 0) {
+    err = bud_client_ocsp_stapling(client);
+    if (!bud_is_ok(err))
+      goto fatal;
+  }
+
+  if (client->async_hello != kBudProgressNone)
+    return bud_client_ok(&client->frontend);
+
+  client->async_hello = kBudProgressDone;
+  return bud_client_cycle(client);
+
+fatal:
+  client->async_hello = kBudProgressDone;
+  return bud_client_error(err, &client->frontend);
 }
 
 

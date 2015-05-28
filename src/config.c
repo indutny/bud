@@ -1974,15 +1974,12 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
   }
 
   if (ret) {
-    X509_STORE* store;
-
-    store = SSL_CTX_get_cert_store(ctx->ctx);
     while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
       /*
        * Extra cert - add it to store to make OpenSSL pick and send proper
        * certs automatically
        */
-      r = X509_STORE_add_cert(store, ca);
+      r = SSL_CTX_add1_chain_cert(ctx->ctx, ca);
       if (!r) {
         X509_free(ca);
         ret = 0;

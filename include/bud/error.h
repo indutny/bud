@@ -113,6 +113,7 @@ enum bud_error_code_e {
   kBudErrClientNoBackendInSNI = 0x811,
   kBudErrClientXForwardInsert = 0x812,
   kBudErrClientShutdownNoConn = 0x813,
+  kBudErrClientSetSNICert = 0x814,
 
   /* IPC */
   kBudErrIPCPipeInit = 0x900,
