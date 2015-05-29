@@ -218,15 +218,19 @@ fixtures.agentRequest = function agentRequest(sh, agent, uri, cb) {
     path: uri
   }, function(res) {
     var chunks = '';
+    var info = {
+      cert: res.socket.getPeerCertificate(true),
+      cipher: res.socket.getCipher()
+    };
     res.on('readable', function() {
       chunks += res.read() || '';
     });
     res.on('end', function() {
       if (!agent.close)
-        return cb(res, chunks);
+        return cb(res, chunks, info);
 
       agent.close(function() {
-        cb(res, chunks);
+        cb(res, chunks, info);
       });
     });
   });
@@ -356,7 +360,7 @@ fixtures.ocspBackend = function ocspBackend() {
   return server;
 };
 
-fixtures.sniServer = function sniServer() {
+fixtures.sniBackend = function sniBackend() {
   var server = http.createServer(function(req, res) {
     var host = req.url.split('/')[3];
     if (host !== 'sni.host') {

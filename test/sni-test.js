@@ -1,9 +1,11 @@
 var assert = require('assert');
 var fixtures = require('./fixtures');
+var ocsp = require('ocsp');
 var request = fixtures.request;
 var caRequest = fixtures.caRequest;
 var sniRequest = fixtures.sniRequest;
 var spdyRequest = fixtures.spdyRequest;
+var agentRequest = fixtures.agentRequest;
 
 describe('Bud TLS Terminator/SNI', function() {
   describe('multi-backend', function() {
@@ -57,29 +59,74 @@ describe('Bud TLS Terminator/SNI', function() {
       }
     });
 
-    var sniServer;
+    var sniBackend;
     beforeEach(function(cb) {
-      sniServer = fixtures.sniServer().listen(9000, cb);
+      sniBackend = fixtures.sniBackend().listen(9000, cb);
     });
 
     afterEach(function(cb) {
-      sniServer.close(cb);
+      sniBackend.close(cb);
     });
 
     it('should asynchronously fetch cert', function(cb) {
       sniRequest(sh, 'local.host', '/hello', function(res, chunks, info) {
-        assert.equal(sniServer.misses, 1);
-        assert.equal(sniServer.hits, 0);
+        assert.equal(sniBackend.misses, 1);
+        assert.equal(sniBackend.hits, 0);
         assert.equal(info.cert.serialNumber, '82F2A828A42C1728');
         assert.notEqual(info.cipher.name, 'AES128-SHA');
 
         sniRequest(sh, 'sni.host', '/hello', function(res, chunks, info) {
-          assert.equal(sniServer.misses, 1);
-          assert.equal(sniServer.hits, 1);
+          assert.equal(sniBackend.misses, 1);
+          assert.equal(sniBackend.hits, 1);
           assert.equal(info.cert.serialNumber, '2B');
           assert.equal(info.cipher.name, 'AES128-SHA');
           cb();
         });
+      });
+    });
+  });
+
+  describe('async sni+ocsp', function() {
+    var sh = fixtures.getServers({
+      sni: {
+        enabled: true,
+        port: 9000
+      },
+      stapling: {
+        enabled: true,
+        port: 9001
+      }
+    });
+
+    var sniBackend;
+    var ocspBackend;
+    beforeEach(function(cb) {
+      sniBackend = fixtures.sniBackend().listen(9000, function() {
+        ocspBackend = fixtures.ocspBackend().listen(9001, cb);
+      });
+    });
+
+    afterEach(function(cb) {
+      sniBackend.close(function() {
+        ocspBackend.close(cb);
+      });
+    });
+
+    it('should asynchronously fetch cert', function(cb) {
+      var agent = new ocsp.Agent({
+        port: sh.frontend.port,
+        servername: 'sni.host'
+      });
+
+      agentRequest(sh, agent, '/hello', function(res, chunks, info) {
+        assert.equal(sniBackend.misses, 0);
+        assert.equal(sniBackend.hits, 1);
+        assert.equal(ocspBackend.cacheHits, 0);
+        assert.equal(ocspBackend.cacheMisses, 1);
+
+        assert.equal(info.cert.serialNumber, '2B');
+        assert.equal(info.cipher.name, 'AES128-SHA');
+        cb();
       });
     });
   });
