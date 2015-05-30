@@ -49,8 +49,8 @@ struct bud_client_s {
   bud_client_progress_t async_hello;
   struct {
     const char* servername;
-    int servername_len;
-    int ocsp_request;
+    size_t servername_len;
+    unsigned int ocsp_request:1;
   } hello;
 
   /* SNI */
@@ -60,6 +60,7 @@ struct bud_client_s {
   /* Stapling */
   bud_http_request_t* stapling_cache_req;
   bud_http_request_t* stapling_req;
+  bud_context_pkey_type_t stapling_type;
   char* stapling_ocsp_resp;
   size_t stapling_ocsp_resp_len;
 

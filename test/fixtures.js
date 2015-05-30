@@ -29,6 +29,8 @@ fixtures.cert = getKey('agent1-cert');
 fixtures.ca = getKey('ca1-cert');
 fixtures.goodCert = getKey('good-cert');
 fixtures.goodKey = getKey('good-key');
+fixtures.ecCert = getKey('ec-cert');
+fixtures.ecKey = getKey('ec-key');
 fixtures.issuerCert = getKey('issuer-cert');
 fixtures.issuerKey = getKey('issuer-key');
 
@@ -310,7 +312,11 @@ fixtures.ocspBackend = function ocspBackend() {
   });
 
   ocspServer.addCert(43, 'good');
-  ocspServer.addCert(44, 'bad');
+  ocspServer.addCert('ff998c4ccfc2c839', 'good');
+  ocspServer.addCert(44, 'revoked', {
+    revocationTime: new Date(),
+    revocationReason: 'CACompromise'
+  });
 
   var server = http.createServer(function(req, res) {
     var id = req.url.split('/')[3];

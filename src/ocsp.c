@@ -25,6 +25,7 @@ bud_error_t bud_client_ocsp_stapling(bud_client_t* client) {
   bud_error_t err;
   const char* id;
   size_t id_size;
+  bud_context_pkey_type_t type;
 
   config = client->config;
 
@@ -41,13 +42,16 @@ bud_error_t bud_client_ocsp_stapling(bud_client_t* client) {
     context = &config->contexts[0];
   }
 
+  type = bud_context_select_pkey(context, client->ssl);
+  client->stapling_type = type;
+
   /* Cache context to prevent second search in OpenSSL's callback */
   if (!SSL_set_ex_data(client->ssl, kBudSSLSNIIndex, context)) {
     err = bud_error(kBudErrStaplingSetData);
     goto fatal;
   }
 
-  id = bud_context_get_ocsp_id(context, &id_size);
+  id = bud_context_get_ocsp_id(context, type, &id_size);
 
   /* Certificate has no OCSP id */
   if (id == NULL)
@@ -88,9 +92,11 @@ void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
   char* json;
   size_t json_size;
   size_t offset;
+  bud_context_pkey_type_t type;
 
   client = req->data;
   config = client->config;
+  type = client->stapling_type;
   context = SSL_get_ex_data(client->ssl, kBudSSLSNIIndex);
 
   client->async_hello = kBudProgressDone;
@@ -115,8 +121,8 @@ void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
   }
 
   DBG_LN(&client->frontend, "stapling cache miss");
-  id = bud_context_get_ocsp_id(context, &id_size);
-  url = bud_context_get_ocsp_req(context, &url_size, &ocsp, &ocsp_size);
+  id = bud_context_get_ocsp_id(context, type, &id_size);
+  url = bud_context_get_ocsp_req(context, type, &url_size, &ocsp, &ocsp_size);
 
   /* Certificate has no OCSP url */
   if (url == NULL)

@@ -902,28 +902,33 @@ void bud_context_free(bud_context_t* context) {
   bud_hashmap_destroy(&context->backend.external_map);
 
   SSL_CTX_free(context->ctx);
-  if (context->cert != NULL)
-    X509_free(context->cert);
-  if (context->issuer != NULL)
-    X509_free(context->issuer);
+  for (i = 0; i < kBudContextPKeyEnd; i++) {
+    bud_context_pem_t* pem = &context->pem[i];
+    if (pem->cert != NULL)
+      X509_free(pem->cert);
+    if (pem->issuer != NULL)
+      X509_free(pem->issuer);
+    if (pem->ocsp_id != NULL)
+      OCSP_CERTID_free(pem->ocsp_id);
+    free(pem->ocsp_der_id);
+
+    pem->cert = NULL;
+    pem->issuer = NULL;
+    pem->ocsp_id = NULL;
+    pem->ocsp_der_id = NULL;
+  }
+
   if (context->ca_store != NULL)
     X509_STORE_free(context->ca_store);
-  if (context->ocsp_id != NULL)
-    OCSP_CERTID_free(context->ocsp_id);
   if (context->dh != NULL)
     DH_free(context->dh);
-  free(context->ocsp_der_id);
   free(context->backend.list);
   free(context->npn_line);
 
   context->ctx = NULL;
-  context->cert = NULL;
-  context->issuer = NULL;
   context->ca_store = NULL;
   context->npn_line = NULL;
-  context->ocsp_id = NULL;
   context->dh = NULL;
-  context->ocsp_der_id = NULL;
   context->backend.list = NULL;
   context->backend.count = 0;
 }
@@ -1123,11 +1128,21 @@ void bud_config_set_defaults(bud_config_t* config) {
       DEFAULT(ctx->key_file, NULL, "keys/key.pem");
     DEFAULT(ctx->ciphers,
             NULL,
-            "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA256:"
-            "ECDHE-RSA-AES256-SHA256:DHE-RSA-AES256-GCM-SHA384:"
+            "ECDHE-ECDSA-AES256-GCM-SHA384:"
+            "ECDHE-RSA-AES256-GCM-SHA384:"
+            "ECDHE-ECDSA-AES256-GCM-SHA256:"
+            "ECDHE-RSA-AES256-GCM-SHA256:"
+            "ECDHE-ECDSA-AES256-SHA256:"
+            "ECDHE-RSA-AES256-SHA256:"
+            "DHE-RSA-AES256-GCM-SHA384:"
             "DHE-RSA-AES256-GCM-SHA256:DHE-RSA-AES256-SHA256:"
-            "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-SHA256:"
-            "ECDHE-RSA-AES128-SHA:DHE-RSA-AES128-GCM-SHA256:"
+            "ECDHE-ECDSA-AES128-GCM-SHA256:"
+            "ECDHE-RSA-AES128-GCM-SHA256:"
+            "ECDHE-ECDSA-AES128-SHA256:"
+            "ECDHE-RSA-AES128-SHA256:"
+            "ECDHE-ECDSA-AES128-SHA:"
+            "ECDHE-RSA-AES128-SHA:"
+            "DHE-RSA-AES128-GCM-SHA256:"
             "DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:AES256-GCM-SHA384:"
             "AES256-SHA256:AES128-GCM-SHA256:AES128-SHA256:AES128-SHA:"
             "DES-CBC3-SHA");
@@ -1359,26 +1374,6 @@ bud_error_t bud_context_load_keys(bud_context_t* context) {
     context->ctx->extra_certs = NULL;
   }
 
-  /* Load cert file or string */
-  if (context->cert_file != NULL) {
-    err = bud_context_load_cert(context, context->cert_file);
-  /* Load cert array */
-  } else if (context->cert_files != NULL &&
-             json_array_get_count(context->cert_files) != 0) {
-    count = json_array_get_count(context->cert_files);
-    for (i = 0; i < count; i++) {
-      err = bud_context_load_cert(
-          context,
-          json_array_get_string(context->cert_files, i));
-      if (!bud_is_ok(err))
-        break;
-    }
-  } else {
-    err = bud_error_str(kBudErrLoadCert, "no file was specified");
-  }
-  if (!bud_is_ok(err))
-    goto fatal;
-
   /* Key file or string */
   if (context->key_file != NULL) {
     err = bud_context_load_key(context, context->key_file, context->key_pass);
@@ -1397,6 +1392,26 @@ bud_error_t bud_context_load_keys(bud_context_t* context) {
     }
   } else {
     err = bud_error_str(kBudErrLoadKey, "no file was specified");
+  }
+  if (!bud_is_ok(err))
+    goto fatal;
+
+  /* Load cert file or string */
+  if (context->cert_file != NULL) {
+    err = bud_context_load_cert(context, context->cert_file);
+  /* Load cert array */
+  } else if (context->cert_files != NULL &&
+             json_array_get_count(context->cert_files) != 0) {
+    count = json_array_get_count(context->cert_files);
+    for (i = 0; i < count; i++) {
+      err = bud_context_load_cert(
+          context,
+          json_array_get_string(context->cert_files, i));
+      if (!bud_is_ok(err))
+        break;
+    }
+  } else {
+    err = bud_error_str(kBudErrLoadCert, "no file was specified");
   }
 
 fatal:
@@ -1624,23 +1639,27 @@ fatal:
 
 
 const char* bud_context_get_ocsp_id(bud_context_t* context,
+                                    bud_context_pkey_type_t type,
                                     size_t* size) {
   char* encoded;
   unsigned char* pencoded;
   size_t encoded_len;
   char* base64;
   size_t base64_len;
+  bud_context_pem_t* pem;
 
-  if (context->ocsp_id == NULL)
+  pem = &context->pem[type];
+
+  if (pem->ocsp_id == NULL)
     return NULL;
 
   base64 = NULL;
   encoded = NULL;
   /* Return cached id */
-  if (context->ocsp_der_id != NULL)
+  if (pem->ocsp_der_id != NULL)
     goto done;
 
-  encoded_len = i2d_OCSP_CERTID(context->ocsp_id, NULL);
+  encoded_len = i2d_OCSP_CERTID(pem->ocsp_id, NULL);
   base64_len = bud_base64_encoded_size(encoded_len);
   encoded = malloc(encoded_len);
   base64 = malloc(base64_len);
@@ -1648,22 +1667,23 @@ const char* bud_context_get_ocsp_id(bud_context_t* context,
     goto done;
 
   pencoded = (unsigned char*) encoded;
-  i2d_OCSP_CERTID(context->ocsp_id, &pencoded);
+  i2d_OCSP_CERTID(pem->ocsp_id, &pencoded);
 
   bud_base64_encode(encoded, encoded_len, base64, base64_len);
-  context->ocsp_der_id = base64;
-  context->ocsp_der_id_len = base64_len;
+  pem->ocsp_der_id = base64;
+  pem->ocsp_der_id_len = base64_len;
   base64 = NULL;
 
 done:
   free(encoded);
   free(base64);
-  *size = context->ocsp_der_id_len;
-  return context->ocsp_der_id;
+  *size = pem->ocsp_der_id_len;
+  return pem->ocsp_der_id;
 }
 
 
 const char* bud_context_get_ocsp_req(bud_context_t* context,
+                                     bud_context_pkey_type_t type,
                                      size_t* size,
                                      char** ocsp_request,
                                      size_t* ocsp_request_len) {
@@ -1673,27 +1693,30 @@ const char* bud_context_get_ocsp_req(bud_context_t* context,
   char* encoded;
   unsigned char* pencoded;
   size_t encoded_len;
+  bud_context_pem_t* pem;
 
   urls = NULL;
   id = NULL;
   encoded = NULL;
 
+  pem = &context->pem[type];
+
   /* Cached url */
-  if (context->ocsp_url != NULL)
+  if (pem->ocsp_url != NULL)
     goto has_url;
 
-  urls = X509_get1_ocsp(context->cert);
+  urls = X509_get1_ocsp(pem->cert);
   if (urls == NULL)
     goto done;
 
-  context->ocsp_url = sk_OPENSSL_STRING_pop(urls);
-  context->ocsp_url_len = strlen(context->ocsp_url);
+  pem->ocsp_url = sk_OPENSSL_STRING_pop(urls);
+  pem->ocsp_url_len = strlen(pem->ocsp_url);
 
 has_url:
-  if (context->ocsp_url == NULL)
+  if (pem->ocsp_url == NULL)
     goto done;
 
-  id = OCSP_CERTID_dup(context->ocsp_id);
+  id = OCSP_CERTID_dup(pem->ocsp_id);
   if (id == NULL)
     goto done;
 
@@ -1726,8 +1749,8 @@ done:
   if (encoded != NULL)
     free(encoded);
 
-  *size = context->ocsp_url_len;
-  return context->ocsp_url;
+  *size = pem->ocsp_url_len;
+  return pem->ocsp_url;
 }
 
 
@@ -1953,11 +1976,14 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
   X509* ca;
   int r;
   unsigned long err;
+  bud_context_pkey_type_t type;
+  bud_context_pem_t* pem;
 
   ERR_clear_error();
 
   ret = 0;
   x = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
+  pem = NULL;
 
   if (x == NULL) {
     SSLerr(SSL_F_SSL_CTX_USE_CERTIFICATE_CHAIN_FILE, ERR_R_PEM_LIB);
@@ -1965,8 +1991,12 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
   }
 
   ret = SSL_CTX_use_certificate(ctx->ctx, x);
-  ctx->cert = x;
-  ctx->issuer = NULL;
+  SSL_CTX_select_current_cert(ctx->ctx, x);
+  type = bud_config_pkey_type(x->cert_info->key->pkey);
+
+  pem = &ctx->pem[type];
+  pem->cert = x;
+  pem->issuer = NULL;
 
   if (ERR_peek_error() != 0) {
     /* Key/certificate mismatch doesn't imply ret==0 ... */
@@ -1994,9 +2024,9 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
        */
 
       /* Find issuer */
-      if (ctx->issuer != NULL || X509_check_issued(ca, x) != X509_V_OK)
+      if (pem->issuer != NULL || X509_check_issued(ca, x) != X509_V_OK)
         continue;
-      ctx->issuer = ca;
+      pem->issuer = ca;
     }
 
     /* When the while loop ends, it's usually just EOF. */
@@ -2013,7 +2043,7 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
 end:
   if (ret) {
     /* Try getting issuer from cert store */
-    if (ctx->issuer == NULL) {
+    if (pem->issuer == NULL) {
       X509_STORE* store;
       X509_STORE_CTX store_ctx;
 
@@ -2022,31 +2052,31 @@ end:
       if (!ret)
         goto fatal;
 
-      ret = X509_STORE_CTX_get1_issuer(&ctx->issuer, &store_ctx, ctx->cert);
+      ret = X509_STORE_CTX_get1_issuer(&pem->issuer, &store_ctx, pem->cert);
       X509_STORE_CTX_cleanup(&store_ctx);
 
       ret = ret < 0 ? 0 : 1;
       /* NOTE: get_cert_store doesn't increment reference count */
     } else {
       /* Increment issuer reference count */
-      CRYPTO_add(&ctx->issuer->references, 1, CRYPTO_LOCK_X509);
+      CRYPTO_add(&pem->issuer->references, 1, CRYPTO_LOCK_X509);
     }
 
-    if (ctx->issuer != NULL) {
+    if (pem->issuer != NULL) {
       /* Get ocsp_id */
-      ctx->ocsp_id = OCSP_cert_to_id(NULL, ctx->cert, ctx->issuer);
-      if (ctx->ocsp_id == NULL)
+      pem->ocsp_id = OCSP_cert_to_id(NULL, pem->cert, pem->issuer);
+      if (pem->ocsp_id == NULL)
         goto fatal;
     }
   }
 
 fatal:
-  if (!ret && ctx->issuer != NULL) {
-    X509_free(ctx->issuer);
-    ctx->issuer = NULL;
+  if (!ret && pem != NULL && pem->issuer != NULL) {
+    X509_free(pem->issuer);
+    pem->issuer = NULL;
   }
 
-  if (ctx->cert != x && x != NULL)
+  if (!(pem != NULL && pem->cert == x) && x != NULL)
     X509_free(x);
 
   return ret;
@@ -2353,3 +2383,51 @@ uint64_t bud_config_get_client_id(bud_config_t* config) {
 
   return r;
 }
+
+
+bud_context_pkey_type_t bud_config_pkey_type(EVP_PKEY* pkey) {
+  if (pkey->type == EVP_PKEY_RSA)
+    return kBudContextPKeyRSA;
+  else if (pkey->type == EVP_PKEY_EC)
+    return kBudContextPKeyECC;
+  else
+    UNEXPECTED;
+
+  return kBudContextPKeyRSA;
+}
+
+
+/* This is kind of unfortunate, but I don't think there is a simpler way */
+#define SSL_aECDSA 0x00000040L
+SSL_CIPHER* ssl3_choose_cipher(SSL* ssl,
+                               STACK_OF(SSL_CIPHER)* clnt,
+                               STACK_OF(SSL_CIPHER)* srvr);
+
+
+bud_context_pkey_type_t bud_context_select_pkey(bud_context_t* context,
+                                                SSL* s) {
+  SSL_SESSION* sess;
+  const SSL_CIPHER* cipher;
+
+  sess = SSL_get_session(s);
+  if (sess == NULL)
+    return kBudContextPKeyRSA;
+
+  /* Use session cipher */
+  cipher = sess->cipher;
+
+  /* Select cipher */
+  if (cipher == NULL)
+    cipher = ssl3_choose_cipher(s, sess->ciphers, SSL_get_ciphers(s));
+
+  if (cipher == NULL)
+    return kBudContextPKeyRSA;
+
+  if ((cipher->algorithm_auth & SSL_aECDSA) == SSL_aECDSA)
+    return kBudContextPKeyECC;
+
+  return kBudContextPKeyRSA;
+}
+
+
+#undef SSL_aECDSA

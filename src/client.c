@@ -1151,6 +1151,7 @@ fatal:
 int bud_client_ssl_cert_cb(SSL* ssl, void* arg) {
   bud_client_t* client;
   bud_client_error_t err;
+  SSL_SESSION* sess;
 
   client = (bud_client_t*) arg;
 
@@ -1163,7 +1164,7 @@ int bud_client_ssl_cert_cb(SSL* ssl, void* arg) {
     return -1;
 
   /* Set hello */
-  SSL_SESSION* sess = SSL_get_session(ssl);
+  sess = SSL_get_session(ssl);
   if (sess == NULL || sess->tlsext_hostname == NULL) {
     client->hello.servername = NULL;
     client->hello.servername_len = 0;

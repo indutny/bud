@@ -24,6 +24,8 @@ struct bud_http_pool_s;
 typedef struct bud_context_s bud_context_t;
 typedef struct bud_config_http_pool_s bud_config_http_pool_t;
 typedef enum bud_config_balance_e bud_config_balance_t;
+typedef enum bud_context_pkey_type_e bud_context_pkey_type_t;
+typedef struct bud_context_pem_s bud_context_pem_t;
 typedef struct bud_config_trace_s bud_config_trace_t;
 typedef struct bud_config_s bud_config_t;
 typedef struct bud_config_addr_s bud_config_addr_t;
@@ -118,6 +120,22 @@ enum bud_config_balance_e {
   kBudBalanceExternal
 };
 
+enum bud_context_pkey_type_e {
+  kBudContextPKeyRSA = 0x0,
+  kBudContextPKeyECC = 0x1,
+  kBudContextPKeyEnd = 0x2
+};
+
+struct bud_context_pem_s {
+  X509* cert;
+  X509* issuer;
+  OCSP_CERTID* ocsp_id;
+  char* ocsp_der_id;
+  size_t ocsp_der_id_len;
+  const char* ocsp_url;
+  size_t ocsp_url_len;
+};
+
 #undef BUD_CONFIG_ADDR_FIELDS
 
 struct bud_context_s {
@@ -151,15 +169,9 @@ struct bud_context_s {
 
   /* Various */
   SSL_CTX* ctx;
-  X509* cert;
-  X509* issuer;
+  bud_context_pem_t pem[kBudContextPKeyEnd];
   X509_STORE* ca_store;
-  OCSP_CERTID* ocsp_id;
   DH* dh;
-  char* ocsp_der_id;
-  size_t ocsp_der_id_len;
-  const char* ocsp_url;
-  size_t ocsp_url_len;
   char ticket_key_storage[48];
   char* npn_line;
   size_t npn_line_len;
@@ -298,8 +310,10 @@ bud_context_t* bud_config_select_context(bud_config_t* config,
                                          const char* servername,
                                          size_t servername_len);
 const char* bud_context_get_ocsp_id(bud_context_t* context,
+                                    bud_context_pkey_type_t type,
                                     size_t* size);
 const char* bud_context_get_ocsp_req(bud_context_t* context,
+                                     bud_context_pkey_type_t type,
                                      size_t* size,
                                      char** ocsp_request,
                                      size_t* ocsp_request_len);
@@ -316,5 +330,7 @@ const char* bud_config_balance_to_str(bud_config_balance_t balance);
 
 /* Helper for client */
 uint64_t bud_config_get_client_id(bud_config_t* config);
+bud_context_pkey_type_t bud_config_pkey_type(EVP_PKEY* pkey);
+bud_context_pkey_type_t bud_context_select_pkey(bud_context_t* context, SSL* s);
 
 #endif  /* SRC_CONFIG_H_ */
