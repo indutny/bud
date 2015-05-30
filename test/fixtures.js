@@ -1,5 +1,8 @@
 var assert = require('assert');
+var http = require('http');
 var https = require('https');
+var ocsp = require('ocsp');
+var rfc2560 = require('asn1.js-rfc2560');
 var spdy = require('spdy');
 var utile = require('utile');
 var fs = require('fs');
@@ -24,6 +27,10 @@ function getKey(name) {
 fixtures.key = getKey('agent1-key');
 fixtures.cert = getKey('agent1-cert');
 fixtures.ca = getKey('ca1-cert');
+fixtures.goodCert = getKey('good-cert');
+fixtures.goodKey = getKey('good-key');
+fixtures.issuerCert = getKey('issuer-cert');
+fixtures.issuerKey = getKey('issuer-key');
 
 fixtures.keys = {
   caCert: keyPath('ca1-cert'),
@@ -114,6 +121,8 @@ fixtures.getServers = function getServers(options) {
           return !/^(server|requests|index)$/.test(key);
         });
       }),
+      stapling: options.stapling,
+      sni: options.sni,
       balance: options.balance,
       contexts: sh.contexts && sh.contexts.map(function(ctx) {
         return {
@@ -185,29 +194,43 @@ fixtures.sniRequest = function sniRequest(sh, name, uri, cb) {
   };
   https.get(o, function(res) {
     var chunks = '';
+    var info = {
+      cert: res.socket.getPeerCertificate(true),
+      cipher: res.socket.getCipher()
+    };
     res.on('readable', function() {
       chunks += res.read() || '';
     });
     res.on('end', function() {
-      cb(res, chunks);
+      cb(res, chunks, info);
     });
   });
 };
 
 fixtures.spdyRequest = function spdyRequest(sh, uri, cb) {
   var agent = spdy.createAgent(sh.frontend);
+  return fixtures.agentRequest(sh, agent, uri, cb);
+};
 
+fixtures.agentRequest = function agentRequest(sh, agent, uri, cb) {
   var req = https.request({
     agent: agent,
     path: uri
   }, function(res) {
     var chunks = '';
+    var info = {
+      cert: res.socket.getPeerCertificate(true),
+      cipher: res.socket.getCipher()
+    };
     res.on('readable', function() {
       chunks += res.read() || '';
     });
     res.on('end', function() {
+      if (!agent.close)
+        return cb(res, chunks, info);
+
       agent.close(function() {
-        cb(res, chunks);
+        cb(res, chunks, info);
       });
     });
   });
@@ -219,14 +242,17 @@ function expectProxyline(server, type) {
   server.removeAllListeners('connection');
 
   server.on('connection', function(s) {
-    var ondata = s.ondata;
     var chunks = '';
-    s.ondata = function _ondata(c, start, end) {
-      chunks += c.slice(start, end);
+    s.on('readable', function onReadable() {
+      var chunk = this.read();
+      if (!chunk)
+        return;
+
+      chunks += chunk;
       assert(chunks.length < 1024);
       if (type === true || type === 'haproxy') {
         var match = chunks.match(
-          /^PROXY (TCP\d) ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)\r\n/
+          /^PROXY (TCP\d) ([^\r\s]+) ([^\r\s]+) ([^\r\s]+) ([^\r\s]+)\r\n/
         );
         if (!match)
           return;
@@ -264,17 +290,98 @@ function expectProxyline(server, type) {
         };
       }
 
-      server.emit('proxyline', line);
-      s.ondata = null;
-      listeners[0].call(server, this);
-
+      s.removeListener('readable', onReadable);
       var rest = new Buffer(chunks.slice(match[0].length));
-      if (rest.length !== 0) {
-        if (s.ondata)
-          s.ondata(rest, 0, rest.length);
-        else
-          s.unshift(rest);
-      }
-    };
+      if (rest.length !== 0)
+        s.unshift(rest);
+
+      server.emit('proxyline', line);
+      listeners[0].call(server, s);
+    });
   });
 }
+
+fixtures.ocspBackend = function ocspBackend() {
+  var cache = {};
+
+  var ocspServer = ocsp.Server.create({
+    cert: fixtures.issuerCert,
+    key: fixtures.issuerKey
+  });
+
+  ocspServer.addCert(43, 'good');
+  ocspServer.addCert(44, 'bad');
+
+  var server = http.createServer(function(req, res) {
+    var id = req.url.split('/')[3];
+    if (req.method === 'GET' && cache[id]) {
+      res.writeHead(200, {
+        'Content-Type': 'application/json'
+      });
+      server.cacheHits++;
+      return res.end(JSON.stringify(cache[id]));
+    }
+
+    if (req.method === 'GET') {
+      res.writeHead(404, {
+        'Content-Type': 'application/json'
+      });
+      return res.end('{}');
+    }
+
+    server.cacheMisses++;
+    var chunks = '';
+    req.on('data', function(chunk) {
+      chunks += chunk;
+    });
+    req.once('end', function() {
+      var body = JSON.parse(chunks);
+      var ocspReq = rfc2560.OCSPRequest.decode(
+          new Buffer(body.ocsp, 'base64'),
+          'der');
+
+      ocspServer.getResponses(ocspReq, function(err, responses) {
+        if (err)
+          throw err;
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        var out = {
+          response: responses.toString('base64')
+        };
+        cache[id] = out;
+        res.end(JSON.stringify(out));
+      });
+    });
+  });
+
+  server.cacheHits = 0;
+  server.cacheMisses = 0;
+
+  return server;
+};
+
+fixtures.sniBackend = function sniBackend() {
+  var server = http.createServer(function(req, res) {
+    var host = req.url.split('/')[3];
+    if (host !== 'sni.host') {
+      server.misses++;
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: true, reason: 'SNI ctx not found' }));
+      return;
+    }
+
+    server.hits++;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    var out = {
+      cert: fixtures.goodCert + '\n' + fixtures.issuerCert,
+      key: fixtures.goodKey,
+      ciphers: 'AES128-SHA'
+    };
+    res.end(JSON.stringify(out));
+  });
+
+  server.hits = 0;
+  server.misses = 0;
+
+  return server;
+};

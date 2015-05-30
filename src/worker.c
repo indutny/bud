@@ -13,12 +13,11 @@
 static void bud_worker_close_cb(uv_handle_t* handle);
 static void bud_worker_signal_cb(uv_signal_t* signal, int status);
 static void bud_worker_ipc_client_cb(bud_ipc_t* ipc);
+static void bud_worker_ipc_msg_cb(bud_ipc_t* ipc, bud_ipc_msg_t* msg);
 
 bud_error_t bud_worker(bud_config_t* config) {
   int r;
   bud_error_t err;
-
-  bud_clog(config, kBudLogDebug, "worker starting");
 
   config->loop = uv_default_loop();
   if (config->loop == NULL) {
@@ -31,6 +30,7 @@ bud_error_t bud_worker(bud_config_t* config) {
     goto fatal;
 
   config->ipc.client_cb = bud_worker_ipc_client_cb;
+  config->ipc.msg_cb = bud_worker_ipc_msg_cb;
 
   err = bud_ipc_open(&config->ipc, 0);
   if (!bud_is_ok(err))
@@ -40,9 +40,12 @@ bud_error_t bud_worker(bud_config_t* config) {
   if (!bud_is_ok(err))
     goto failed_ipc_open;
 
+  /* Wait for first file cache message */
+  bud_ipc_wait(&config->ipc);
+
   config->signal.sighup = malloc(sizeof(*config->signal.sighup));
   if (config->signal.sighup == NULL) {
-    err = bud_error_str(kBudErrNoMem, "config->.sighup");
+    err = bud_error_str(kBudErrNoMem, "config->sighup");
     goto failed_ipc_open;
   }
 
@@ -60,12 +63,11 @@ bud_error_t bud_worker(bud_config_t* config) {
     goto failed_signal_start;
   }
 
-#ifndef _WIN32
-  /* Drop privileges */
-  err = bud_config_drop_privileges(config);
+  err = bud_config_load(config);
   if (!bud_is_ok(err))
     goto failed_signal_start;
-#endif  /* !_WIN32 */
+
+  bud_clog(config, kBudLogDebug, "worker starting");
 
   err = bud_ok();
   return err;
@@ -103,6 +105,33 @@ void bud_worker_close_cb(uv_handle_t* handle) {
 void bud_worker_ipc_client_cb(bud_ipc_t* ipc) {
   /* Accept client */
   bud_client_create(ipc->config, bud_ipc_get_stream(ipc));
+}
+
+
+void bud_worker_ipc_msg_cb(bud_ipc_t* ipc, bud_ipc_msg_t* msg) {
+  bud_error_t err;
+
+  /* No-op for now */
+  switch (msg->type) {
+    case kBudIPCBalance:
+      ASSERT(0, "Unexpected");
+      err = bud_ok();
+      break;
+    case kBudIPCConfigFileCache:
+      err = bud_config_set_files(ipc->config,
+                                 (const char*) msg->data,
+                                 msg->size);
+      if (bud_is_ok(err))
+        bud_ipc_continue(ipc);
+      break;
+    case kBudIPCEOF:
+      break;
+  }
+
+  if (bud_is_ok(err))
+    return;
+
+  bud_error_log(ipc->config, kBudLogWarning, err);
 }
 
 

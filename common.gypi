@@ -30,7 +30,7 @@
     "configurations": {
       "Debug": {
         "defines": [ "DEBUG", "_DEBUG" ],
-        "cflags": [ "-g", "-O0", "-fwrapv" ],
+        "cflags": [ "-g", "-O0", "-fwrapv", "-Wno-parentheses-equality" ],
         "xcode_settings": {
           "GCC_OPTIMIZATION_LEVEL": "0"
         },
@@ -55,6 +55,7 @@
         "-W",
         "-Wno-unused-parameter",
         "-Wundeclared-selector",
+        "-Wno-parentheses-equality",
       ],
     },
     "conditions": [

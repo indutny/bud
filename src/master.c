@@ -16,13 +16,17 @@
 #include "ipc.h"
 
 #ifndef _WIN32
-static int bud_daemonize(bud_error_t* err);
+static bud_error_t bud_daemonize();
 static bud_error_t bud_master_init_signals(bud_config_t* config);
 static void bud_master_signal_close_cb(uv_handle_t* handle);
 static void bud_master_signal_cb(uv_signal_t* handle, int signum);
 #endif  /* !_WIN32 */
+static bud_error_t bud_master_get_spawn_args(bud_config_t* config,
+                                             const char*** out);
 static bud_error_t bud_master_spawn_workers(bud_config_t* config);
+static bud_error_t bud_master_finalize_reload(bud_worker_t* worker);
 static bud_error_t bud_master_spawn_worker(bud_worker_t* worker);
+static bud_error_t bud_master_share_config(bud_worker_t* worker);
 static void bud_master_kill_worker(bud_worker_t* worker,
                                    uint64_t delay,
                                    bud_worker_kill_cb cb);
@@ -38,12 +42,12 @@ bud_error_t bud_master(bud_config_t* config) {
   int i;
   bud_error_t err;
 
-  bud_clog(config, kBudLogDebug, "master starting");
-
 #ifndef _WIN32
-  if (config->is_daemon)
-    if (bud_daemonize(&err) != 0)
+  if (config->is_daemon) {
+    err = bud_daemonize();
+    if (!bud_is_ok(err))
       goto fatal;
+  }
 #endif  /* !_WIN32 */
 
   /* Create loop after forking */
@@ -52,6 +56,17 @@ bud_error_t bud_master(bud_config_t* config) {
     err = bud_error_str(kBudErrNoMem, "config->loop");
     goto fatal;
   }
+
+  err = bud_config_load(config);
+  if (!bud_is_ok(err))
+    goto fatal;
+
+  bud_clog(config, kBudLogDebug, "master starting");
+
+  /* Drop privileges */
+  err = bud_config_drop_privileges(config);
+  if (!bud_is_ok(err))
+    goto fatal;
 
 #ifndef _WIN32
   /* Initialize signal watchers */
@@ -62,11 +77,6 @@ bud_error_t bud_master(bud_config_t* config) {
 
   /* Create server and send it to all workers */
   err = bud_server_new(config);
-  if (!bud_is_ok(err))
-    goto fatal;
-
-  /* Drop privileges */
-  err = bud_config_drop_privileges(config);
   if (!bud_is_ok(err))
     goto fatal;
 
@@ -112,39 +122,31 @@ bud_error_t bud_master_finalize(bud_config_t* config) {
 
 
 #ifndef _WIN32
-int bud_daemonize(bud_error_t* err) {
+bud_error_t bud_daemonize() {
   pid_t p;
 
   p = fork();
-  if (p > 0) {
-    /* Make parent exit */
+  /* Make parent exit */
+  if (p > 0)
     exit(0);
-  } else if (p == -1) {
-    *err = bud_error_num(kBudErrForkFailed, errno);
-    return -1;
-  }
+  else if (p == -1)
+    return bud_error_num(kBudErrForkFailed, errno);
 
   /* Child starts new life here */
-  if (chdir("/") != 0) {
-    *err = bud_error_num(kBudErrChdirFailed, errno);
-    return -1;
-  }
+  if (chdir("/") != 0)
+    return bud_error_num(kBudErrChdirFailed, errno);
 
   p = setsid();
-  if (p == -1) {
-    *err = bud_error_num(kBudErrSetsidFailed, errno);
-    return -1;
-  }
+  if (p == -1)
+    return bud_error_num(kBudErrSetsidFailed, errno);
 
   freopen("/dev/null", "r", stdin);
   freopen("/dev/null", "w", stdout);
   freopen("/dev/null", "w", stderr);
-  if (stdin == NULL || stdout == NULL || stderr == NULL) {
-    *err = bud_error(kBudErrNoMem);
-    return -1;
-  }
+  if (stdin == NULL || stdout == NULL || stderr == NULL)
+    return bud_error_str(kBudErrNoMem, "freopen");
 
-  return 0;
+  return bud_ok();
 }
 
 
@@ -251,6 +253,13 @@ void bud_master_signal_cb(uv_signal_t* handle, int signum) {
            "master got SIGHUP, broadcasting to workers");
   stale = config->workers;
 
+  /* Reload all files */
+  err = bud_config_reload_files(config);
+  if (!bud_is_ok(err)) {
+    bud_error_print(stderr, err);
+    return;
+  }
+
   /* Allocate new workers array and start them */
   config->workers = calloc(config->worker_count, sizeof(*config->workers));
   if (config->workers == NULL) {
@@ -303,75 +312,97 @@ bud_error_t bud_master_spawn_workers(bud_config_t* config) {
 }
 
 
-bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
-  bud_error_t err;
+bud_error_t bud_master_finalize_reload(bud_worker_t* worker) {
+  bud_worker_t* start;
   bud_config_t* config;
   int i;
-  int j;
-  int r;
-  uv_process_options_t options;
-  char* aux_argv[] = {"--worker", NULL, NULL, NULL};
 
   config = worker->config;
-  ASSERT(config != NULL, "Worker config absent");
 
-  /* Config reload requested, this worker should not be restarted */
-  if (worker->state & kBudWorkerStateStale) {
-    bud_worker_t* start;
+  start = &worker[-worker->index];
+  worker->state |= kBudWorkerStateDead;
 
-    start = &worker[-worker->index];
-    worker->state |= kBudWorkerStateDead;
+  /* However check if all workers are gone, and if so - release the storage */
+  for (i = 0; i < config->worker_count; i++)
+    if (!(start[i].state & kBudWorkerStateDead))
+      return bud_ok();
 
-    /* However check if all workers are gone, and if so - release the storage */
-    for (i = 0; i < config->worker_count; i++)
-      if (!(start[i].state & kBudWorkerStateDead))
-        return bud_ok();
+  /* All gone :( Good bye! */
+  free(start);
+  return bud_ok();
+}
 
-    /* All gone :( Good bye! */
-    free(start);
-    return bud_ok();
-  }
 
-  memset(&options, 0, sizeof(options));
-  options.exit_cb = bud_master_respawn_worker;
-  options.file = config->exepath;
-  options.stdio_count = 3;
-  options.stdio = calloc(options.stdio_count, sizeof(*options.stdio));
+bud_error_t bud_master_get_spawn_args(bud_config_t* config, const char*** out) {
+  const char** args;
+  const char* aux_argv[] = {"--worker", NULL, NULL, NULL};
+  int i;
+  int j;
+
+  args = calloc(config->argc + ARRAY_SIZE(aux_argv), sizeof(*args));
+
+  if (args == NULL)
+    return bud_error_str(kBudErrNoMem, "options.args");
 
   /* config was piped to master's stdin, now inline it for the workers */
   if (config->piped) {
-    aux_argv[1] = "-i";
-    aux_argv[2] = config->path;
-  }
-
-  options.args = calloc(config->argc + ARRAY_SIZE(aux_argv),
-                        sizeof(*options.args));
-
-  if (options.stdio == NULL || options.args == NULL) {
-    err = bud_error(kBudErrNoMem);
-    goto done;
+    aux_argv[1] = "-c";
+    aux_argv[2] = kPipedConfigPath;
   }
 
   /* Cases:
    * if piped_index <= 0:
    *    args = { config.argv, "--worker" }
    * otherwise:
-   *    args = { config.argv, "--worker", "-i", <config> }
+   *    args = { config.argv, "--worker", "-p", "!config" }
    */
   if (config->piped_index <= 0) {
     for (j = 0; j < config->argc; j++)
-      options.args[j] = config->argv[j];
+      args[j] = config->argv[j];
   } else {
     /* Goal is to skip piped_index, thus excluding --piped-config argument: */
     for (i = 0, j = 0; i < config->piped_index; i++, j++)
-      options.args[j++] = config->argv[i];
+      args[j] = config->argv[i];
 
     for (i = config->piped_index + 1; i < config->argc; i++, j++)
-      options.args[j] = config->argv[i];
+      args[j] = config->argv[i];
   }
 
-  for (r = 0; r < (int) ARRAY_SIZE(aux_argv); r++, j++)
-    options.args[j] = aux_argv[r];
+  for (i = 0; i < (int) ARRAY_SIZE(aux_argv); i++, j++)
+    args[j] = aux_argv[i];
+
+  *out = args;
+
+  return bud_ok();
+}
+
+
+bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
+  bud_error_t err;
+  bud_config_t* config;
+  int r;
+  uv_process_options_t options;
+
+  config = worker->config;
+  ASSERT(config != NULL, "Worker config absent");
+
+  /* Config reload requested, this worker should not be restarted */
+  if (worker->state & kBudWorkerStateStale)
+    return bud_master_finalize_reload(worker);
+
+  memset(&options, 0, sizeof(options));
+  options.exit_cb = bud_master_respawn_worker;
+  options.file = config->exepath;
+  options.stdio_count = 3;
+  options.stdio = calloc(options.stdio_count, sizeof(*options.stdio));
+  if (options.stdio == NULL) {
+    err = bud_error_str(kBudErrNoMem, "options.stdio");
+    goto done;
+  }
+
+  err = bud_master_get_spawn_args(config, (const char***) &options.args);
+  if (!bud_is_ok(err))
+    goto done;
 
   r = uv_timer_init(config->loop, &worker->restart_timer);
   if (r != 0) {
@@ -396,28 +427,23 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   if (r != 0) {
     err = bud_error_num(kBudErrSpawn, r);
     goto failed_uv_spawn;
-  } else {
-    worker->state |= kBudWorkerStateActive;
-    err = bud_ok();
-    bud_clog(worker->config,
-             kBudLogInfo,
-             "spawned bud worker<%d>",
-             worker->proc.pid);
-
-    /* Pending accept - try balancing */
-    if (config->pending_accept) {
-      config->pending_accept = 0;
-      bud_master_balance(config->server);
-    }
   }
 
-  goto done;
+  worker->state |= kBudWorkerStateActive;
+  bud_clog(worker->config,
+           kBudLogInfo,
+           "spawned bud worker<%d>",
+           worker->proc.pid);
 
-failed_uv_spawn:
-  bud_ipc_close(&worker->ipc);
+  err = bud_master_share_config(worker);
+  if (!bud_is_ok(err))
+    goto done;
 
-failed_ipc_init:
-  uv_close((uv_handle_t*) &worker->restart_timer, bud_master_ipc_close_cb);
+  /* Pending accept - try balancing */
+  if (config->pending_accept) {
+    config->pending_accept = 0;
+    bud_master_balance(config->server);
+  }
 
 done:
   free(options.stdio);
@@ -425,6 +451,33 @@ done:
   options.stdio = NULL;
   options.args = NULL;
   return err;
+
+failed_uv_spawn:
+  bud_ipc_close(&worker->ipc);
+
+failed_ipc_init:
+  uv_close((uv_handle_t*) &worker->restart_timer, bud_master_ipc_close_cb);
+  goto done;
+}
+
+
+bud_error_t bud_master_share_config(bud_worker_t* worker) {
+  bud_error_t err;
+  bud_config_t* config;
+  const char* str;
+  size_t size;
+  bud_ipc_msg_header_t files;
+
+  config = worker->config;
+
+  err = bud_config_get_files(config, &str, &size);
+  if (!bud_is_ok(err))
+    return err;
+
+  files.type = kBudIPCConfigFileCache;
+  files.size = size;
+
+  return bud_ipc_send(&worker->ipc, &files, str);
 }
 
 
