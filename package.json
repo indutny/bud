@@ -8,7 +8,7 @@
   "main": "./lib/bud.js",
   "preferGlobal": true,
   "scripts": {
-    "preinstall": "node-gyp configure && node-gyp rebuild && node npm/locate.js",
+    "preinstall": "make preinstall",
     "test": "node npm/locate.js && mocha --reporter spec test/*-test.js"
   },
   "repository": {
