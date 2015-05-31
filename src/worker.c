@@ -67,6 +67,8 @@ bud_error_t bud_worker(bud_config_t* config) {
   if (!bud_is_ok(err))
     goto failed_signal_start;
 
+  bud_ipc_start(&config->ipc);
+
   bud_clog(config, kBudLogDebug, "worker starting");
 
   err = bud_ok();

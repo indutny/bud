@@ -26,6 +26,7 @@ static void bud_ipc_read_cb(uv_stream_t* stream,
 static void bud_ipc_parse(bud_ipc_t* ipc);
 static void bud_ipc_msg_handle_on_close(uv_handle_t* handle);
 static void bud_ipc_msg_send_cb(uv_write_t* req, int status);
+static void bud_ipc_accept_pending(bud_ipc_t* ipc);
 
 
 bud_error_t bud_ipc_init(bud_ipc_t* ipc, bud_config_t* config) {
@@ -78,6 +79,8 @@ bud_error_t bud_ipc_open(bud_ipc_t* ipc, uv_file file) {
 
 bud_error_t bud_ipc_start(bud_ipc_t* ipc) {
   int r;
+
+  bud_ipc_accept_pending(ipc);
 
   r = uv_read_start((uv_stream_t*) ipc->handle,
                     bud_ipc_alloc_cb,
@@ -151,7 +154,11 @@ void bud_ipc_read_cb(uv_stream_t* stream,
   if (ipc->ready != kBudIPCReadyDone)
     return;
 
-  /* Accept handles */
+  bud_ipc_accept_pending(ipc);
+}
+
+
+void bud_ipc_accept_pending(bud_ipc_t* ipc) {
   while (uv_pipe_pending_count(ipc->handle) > 0) {
     uv_handle_type pending;
 
