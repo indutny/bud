@@ -1,6 +1,7 @@
 benchmarks/
 tools/gyp
 *.json
+!bud.gyp.json
 !package.json
 *.sh
 build/
