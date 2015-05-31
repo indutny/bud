@@ -13,6 +13,7 @@ struct bud_config_s;
 
 typedef enum bud_ipc_type_e bud_ipc_type_t;
 typedef enum bud_ipc_state_e bud_ipc_state_t;
+typedef enum bud_ipc_ready_e bud_ipc_ready_t;
 typedef struct bud_ipc_msg_header_s bud_ipc_msg_header_t;
 typedef struct bud_ipc_msg_s bud_ipc_msg_t;
 typedef struct bud_ipc_s bud_ipc_t;
@@ -37,6 +38,12 @@ enum bud_ipc_state_e {
   kBudIPCBody
 };
 
+enum bud_ipc_ready_e {
+  kBudIPCReadyNone,
+  kBudIPCReadyNextTick,
+  kBudIPCReadyDone
+};
+
 #define BUD_IPC_HEADER_SIZE 5
 
 struct bud_ipc_msg_header_s {
@@ -57,7 +64,7 @@ struct bud_ipc_s {
   ringbuffer buffer;
   bud_ipc_state_t state;
   size_t waiting;
-  int ready;
+  bud_ipc_ready_t ready;
 
   bud_ipc_msg_t pending;
 

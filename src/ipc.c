@@ -50,6 +50,8 @@ bud_error_t bud_ipc_init(bud_ipc_t* ipc, bud_config_t* config) {
   ipc->config = config;
   ipc->state = kBudIPCType;
   ipc->waiting = 1;
+  /* NOTE: May be overriden by bud_ipc_wait() */
+  ipc->ready = kBudIPCReadyDone;
   ipc->client_cb = NULL;
   ipc->msg_cb = NULL;
 
@@ -145,6 +147,10 @@ void bud_ipc_read_cb(uv_stream_t* stream,
 
   bud_ipc_parse(ipc);
 
+  /* Accept incoming handles only after loading configuration */
+  if (ipc->ready != kBudIPCReadyDone)
+    return;
+
   /* Accept handles */
   while (uv_pipe_pending_count(ipc->handle) > 0) {
     uv_handle_type pending;
@@ -233,15 +239,17 @@ void bud_ipc_parse(bud_ipc_t* ipc) {
 
 
 void bud_ipc_wait(bud_ipc_t* ipc) {
-  ipc->ready = 0;
+  ipc->ready = kBudIPCReadyNone;
   do
     uv_run(ipc->config->loop, UV_RUN_ONCE);
-  while (ipc->ready == 0);
+  while (ipc->ready == kBudIPCReadyNone);
+  ASSERT(ipc->ready == kBudIPCReadyNextTick, "Unexpected IPC state");
+  ipc->ready = kBudIPCReadyDone;
 }
 
 
 void bud_ipc_continue(bud_ipc_t* ipc) {
-  ipc->ready = 1;
+  ipc->ready = kBudIPCReadyNextTick;
 }
 
 
