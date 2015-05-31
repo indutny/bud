@@ -1,6 +1,6 @@
 {
   "name": "bud-tls",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Bud - TLS Terminator",
   "bin": {
     "bud": "./npm/bud"
