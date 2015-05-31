@@ -301,6 +301,7 @@ function expectProxyline(server, type) {
 
       server.emit('proxyline', line);
       listeners[0].call(server, s);
+      s.emit('readable');
     });
   });
 }
