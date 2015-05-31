@@ -118,6 +118,13 @@ describe('Bud TLS Terminator/SNI', function() {
         servername: 'sni.host'
       });
 
+      // Nasty hack for node.js v0.12
+      var createConn = agent.createConnection;
+      agent.createConnection = function createConnection(options) {
+        options.servername = 'sni.host';
+        return createConn.call(this, options);
+      };
+
       agentRequest(sh, agent, '/hello', function(res, chunks, info) {
         assert.equal(sniBackend.misses, 0);
         assert.equal(sniBackend.hits, 1);

@@ -1,6 +1,6 @@
 {
   "name": "bud-tls",
-  "version": "0.34.4",
+  "version": "1.0.0",
   "description": "Bud - TLS Terminator",
   "bin": {
     "bud": "./npm/bud"
@@ -8,8 +8,8 @@
   "main": "./lib/bud.js",
   "preferGlobal": true,
   "scripts": {
-    "preinstall": "node-gyp configure && node-gyp rebuild && node npm/locate.js",
-    "test": "mocha --reporter spec test/*-test.js"
+    "preinstall": "make preinstall",
+    "test": "node npm/locate.js && mocha --reporter spec test/*-test.js"
   },
   "repository": {
     "type": "git",

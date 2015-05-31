@@ -33,6 +33,7 @@ for (var i = 0; i < paths.length; i++) {
     } catch (e) {
     }
     try {
+      console.error('Symlinking %s => %s', filename, out);
       fs.symlinkSync(filename, out);
     } catch (e) {
       // Ignore errors

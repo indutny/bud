@@ -4,6 +4,7 @@ days                   = 999
 distinguished_name     = req_distinguished_name
 attributes             = req_attributes
 prompt                 = no
+x509_extensions        = v3_ca
 
 [ req_distinguished_name ]
 C                      = US
@@ -15,3 +16,10 @@ CN                     = agent2
 emailAddress           = ry@tinyclouds.org
 
 [ req_attributes ]
+
+[ v3_ca ]
+authorityInfoAccess = @issuer_info
+
+[ issuer_info ]
+OCSP;URI.0 = http://ocsp.nodejs.org/
+caIssuers;URI.0 = http://ca.nodejs.org/ca.cert
