@@ -68,6 +68,7 @@ void bud_client_log(struct bud_client_s* client,
                     bud_log_level_t level,
                     const char* fmt,
                     ...);
+int bud_client_ssl_cert_cb(SSL* ssl, void* arg);
 
 #define LOG(level, side, fmt, ...)                                            \
     bud_client_log(client,                                                    \

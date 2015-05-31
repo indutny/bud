@@ -54,8 +54,10 @@ bud_error_t bud_client_ocsp_stapling(bud_client_t* client) {
   id = bud_context_get_ocsp_id(context, type, &id_size);
 
   /* Certificate has no OCSP id */
-  if (id == NULL)
+  if (id == NULL) {
+    DBG_LN(&client->backend, "stapling id missing");
     return bud_ok();
+  }
 
   /* Request backend for cached respose first */
   client->stapling_cache_req = bud_http_get(config->stapling.pool,

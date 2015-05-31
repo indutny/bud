@@ -88,6 +88,7 @@ describe('Bud TLS Terminator/SNI', function() {
 
   describe('async sni+ocsp', function() {
     var sh = fixtures.getServers({
+      log: { level: 'debug' },
       sni: {
         enabled: true,
         port: 9000
@@ -133,6 +134,51 @@ describe('Bud TLS Terminator/SNI', function() {
 
         assert.equal(info.cert.serialNumber, '2B');
         assert.equal(info.cipher.name, 'AES128-SHA');
+        cb();
+      });
+    });
+  });
+
+  describe('sync sni+ocsp', function() {
+    var sh = fixtures.getServers({
+      contexts: [{
+        servername: 'local.host',
+        cert: fixtures.goodCert + '\n' + fixtures.issuerCert,
+        key: fixtures.goodKey
+      }],
+      stapling: {
+        enabled: true,
+        port: 9001
+      }
+    });
+
+    var ocspBackend;
+    beforeEach(function(cb) {
+      ocspBackend = fixtures.ocspBackend().listen(9001, cb);
+    });
+
+    afterEach(function(cb) {
+      ocspBackend.close(cb);
+    });
+
+    it('should still provide stapling response', function(cb) {
+      var agent = new ocsp.Agent({
+        port: sh.frontend.port,
+        servername: 'local.host'
+      });
+
+      // Nasty hack for node.js v0.12
+      var createConn = agent.createConnection;
+      agent.createConnection = function createConnection(options) {
+        options.servername = 'local.host';
+        return createConn.call(this, options);
+      };
+
+      agentRequest(sh, agent, '/hello', function(res, chunks, info) {
+        assert.equal(ocspBackend.cacheHits, 0);
+        assert.equal(ocspBackend.cacheMisses, 1);
+
+        assert.equal(info.cert.serialNumber, '2B');
         cb();
       });
     });

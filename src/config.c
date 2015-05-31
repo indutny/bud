@@ -21,6 +21,8 @@
 #include "parson.h"
 
 #include "config.h"
+#include "client.h"
+#include "client-common.h"
 #include "common.h"
 #include "ocsp.h"
 #include "http-pool.h"
@@ -1907,9 +1909,15 @@ int bud_config_select_sni_context(SSL* s, int* ad, void* arg) {
     ctx = bud_config_select_context(config, servername, strlen(servername));
 
   if (ctx != NULL) {
+    bud_client_t* client;
+
+    client = SSL_get_ex_data(s, kBudSSLClientIndex);
+    ASSERT(client != NULL, "Unexpected absence of client");
+
     SSL_set_SSL_CTX(s, ctx->ctx);
     s->options = ctx->ctx->options;
     s->verify_mode = ctx->ctx->verify_mode;
+    SSL_set_cert_cb(s, bud_client_ssl_cert_cb, client);
     if (!SSL_set_ex_data(s, kBudSSLSNIIndex, ctx))
       return SSL_TLSEXT_ERR_ALERT_FATAL;
   }

@@ -43,7 +43,6 @@ static bud_client_error_t bud_client_fill_host(bud_client_t* client,
                                                bud_client_host_t* host);
 static void bud_client_handshake_start_cb(const SSL* ssl);
 static void bud_client_handshake_done_cb(const SSL* ssl);
-static int bud_client_ssl_cert_cb(SSL* ssl, void* arg);
 static void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret);
 static const char* bud_client_get_peer_name(bud_client_t* client);
 

@@ -129,6 +129,8 @@ fixtures.getServers = function getServers(options) {
       contexts: sh.contexts && sh.contexts.map(function(ctx) {
         return {
           servername: ctx.servername,
+          key: ctx.key,
+          cert: ctx.cert,
           backend: ctx.backends.map(function(backend) {
             return utile.filter(backend, function(val, key) {
               return !/^(server|requests|index)$/.test(key);
