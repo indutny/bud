@@ -9,6 +9,14 @@
     'openssl_no_asm%': 0,
     'llvm_version%': 0,
     'gas_version%': 0,
+    'fips_dir%': 'false',
+    'conditions': [
+      ['fips_dir == "false"', {
+        'fips_lib%': 'false',
+      }, {
+        'fips_lib%': '<(fips_dir)/lib/fipscanister.o',
+      }],
+    ],
   },
   'targets': [
     {
@@ -21,6 +29,23 @@
         ['exclude', 'store/.*$']
       ],
       'conditions': [
+        # FIPS
+        # node-gyp - I am looking at you!
+        ['fips_dir != "false" and fips_dir != "../../false"', {
+          'defines': [
+            'OPENSSL_FIPS',
+          ],
+          'sources': [
+            '<(fips_lib)',
+          ],
+          'include_dirs': [
+            '<(fips_dir)/include',
+          ],
+
+          # Trick fipsld
+          'product_name': 'crypto',
+        }],
+
         ['openssl_no_asm!=0', {
           # Disable asm
           'defines': [
