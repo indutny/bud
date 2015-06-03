@@ -76,18 +76,27 @@ bud_error_t bud_master(bud_config_t* config) {
 #endif  /* !_WIN32 */
 
   /* Create server and send it to all workers */
-  err = bud_server_new(config);
+  err = bud_create_servers(config);
   if (!bud_is_ok(err))
     goto fatal;
 
   err = bud_master_spawn_workers(config);
 
   if (bud_is_ok(err)) {
-    bud_clog(config,
-             kBudLogInfo,
-             "bud listening on [%s]:%d and...",
-             config->frontend.host,
-             config->frontend.port);
+    if (config->frontend.interface.count == 0) {
+      bud_clog(config,
+               kBudLogInfo,
+               "bud listening on [%s]:%d and...",
+               config->frontend.host,
+               config->frontend.port);
+    }
+    for (i = 0; i < config->frontend.interface.count; i++) {
+      bud_clog(config,
+               kBudLogInfo,
+               "bud listening on [%s]:%d and...",
+               config->frontend.interface.list[i].host,
+               config->frontend.interface.list[i].port);
+    }
     for (i = 0; i < config->contexts[0].backend.count; i++) {
       bud_clog(config,
                kBudLogInfo,
@@ -115,7 +124,7 @@ bud_error_t bud_master_finalize(bud_config_t* config) {
   uv_close((uv_handle_t*) config->signal.sighup, bud_master_signal_close_cb);
 #endif  /* !_WIN32 */
 
-  bud_server_free(config);
+  bud_free_servers(config);
 
   return bud_ok();
 }
@@ -380,6 +389,7 @@ bud_error_t bud_master_get_spawn_args(bud_config_t* config, const char*** out) {
 bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   bud_error_t err;
   bud_config_t* config;
+  bud_server_t* server;
   int r;
   uv_process_options_t options;
 
@@ -439,10 +449,12 @@ bud_error_t bud_master_spawn_worker(bud_worker_t* worker) {
   if (!bud_is_ok(err))
     goto done;
 
-  /* Pending accept - try balancing */
-  if (config->pending_accept) {
-    config->pending_accept = 0;
-    bud_master_balance(config->server);
+  for (server = config->server; server != NULL; server = server->prev) {
+    /* Pending accept - try balancing */
+    if (server->pending_accept) {
+      server->pending_accept = 0;
+      bud_master_balance(server);
+    }
   }
 
 done:
@@ -580,7 +592,7 @@ void bud_master_balance(struct bud_server_s* server) {
 
   /* All workers are down... wait */
   if (!(worker->state & kBudWorkerStateActive)) {
-    config->pending_accept = 1;
+    server->pending_accept = 1;
     return;
   }
 

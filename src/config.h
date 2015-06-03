@@ -33,6 +33,7 @@ typedef enum bud_config_proxyline_s bud_config_proxyline_t;
 typedef struct bud_config_backend_s bud_config_backend_t;
 typedef struct bud_config_backend_list_s bud_config_backend_list_t;
 typedef struct bud_config_frontend_s bud_config_frontend_t;
+typedef struct bud_config_frontend_interface_s bud_config_frontend_interface_t;
 
 int kBudSSLConfigIndex;
 int kBudSSLClientIndex;
@@ -65,11 +66,18 @@ struct bud_config_addr_s {
   BUD_CONFIG_ADDR_FIELDS
 };
 
+struct bud_config_frontend_interface_s {
+  bud_config_addr_t* list;
+  int count;
+};
+
 struct bud_config_frontend_s {
   /* Inheritance */
   BUD_CONFIG_ADDR_FIELDS
 
   /* Public */
+  bud_config_frontend_interface_t interface;
+
   const char* security;
   int reneg_window;
   int reneg_limit;
@@ -230,7 +238,6 @@ struct bud_config_s {
   } signal;
   struct bud_worker_s* workers;
   int last_worker;
-  int pending_accept;
 
   /* Worker state */
   bud_ipc_t ipc;

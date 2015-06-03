@@ -130,6 +130,12 @@ to get the default configuration options (with comments and description below):
     "port": 1443,
     "host": "0.0.0.0",
 
+    // Alternatively you may want to specify multiple address to bind server to
+    // "interfaces": [
+    //   { "port": 1443, "host": "1.1.1.1" },
+    //   { "port": 1444, "host": "2.2.2.2" }
+    // ],
+
     // tcp keepalive value (in seconds)
     "keepalive": 3600,
 

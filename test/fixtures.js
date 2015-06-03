@@ -14,7 +14,9 @@ var bud = require('../');
 var fixtures = exports;
 
 var FRONT_PORT = 18001;
-var BACK_PORT = 18002;
+exports.FRONT_PORT = FRONT_PORT;
+var BACK_PORT = 19002;
+exports.BACK_PORT = BACK_PORT;
 
 function keyPath(name) {
   return path.resolve(__dirname, 'keys', name + '.pem');

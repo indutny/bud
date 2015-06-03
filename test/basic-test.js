@@ -101,4 +101,28 @@ describe('Bud TLS Terminator/Basic', function() {
       });
     });
   });
+
+  describe('multi-frontend', function() {
+    var sh = fixtures.getServers({
+      frontend: {
+        interfaces: [
+          { port: fixtures.FRONT_PORT },
+          { port: fixtures.FRONT_PORT + 1 }
+        ]
+      }
+    });
+
+    it('should be reachable on both interfaces', function(cb) {
+      function fire(port, cb) {
+        https.get('https://127.0.0.1:' + port, function(res) {
+          res.resume();
+          res.once('end', cb);
+        });
+      }
+
+      fire(fixtures.FRONT_PORT, function() {
+        fire(fixtures.FRONT_PORT + 1, cb);
+      });
+    });
+  });
 });

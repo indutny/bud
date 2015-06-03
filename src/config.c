@@ -44,9 +44,13 @@ static bud_error_t bud_config_load_ca_arr(X509_STORE** store,
                                           const JSON_Array* ca);
 static bud_error_t bud_config_load_ca_file(X509_STORE** store,
                                            const char* filename);
+static bud_error_t bud_config_load_frontend_ifaces(
+    JSON_Object* obj,
+    bud_config_frontend_interface_t* interface);
 static bud_error_t bud_config_load_frontend(JSON_Object* obj,
                                             bud_config_frontend_t* frontend);
 static void bud_config_set_defaults(bud_config_t* config);
+static void bud_config_set_frontend_defaults(bud_config_frontend_t* frontend);
 static void bud_config_set_backend_defaults(bud_config_backend_t* backend);
 static void bud_print_help(int argc, char** argv);
 static void bud_print_version();
@@ -635,6 +639,28 @@ fatal:
 }
 
 
+bud_error_t bud_config_load_frontend_ifaces(
+    JSON_Object* obj,
+    bud_config_frontend_interface_t* interface) {
+  JSON_Array* arr;
+  int i;
+
+  arr = json_object_get_array(obj, "interfaces");
+  interface->count = arr == NULL ? 0 : json_array_get_count(arr);
+  if (interface->count == 0)
+    return bud_ok();
+
+  interface->list = calloc(interface->count, sizeof(*interface->list));
+  if (interface->list == NULL)
+    return bud_error_str(kBudErrNoMem, "bud_frontend_interface_t");
+
+  for (i = 0; i < interface->count; i++)
+    bud_config_load_addr(json_array_get_object(arr, i), &interface->list[i]);
+
+  return bud_ok();
+}
+
+
 bud_error_t bud_config_load_frontend(JSON_Object* obj,
                                      bud_config_frontend_t* frontend) {
   JSON_Value* val;
@@ -660,7 +686,7 @@ bud_error_t bud_config_load_frontend(JSON_Object* obj,
   if (val != NULL)
     frontend->allow_half_open = json_value_get_boolean(val);
 
-  return bud_ok();
+  return bud_config_load_frontend_ifaces(obj, &frontend->interface);
 }
 
 
@@ -741,7 +767,7 @@ bud_error_t bud_config_load_backend_list(bud_config_t* config,
   backends->count = backend == NULL ? 0 : json_array_get_count(backend);
   backends->list = calloc(backends->count, sizeof(*backends->list));
   if (backends->list == NULL)
-    return bud_error_str(kBudErrNoMem, "bud_backend_t");
+    return bud_error_str(kBudErrNoMem, "bud_backend_list_t");
 
   for (i = 0; i < backends->count; i++) {
     err = bud_config_load_backend(config,
@@ -1109,15 +1135,9 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->availability.revive_interval, -1, 2500);
   DEFAULT(config->availability.retry_interval, -1, 250);
   DEFAULT(config->availability.max_retries, -1, 5);
-  DEFAULT(config->frontend.port, 0, 1443);
-  DEFAULT(config->frontend.host, NULL, "0.0.0.0");
-  DEFAULT(config->frontend.security, NULL, "ssl23");
-  DEFAULT(config->frontend.keepalive, -1, kBudDefaultKeepalive);
-  DEFAULT(config->frontend.max_send_fragment, -1, 1400);
-  DEFAULT(config->frontend.allow_half_open, -1, 0);
-  DEFAULT(config->frontend.reneg_window, 0, 600);
-  DEFAULT(config->frontend.reneg_limit, -1, 3);
   DEFAULT(config->balance, NULL, "roundrobin");
+
+  bud_config_set_frontend_defaults(&config->frontend);
 
   for (i = 0; i < config->context_count + 1; i++) {
     bud_context_t* ctx;
@@ -1159,6 +1179,25 @@ void bud_config_set_defaults(bud_config_t* config) {
   DEFAULT(config->stapling.port, 0, 9000);
   DEFAULT(config->stapling.host, NULL, "127.0.0.1");
   DEFAULT(config->stapling.url, NULL, "/bud/stapling/%s");
+}
+
+
+void bud_config_set_frontend_defaults(bud_config_frontend_t* frontend) {
+  int i;
+
+  DEFAULT(frontend->port, 0, 1443);
+  DEFAULT(frontend->host, NULL, "0.0.0.0");
+  DEFAULT(frontend->security, NULL, "ssl23");
+  DEFAULT(frontend->keepalive, -1, kBudDefaultKeepalive);
+  DEFAULT(frontend->max_send_fragment, -1, 1400);
+  DEFAULT(frontend->allow_half_open, -1, 0);
+  DEFAULT(frontend->reneg_window, 0, 600);
+  DEFAULT(frontend->reneg_limit, -1, 3);
+
+  for (i = 0; i < frontend->interface.count; i++) {
+    DEFAULT(frontend->interface.list[i].port, 0, 1443);
+    DEFAULT(frontend->interface.list[i].host, NULL, "0.0.0.0");
+  }
 }
 
 
@@ -1767,6 +1806,15 @@ bud_error_t bud_config_init(bud_config_t* config) {
                              &config->frontend.addr);
   if (r != 0)
     return bud_error_num(kBudErrPton, r);
+
+  for (i = 0; i < config->frontend.interface.count; i++) {
+    bud_config_addr_t* addr;
+
+    addr = &config->frontend.interface.list[i];
+    r = bud_config_str_to_addr(addr->host, addr->port, &addr->addr);
+    if (r != 0)
+      return bud_error_num(kBudErrPton, r);
+  }
 
   err = bud_config_format_proxyline(config);
   if (!bud_is_ok(err))
