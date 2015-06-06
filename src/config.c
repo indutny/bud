@@ -1077,7 +1077,7 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"key\": \"%s\",\n", context.key_file);
   fprintf(stdout, "    \"passphrase\": null,\n");
   fprintf(stdout, "    \"ticket_key\": null,\n");
-  fprintf(stdout, "    \"ticket_timedout\": %d,\n", context.ticket_timeout);
+  fprintf(stdout, "    \"ticket_timeout\": %d,\n", context.ticket_timeout);
   fprintf(stdout, "    \"request_cert\": false,\n");
   fprintf(stdout, "    \"optional_cert\": false,\n");
   fprintf(stdout, "    \"ca\": null,\n");
