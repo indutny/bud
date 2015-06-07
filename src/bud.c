@@ -4,6 +4,7 @@
 #include <stdio.h>  /* stderr */
 #include <stdlib.h>  /* NULL */
 
+#include "openssl/rand.h"
 #include "openssl/ssl.h"
 #include "openssl/err.h"
 
@@ -27,6 +28,20 @@ int main(int argc, char** argv) {
     return 1;
   }
 #endif  /* BUD_FIPS_ENABLED */
+
+  /* Get enough entropy to start RAND */
+  for (;;) {
+    int status;
+    status = RAND_status();
+    ASSERT(status >= 0, "RAND_status() returned negative");
+
+    if (status != 0)
+      break;
+
+    /* Give up, RAND_poll() not supported. */
+    if (RAND_poll() == 0)
+      break;
+  }
 
 #ifndef _WIN32
   /* Ignore SIGPIPE */

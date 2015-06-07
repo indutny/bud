@@ -62,6 +62,7 @@ bud_error_t bud_worker(bud_config_t* config) {
     err = bud_error_num(kBudErrSignalInit, r);
     goto failed_signal_start;
   }
+  uv_unref((uv_handle_t*) config->signal.sighup);
 
   err = bud_config_load(config);
   if (!bud_is_ok(err))
@@ -127,6 +128,10 @@ void bud_worker_ipc_msg_cb(bud_ipc_t* ipc, bud_ipc_msg_t* msg) {
         bud_ipc_continue(ipc);
       break;
     case kBudIPCEOF:
+      err = bud_ok();
+      break;
+    case kBudIPCSetTicket:
+      err = bud_config_set_ticket(ipc->config, msg);
       break;
   }
 

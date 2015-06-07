@@ -89,4 +89,12 @@ bud_error_t bud_read_file_by_fd(uv_loop_t* loop, uv_file fd, char** buffer);
 void bud_write_uint32(void* mem, uint32_t value, off_t offset);
 uint32_t bud_read_uint32(void* mem, off_t offset);
 
+/* Encoding primitives */
+typedef enum bud_encoding_e bud_encoding_t;
+
+enum bud_encoding_e {
+  kBudEncodingRaw,
+  kBudEncodingBase64
+};
+
 #endif  /* SRC_COMMON_H_ */

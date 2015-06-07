@@ -23,6 +23,7 @@ static void bud_master_signal_cb(uv_signal_t* handle, int signum);
 #endif  /* !_WIN32 */
 static bud_error_t bud_master_get_spawn_args(bud_config_t* config,
                                              const char*** out);
+static bud_error_t bud_master_init_control(bud_config_t* config);
 static bud_error_t bud_master_spawn_workers(bud_config_t* config);
 static bud_error_t bud_master_finalize_reload(bud_worker_t* worker);
 static bud_error_t bud_master_spawn_worker(bud_worker_t* worker);
@@ -36,6 +37,7 @@ static void bud_master_respawn_worker(uv_process_t* proc,
                                       int64_t exit_status,
                                       int term_signal);
 static void bud_master_ipc_close_cb(uv_handle_t* handle);
+static void bud_master_ipc_msg_cb(bud_ipc_t* ipc, bud_ipc_msg_t* msg);
 
 
 bud_error_t bud_master(bud_config_t* config) {
@@ -74,6 +76,11 @@ bud_error_t bud_master(bud_config_t* config) {
   if (!bud_is_ok(err))
     goto fatal;
 #endif  /* !_WIN32 */
+
+  /* Initialize control IPC */
+  err = bud_master_init_control(config);
+  if (!bud_is_ok(err))
+    goto fatal;
 
   /* Create server and send it to all workers */
   err = bud_create_servers(config);
@@ -125,6 +132,7 @@ bud_error_t bud_master_finalize(bud_config_t* config) {
 #endif  /* !_WIN32 */
 
   bud_free_servers(config);
+  bud_ipc_close(&config->ipc);
 
   return bud_ok();
 }
@@ -247,8 +255,10 @@ void bud_master_signal_cb(uv_signal_t* handle, int signum) {
   config = handle->data;
 
   /* Stop the loop and let finalize to be called */
-  if (config->signal.sighup != handle)
+  if (config->signal.sighup != handle) {
+    bud_clog(config, kBudLogWarning, "Stopping the master");
     return uv_stop(handle->loop);
+  }
 
   /* SIGHUP: 0 workers, handle it */
   if (config->worker_count == 0) {
@@ -479,6 +489,7 @@ bud_error_t bud_master_share_config(bud_worker_t* worker) {
   const char* str;
   size_t size;
   bud_ipc_msg_header_t files;
+  int i;
 
   config = worker->config;
 
@@ -489,7 +500,29 @@ bud_error_t bud_master_share_config(bud_worker_t* worker) {
   files.type = kBudIPCConfigFileCache;
   files.size = size;
 
-  return bud_ipc_send(&worker->ipc, &files, str);
+  err = bud_ipc_send(&worker->ipc, &files, str);
+  if (!bud_is_ok(err))
+    return err;
+
+  /* Send all ticket keys */
+  for (i = 0; i < config->context_count + 1; i++) {
+    bud_context_t* ctx;
+
+    ctx = &config->contexts[i];
+
+    /* Always send default key */
+    if (i != 0 && !ctx->ticket_key_on)
+      continue;
+
+    err = bud_ipc_set_ticket(&worker->ipc,
+                             i,
+                             ctx->ticket_key_storage,
+                             sizeof(ctx->ticket_key_storage));
+    if (!bud_is_ok(err))
+      return err;
+  }
+
+  return bud_ok();
 }
 
 
@@ -599,4 +632,57 @@ void bud_master_balance(struct bud_server_s* server) {
   err = bud_ipc_balance(&worker->ipc, (uv_stream_t*) &server->tcp);
   if (!bud_is_ok(err))
     bud_error_log(config, kBudLogWarning, err);
+}
+
+
+bud_error_t bud_master_init_control(bud_config_t* config) {
+  bud_error_t err;
+
+  err = bud_ipc_init(&config->ipc, config);
+  if (!bud_is_ok(err))
+    return err;
+
+  config->ipc.client_cb = NULL;
+  config->ipc.msg_cb = bud_master_ipc_msg_cb;
+
+  /* Assume stdin is IPC, it will die silently if it is not */
+  err = bud_ipc_open(&config->ipc, 0);
+  if (!bud_is_ok(err))
+    goto failed_ipc_open;
+
+  err = bud_ipc_start(&config->ipc);
+  if (!bud_is_ok(err))
+    goto failed_ipc_open;
+
+  return bud_ok();
+
+failed_ipc_open:
+  bud_ipc_close(&config->ipc);
+
+  bud_clog(config, kBudLogInfo, "Starting master without IPC channel");
+  return bud_ok();
+}
+
+
+void bud_master_ipc_msg_cb(bud_ipc_t* ipc, bud_ipc_msg_t* msg) {
+  bud_error_t err;
+  bud_config_t* config;
+
+  config = ipc->config;
+
+  /* No-op for now */
+  switch (msg->type) {
+    case kBudIPCSetTicket:
+      err = bud_config_set_ticket(config, msg);
+      break;
+    default:
+      ASSERT(0, "Unexpected");
+      err = bud_ok();
+      break;
+  }
+
+  if (bud_is_ok(err))
+    return;
+
+  bud_error_log(ipc->config, kBudLogWarning, err);
 }

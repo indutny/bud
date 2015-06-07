@@ -15,6 +15,7 @@
 #include "openssl/bio.h"
 #include "openssl/err.h"
 #include "openssl/ocsp.h"
+#include "openssl/rand.h"
 #include "openssl/ssl.h"
 #include "openssl/x509.h"
 #include "openssl/x509v3.h"
@@ -98,6 +99,15 @@ static bud_error_t bud_config_files_reduce_reload(bud_hashmap_item_t* item,
                                                   void* arg);
 static bud_error_t bud_config_free_files(bud_hashmap_item_t* item,
                                          void* arg);
+static bud_error_t bud_context_set_ticket(bud_context_t* context,
+                                          const char* ticket,
+                                          size_t size,
+                                          bud_encoding_t enc);
+static bud_error_t bud_config_set_ticket_raw(bud_config_t* config,
+                                             uint32_t index,
+                                             uint32_t size,
+                                             const char* data);
+static void bud_context_rotate_cb(uv_timer_t* timer);
 
 
 int kBudSSLConfigIndex = -1;
@@ -716,6 +726,11 @@ bud_error_t bud_context_load(JSON_Object* obj, bud_context_t* ctx) {
     ctx->ticket_timeout = json_value_get_number(val);
   else
     ctx->ticket_timeout = -1;
+  val = json_object_get_value(obj, "ticket_rotate");
+  if (val != NULL)
+    ctx->ticket_rotate = json_value_get_number(val);
+  else
+    ctx->ticket_rotate = -1;
   ctx->ca_file = json_object_get_string(obj, "ca");
   ctx->ca_array = json_object_get_array(obj, "ca");
   ctx->balance = json_object_get_string(obj, "balance");
@@ -959,6 +974,11 @@ void bud_context_free(bud_context_t* context) {
   context->dh = NULL;
   context->backend.list = NULL;
   context->backend.count = 0;
+
+  if (context->rotate_timer != NULL) {
+    uv_close((uv_handle_t*) context->rotate_timer, (uv_close_cb) free);
+    context->rotate_timer = NULL;
+  }
 }
 
 
@@ -1013,6 +1033,7 @@ void bud_config_print_default() {
   context.backend.list[0].keepalive = -1;
   context.backend.count = 1;
   context.ticket_timeout = -1;
+  context.ticket_rotate = -1;
 
   bud_config_set_defaults(&config);
 
@@ -1078,6 +1099,7 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"passphrase\": null,\n");
   fprintf(stdout, "    \"ticket_key\": null,\n");
   fprintf(stdout, "    \"ticket_timeout\": %d,\n", context.ticket_timeout);
+  fprintf(stdout, "    \"ticket_rotate\": %d,\n", context.ticket_rotate);
   fprintf(stdout, "    \"request_cert\": false,\n");
   fprintf(stdout, "    \"optional_cert\": false,\n");
   fprintf(stdout, "    \"ca\": null,\n");
@@ -1168,7 +1190,8 @@ void bud_config_set_defaults(bud_config_t* config) {
             "DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:AES256-GCM-SHA384:"
             "AES256-SHA256:AES128-GCM-SHA256:AES128-SHA256:AES128-SHA:"
             "DES-CBC3-SHA");
-    DEFAULT(ctx->ticket_timeout, -1, 300);
+    DEFAULT(ctx->ticket_timeout, -1, 3600);
+    DEFAULT(ctx->ticket_rotate, -1, 3600);
     for (j = 0; j < ctx->backend.count; j++)
       bud_config_set_backend_defaults(&ctx->backend.list[j]);
   }
@@ -1467,22 +1490,17 @@ bud_error_t bud_context_init(bud_config_t* config,
   EC_KEY* ecdh;
   bud_error_t err;
   int options;
-  const char* ticket_key;
-  size_t max_len;
+  bud_context_t* ticket_context;
 
   context->config = config;
 
-  /* Decode ticket_key */
-  ticket_key = context->ticket_key == NULL ? config->contexts[0].ticket_key :
-                                             context->ticket_key;
-  if (ticket_key != NULL) {
-    max_len = sizeof(context->ticket_key_storage);
-    if (bud_base64_decode(context->ticket_key_storage,
-                          max_len,
-                          ticket_key,
-                          strlen(ticket_key)) < max_len) {
-      return bud_error(kBudErrSmallTicketKey);
-    }
+  if (context->ticket_key != NULL) {
+    err = bud_context_set_ticket(context,
+                                 context->ticket_key,
+                                 strlen(context->ticket_key),
+                                 kBudEncodingBase64);
+    if (!bud_is_ok(err))
+      return err;
   }
 
   /* Choose method, tlsv1_2 by default */
@@ -1513,12 +1531,17 @@ bud_error_t bud_context_init(bud_config_t* config,
   if (config->frontend.max_send_fragment)
     SSL_CTX_set_max_send_fragment(ctx, config->frontend.max_send_fragment);
 
-  if (ticket_key != NULL) {
+  if (context->ticket_key_on)
+    ticket_context = context;
+  else if (config->contexts[0].ticket_key_on)
+    ticket_context = &config->contexts[0];
+  else
+    ticket_context = NULL;
+
+  if (ticket_context != NULL) {
     SSL_CTX_set_tlsext_ticket_keys(ctx,
-                                   context->ticket_key_storage,
-                                   sizeof(context->ticket_key_storage));
-  } else {
-    SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
+                                   ticket_context->ticket_key_storage,
+                                   sizeof(ticket_context->ticket_key_storage));
   }
   if (context->ticket_timeout != -1)
     SSL_CTX_set_timeout(ctx, context->ticket_timeout);
@@ -1667,6 +1690,33 @@ bud_error_t bud_context_init(bud_config_t* config,
   if (context->balance_e == kBudBalanceSNI) {
     err = bud_error_dstr(kBudErrInvalidBalance, context->balance);
     goto fatal;
+  }
+
+  if (context->ticket_rotate != 0) {
+    int r;
+
+    context->rotate_timer = malloc(sizeof(*context->rotate_timer));
+    if (context->rotate_timer == NULL) {
+      err = bud_error_str(kBudErrNoMem, "rotate_timer");
+      goto fatal;
+    }
+
+    r = uv_timer_init(context->config->loop, context->rotate_timer);
+    if (r != 0) {
+      err = bud_error_num(kBudErrRotateTimer, r);
+      goto fatal;
+    }
+
+    context->rotate_timer->data = context;
+
+    r = uv_timer_start(context->rotate_timer,
+                       bud_context_rotate_cb,
+                       context->ticket_rotate * 1000,
+                       context->ticket_rotate * 1000);
+    if (r != 0) {
+      err = bud_error_num(kBudErrRotateTimer, r);
+      goto fatal;
+    }
   }
 
   context->ctx = ctx;
@@ -2353,8 +2403,6 @@ bud_error_t bud_config_files_reduce_reload(bud_hashmap_item_t* item,
 }
 
 
-
-
 bud_error_t bud_config_reload_files(bud_config_t* config) {
   bud_error_t err;
 
@@ -2487,3 +2535,148 @@ bud_context_pkey_type_t bud_context_select_pkey(bud_context_t* context,
 
 
 #undef SSL_aECDSA
+
+
+bud_error_t bud_context_set_ticket(bud_context_t* context,
+                                   const char* ticket,
+                                   size_t size,
+                                   bud_encoding_t enc) {
+  bud_config_t* config;
+  bud_context_t* root;
+  size_t max_len;
+  int i;
+
+  config = context->config;
+  root = &config->contexts[0];
+
+  if (enc == kBudEncodingRaw) {
+    if (size != sizeof(context->ticket_key_storage))
+      return bud_error(kBudErrSmallTicketKey);
+
+    memcpy(context->ticket_key_storage, ticket, size);
+  } else {
+    ASSERT(enc == kBudEncodingBase64, "Unexpected encoding of ticket key");
+
+    max_len = sizeof(context->ticket_key_storage);
+    if (bud_base64_decode(context->ticket_key_storage,
+                          max_len,
+                          ticket,
+                          size) < max_len) {
+      return bud_error(kBudErrSmallTicketKey);
+    }
+  }
+
+  context->ticket_key_on = 1;
+  if (context->ctx != NULL) {
+    SSL_CTX_set_tlsext_ticket_keys(context->ctx,
+                                   context->ticket_key_storage,
+                                   sizeof(context->ticket_key_storage));
+  }
+
+  if (context != root)
+    return bud_ok();
+
+  /* Update ticket key in dependent contexts */
+  for (i = 0; i < config->context_count + 1; i++) {
+    bud_context_t* cur;
+
+    cur = &config->contexts[i];
+    if (cur->ticket_key_on || cur->ctx == NULL)
+      continue;
+
+    SSL_CTX_set_tlsext_ticket_keys(cur->ctx,
+                                   cur->ticket_key_storage,
+                                   sizeof(cur->ticket_key_storage));
+  }
+
+  return bud_ok();
+}
+
+
+bud_error_t bud_config_set_ticket(bud_config_t* config, bud_ipc_msg_t* msg) {
+  uint32_t index;
+  uint32_t size;
+  const char* data;
+
+  bud_ipc_parse_set_ticket(msg, &index, &data, &size);
+  return bud_config_set_ticket_raw(config, index, size, data);
+}
+
+
+bud_error_t bud_config_set_ticket_raw(bud_config_t* config,
+                                      uint32_t index,
+                                      uint32_t size,
+                                      const char* data) {
+  bud_error_t err;
+  int i;
+
+  err = bud_context_set_ticket(&config->contexts[index],
+                               data,
+                               size,
+                               kBudEncodingRaw);
+  if (!bud_is_ok(err))
+    return err;
+
+
+  if (config->is_worker) {
+    bud_clog(config,
+             kBudLogInfo,
+             "Worker updated ticket key for context: %d",
+             index);
+    return bud_ok();
+  }
+
+
+  /* Retransmit */
+  for (i = 0; i < config->worker_count; i++) {
+    bud_error_t worker_err;
+    if (config->workers[i].state & kBudWorkerStateActive) {
+      worker_err = bud_ipc_set_ticket(&config->workers[i].ipc,
+                                      index,
+                                      data,
+                                      size);
+
+      /* Send to everyone anyway */
+      if (!bud_is_ok(worker_err))
+        err = worker_err;
+    }
+  }
+
+  if (bud_is_ok(err)) {
+    bud_clog(config,
+             kBudLogInfo,
+             "Master retransmitted ticket key for context: %d",
+             index);
+  }
+
+  return bud_ok();
+}
+
+
+void bud_context_rotate_cb(uv_timer_t* timer) {
+  bud_error_t err;
+  bud_context_t* context;
+  bud_config_t* config;
+  int r;
+  uint32_t index;
+
+  context = (bud_context_t*) timer->data;
+  config = context->config;
+
+  /* No rotation in workers */
+  if (config->is_worker)
+    return;
+
+  r = RAND_bytes((unsigned char*) context->ticket_key_storage,
+                 sizeof(context->ticket_key_storage));
+  ASSERT(r == 1, "Failed to randomize new TLS Ticket Key");
+
+  index = context - config->contexts;
+
+  err = bud_config_set_ticket_raw(config,
+                                  index,
+                                  sizeof(context->ticket_key_storage),
+                                  context->ticket_key_storage);
+  if (!bud_is_ok(err))
+    bud_error_log(config, kBudLogWarning, err);
+}

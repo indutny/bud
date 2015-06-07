@@ -154,7 +154,6 @@ struct bud_context_s {
   size_t servername_len;
   bud_config_backend_list_t backend;
 
-  int server_preference;
   const char* cert_file;
   const JSON_Array* cert_files;
   const char* key_file;
@@ -166,9 +165,15 @@ struct bud_context_s {
   const char* ecdh;
   const char* dh_file;
   const char* ticket_key;
+
   int ticket_timeout;
-  int request_cert;
-  int optional_cert;
+  int ticket_rotate;
+
+  int ticket_key_on:1;
+  int request_cert:1;
+  int optional_cert:1;
+  int server_preference:1;
+
   const char* ca_file;
   const JSON_Array* ca_array;
 
@@ -184,6 +189,7 @@ struct bud_context_s {
   char* npn_line;
   size_t npn_line_len;
   bud_config_balance_t balance_e;
+  uv_timer_t* rotate_timer;
 };
 
 #define BUD_CONFIG_TRACE_CLIENT_DECL(V) bud_trace_cb_t* V;
@@ -239,7 +245,7 @@ struct bud_config_s {
   struct bud_worker_s* workers;
   int last_worker;
 
-  /* Worker state */
+  /* Worker state, and master control IPC */
   bud_ipc_t ipc;
 
   /* Used by client.c */
@@ -339,5 +345,8 @@ const char* bud_config_balance_to_str(bud_config_balance_t balance);
 uint64_t bud_config_get_client_id(bud_config_t* config);
 bud_context_pkey_type_t bud_config_pkey_type(EVP_PKEY* pkey);
 bud_context_pkey_type_t bud_context_select_pkey(bud_context_t* context, SSL* s);
+
+/* IPC helpers */
+bud_error_t bud_config_set_ticket(bud_config_t* config, bud_ipc_msg_t* msg);
 
 #endif  /* SRC_CONFIG_H_ */

@@ -80,6 +80,7 @@ bud_error_t bud_ipc_open(bud_ipc_t* ipc, uv_file file) {
 bud_error_t bud_ipc_start(bud_ipc_t* ipc) {
   int r;
 
+  bud_ipc_parse(ipc);
   bud_ipc_accept_pending(ipc);
 
   r = uv_read_start((uv_stream_t*) ipc->handle,
@@ -93,9 +94,10 @@ bud_error_t bud_ipc_start(bud_ipc_t* ipc) {
 
 
 void bud_ipc_close(bud_ipc_t* ipc) {
-  ringbuffer_destroy(&ipc->buffer);
-  if (ipc->handle != NULL)
+  if (ipc->handle != NULL) {
+    ringbuffer_destroy(&ipc->buffer);
     uv_close((uv_handle_t*) ipc->handle, (uv_close_cb) free);
+  }
   ipc->handle = NULL;
 }
 
@@ -178,6 +180,10 @@ void bud_ipc_accept_pending(bud_ipc_t* ipc) {
 void bud_ipc_parse(bud_ipc_t* ipc) {
   /* Loop while there is some data to parse */
   while (ringbuffer_size(&ipc->buffer) >= ipc->waiting) {
+    /* Accept IPC messages after initialization will finish */
+    if (ipc->ready == kBudIPCReadyNextTick)
+      break;
+
     switch (ipc->state) {
       case kBudIPCType:
         {
@@ -393,4 +399,34 @@ void bud_ipc_msg_send_cb(uv_write_t* req, int status) {
 uv_stream_t* bud_ipc_get_stream(bud_ipc_t* ipc) {
   ASSERT(ipc->handle != NULL, "IPC get stream before init");
   return (uv_stream_t*) ipc->handle;
+}
+
+
+void bud_ipc_parse_set_ticket(bud_ipc_msg_t* msg,
+                              uint32_t* index,
+                              const char** data,
+                              uint32_t* size) {
+  ASSERT(msg->size >= 4, "Too small message size for Set Ticket");
+
+  *index = bud_read_uint32(msg->data, 0);
+  *data = (const char*) msg->data + 4;
+  *size = msg->size - 4;
+}
+
+
+bud_error_t bud_ipc_set_ticket(bud_ipc_t* ipc,
+                               uint32_t index,
+                               const char* data,
+                               uint32_t size) {
+  bud_ipc_msg_header_t header;
+  char storage[64];
+  ASSERT(size + 4 <= sizeof(storage), "Too big message for Set Ticket");
+
+  memcpy(storage + 4, data, size);
+  bud_write_uint32(storage, index, 0);
+
+  header.type = kBudIPCSetTicket;
+  header.size = size + 4;
+
+  return bud_ipc_send(ipc, &header, storage);
 }

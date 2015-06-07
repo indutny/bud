@@ -134,6 +134,8 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
       BUD_ERROR("no configuration was loaded")                                \
     case kBudErrFSRead:                                                       \
       BUD_UV_ERROR("uv_fs_read(fd)", err)                                     \
+    case kBudErrRotateTimer:                                                  \
+      BUD_UV_ERROR("uv_timer_init(rotate_timer)", err)                        \
     case kBudErrForkFailed:                                                   \
       BUD_ERROR("fork() failed, errno: %d\n", err.data.ret)                   \
     case kBudErrSetsidFailed:                                                 \
@@ -255,6 +257,7 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
     case kBudErrIPCSend:                                                      \
       BUD_UV_ERROR("bud_ipc_send()", err)                                     \
     default:                                                                  \
+      BUD_ERROR("Unexpected error code: %x", err.code)                        \
       UNEXPECTED;                                                             \
   }
 
@@ -264,10 +267,10 @@ bud_error_t bud_error_num(bud_error_code_t code, int ret) {
 
 #define BUD_UV_ERROR(msg, err)                                                \
     bud_clog(config,                                                          \
-            level,                                                            \
-            msg " returned %d, reason: %s",                                   \
-            err.data.ret,                                                     \
-            uv_strerror(err.data.ret));                                       \
+             level,                                                           \
+             msg " returned %d, reason: %s",                                  \
+             err.data.ret,                                                    \
+             uv_strerror(err.data.ret));                                      \
     break;
 
 void bud_error_log(bud_config_t* config,

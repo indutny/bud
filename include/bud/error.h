@@ -49,6 +49,7 @@ enum bud_error_code_e {
   kBudErrLoadFile = 0x11c,
   kBudErrNoConfig = 0x11d,
   kBudErrFSRead = 0x11e,
+  kBudErrRotateTimer = 0x11f,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,

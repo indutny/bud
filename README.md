@@ -177,10 +177,19 @@ to get the default configuration options (with comments and description below):
     // should decode into 48 raw bytes
     // **Recommend** Generate with:
     // node -pe "require('crypto').randomBytes(48).toString('base64')"
+    //
+    // **Important note**: it should not be generally set, OpenSSL will generate
+    // a random value for it at start, and ticket rotation will change it after
+    // some time anyway
     "ticket_key": "yzNUDktR5KmA4wX9g9kDSzEn...true randomness",
 
-    // **Optional** Ticket timeout in seconds, default: 300
-    "ticket_timeout": 300,
+    // **Optional** Ticket timeout in seconds, default: 3600
+    "ticket_timeout": 3600,
+
+    // **Optional** Interval between rotating ticket keys.
+    // NOTE: If you are deploying bud to many boxes - please contact me, I'll
+    // explain how ticket may be rotated simulatenously on all of them
+    "ticket_rotate": 3600,
 
     // **Optional** NPN protocols to advertise
     "npn": ["http/1.1", "http/1.0"],
