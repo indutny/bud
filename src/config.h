@@ -169,9 +169,9 @@ struct bud_context_s {
   int ticket_timeout;
   int ticket_rotate;
 
-  int ticket_key_on:1;
-  int request_cert:1;
-  int optional_cert:1;
+  unsigned int ticket_key_on:1;
+  unsigned int request_cert:1;
+  unsigned int optional_cert:1;
   int server_preference:1;
 
   const char* ca_file;
