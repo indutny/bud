@@ -4,11 +4,11 @@
 #include "openssl/err.h"
 #include "uv.h"
 
-#include "bud/tracing.h"
-#include "error.h"
-#include "config.h"
-#include "common.h"
-#include "logger.h"
+#include "include/bud/tracing.h"
+#include "src/error.h"
+#include "src/config.h"
+#include "src/common.h"
+#include "src/logger.h"
 
 bud_error_t bud_error(bud_error_code_t code) {
   return bud_error_str(code, NULL);

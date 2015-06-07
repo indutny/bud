@@ -1,9 +1,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "config/files.h"
-#include "common.h"
-#include "config.h"
+#include "src/config/files.h"
+#include "src/common.h"
+#include "src/config.h"
 
 
 bud_error_t bud_config_files_reduce_size(bud_hashmap_item_t* item, void* arg) {

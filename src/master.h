@@ -1,9 +1,9 @@
 #ifndef SRC_MASTER_H_
 #define SRC_MASTER_H_
 
-#include "config.h"
-#include "error.h"
-#include "ipc.h"
+#include "src/config.h"
+#include "src/error.h"
+#include "src/ipc.h"
 
 /* Forward declaration */
 struct bud_server_s;

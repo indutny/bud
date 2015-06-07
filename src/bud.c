@@ -8,10 +8,10 @@
 #include "openssl/ssl.h"
 #include "openssl/err.h"
 
-#include "config.h"
-#include "server.h"
-#include "master.h"
-#include "worker.h"
+#include "src/config.h"
+#include "src/server.h"
+#include "src/master.h"
+#include "src/worker.h"
 
 static void bud_init_openssl();
 

@@ -13,20 +13,20 @@
 #include "openssl/x509v3.h"
 #include "parson.h"
 
-#include "config.h"
-#include "config/files.h"
-#include "config/ticket.h"
-#include "config/tracing.h"
-#include "config/ocsp.h"
-#include "config/utils.h"
-#include "client.h"
-#include "client-common.h"
-#include "common.h"
-#include "ocsp.h"
-#include "http-pool.h"
-#include "logger.h"
-#include "master.h"  /* bud_worker_t */
-#include "version.h"
+#include "src/config.h"
+#include "src/config/files.h"
+#include "src/config/ticket.h"
+#include "src/config/tracing.h"
+#include "src/config/ocsp.h"
+#include "src/config/utils.h"
+#include "src/client.h"
+#include "src/client-common.h"
+#include "src/common.h"
+#include "src/ocsp.h"
+#include "src/http-pool.h"
+#include "src/logger.h"
+#include "src/master.h"  /* bud_worker_t */
+#include "src/version.h"
 
 static bud_error_t bud_config_init(bud_config_t* config);
 static bud_error_t bud_config_load_frontend_ifaces(

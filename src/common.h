@@ -5,7 +5,8 @@
 #include <stdlib.h>
 
 #include "uv.h"
-#include "error.h"
+
+#include "src/error.h"
 
 #define ASSERT__COMMON(expr, desc, ...)                                       \
     do {                                                                      \

@@ -10,10 +10,10 @@
 #include "openssl/x509.h"
 #include "parson.h"
 
-#include "bud/tracing.h"
-#include "common.h"
-#include "error.h"
-#include "ipc.h"
+#include "include/bud/tracing.h"
+#include "src/common.h"
+#include "src/error.h"
+#include "src/ipc.h"
 
 /* Forward declarations */
 struct bud_server_s;

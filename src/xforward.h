@@ -1,7 +1,7 @@
 #ifndef SRC_XFORWARD_H_
 #define SRC_XFORWARD_H_
 
-#include "client-common.h"
+#include "src/client-common.h"
 
 /* Forward declarations */
 struct bud_client_s;

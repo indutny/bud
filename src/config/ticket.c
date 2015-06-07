@@ -1,12 +1,12 @@
 #include <string.h>
 
-#include "config/tracing.h"
-#include "config.h"
-#include "common.h"
-#include "logger.h"
-#include "master.h"  /* bud_worker_t */
-
 #include "openssl/rand.h"
+
+#include "src/config/tracing.h"
+#include "src/config.h"
+#include "src/common.h"
+#include "src/logger.h"
+#include "src/master.h"  /* bud_worker_t */
 
 static bud_error_t bud_config_set_ticket_raw(bud_config_t* config,
                                              uint32_t index,

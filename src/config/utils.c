@@ -8,10 +8,6 @@
 #include <grp.h>  /* getgrnam */
 #endif
 
-#include "config/utils.h"
-#include "common.h"
-#include "config.h"
-
 #include "openssl/bio.h"
 #include "openssl/err.h"
 #include "openssl/ocsp.h"
@@ -21,6 +17,10 @@
 
 #include "parson.h"
 #include "uv.h"
+
+#include "src/config/utils.h"
+#include "src/common.h"
+#include "src/config.h"
 
 int bud_config_str_to_addr(const char* host,
                            uint16_t port,

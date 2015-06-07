@@ -5,11 +5,11 @@
 #endif  /* !_WIN32 */
 #include <unistd.h>  /* getpid */
 
-#include "error.h"
-#include "common.h"
-#include "config.h"
-#include "bud/logger.h"
-#include "logger.h"
+#include "include/bud/logger.h"
+#include "src/error.h"
+#include "src/common.h"
+#include "src/config.h"
+#include "src/logger.h"
 
 static const char* bud_log_level_str(bud_log_level_t level);
 

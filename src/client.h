@@ -4,9 +4,9 @@
 #include "uv.h"
 #include "openssl/ssl.h"
 
-#include "client-common.h"
-#include "server.h"
-#include "http-pool.h"
+#include "src/client-common.h"
+#include "src/server.h"
+#include "src/http-pool.h"
 
 /* Forward declaration */
 struct bud_config_s;

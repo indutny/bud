@@ -3,8 +3,8 @@
 
 #include "uv.h"
 
-#include "client-common.h"
-#include "config.h"
+#include "src/client-common.h"
+#include "src/config.h"
 
 /* Forward declarations */
 struct bud_client_s;

@@ -1,8 +1,8 @@
 #include <stdint.h>
 #include "openssl/ssl.h"
 
-#include "common.h"
-#include "error.h"
+#include "src/common.h"
+#include "src/error.h"
 
 /**
  * NOTE:

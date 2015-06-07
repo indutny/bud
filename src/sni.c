@@ -6,8 +6,8 @@
 #include "openssl/ssl.h"
 #include "parson.h"
 
-#include "error.h"
-#include "config.h"
+#include "src/error.h"
+#include "src/config.h"
 
 
 bud_error_t bud_sni_from_json(bud_config_t* config,

@@ -1,14 +1,14 @@
-#include "tracing.h"
-#include "client.h"
-#include "config.h"
-
 #include <string.h>  /* memset */
+
+#include "src/tracing.h"
+#include "src/client.h"
+#include "src/config.h"
 
 typedef struct bud_dtrace_connection_s bud_dtrace_connection_t;
 typedef struct bud_dtrace_handshake_s bud_dtrace_handshake_t;
 
 #ifdef BUD_DTRACE
-# include "bud_provider.h"
+# include "src/bud_provider.h"
 # define DSTR(val) ((uint64_t) (intptr_t) (val))
 
 #define CONNECTION_FIELDS                                                     \

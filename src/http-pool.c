@@ -6,10 +6,10 @@
 #include "ringbuffer.h"
 #include "parson.h"
 
-#include "http-pool.h"
-#include "common.h"
-#include "config.h"
-#include "queue.h"
+#include "src/http-pool.h"
+#include "src/common.h"
+#include "src/config.h"
+#include "src/queue.h"
 
 static bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
                                             bud_http_method_t method,

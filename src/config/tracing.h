@@ -1,10 +1,10 @@
 #ifndef SRC_CONFIG_TRACING_H_
 #define SRC_CONFIG_TRACING_H_
 
-#include "config.h"
-#include "common.h"
-
 #include "parson.h"
+
+#include "src/config.h"
+#include "src/common.h"
 
 bud_error_t bud_config_load_tracing(bud_config_trace_t* trace,
                                     JSON_Object* obj);

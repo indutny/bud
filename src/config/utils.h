@@ -1,13 +1,13 @@
 #ifndef SRC_CONFIG_UTILS_H_
 #define SRC_CONFIG_UTILS_H_
 
-#include "config.h"
-#include "common.h"
-
 #include "openssl/bio.h"
 #include "openssl/x509.h"
 
 #include "parson.h"
+
+#include "src/config.h"
+#include "src/common.h"
 
 int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in);
 int bud_config_verify_cert(int status, X509_STORE_CTX* s);

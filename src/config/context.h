@@ -1,9 +1,9 @@
 #ifndef SRC_CONFIG_CONTEXT_H_
 #define SRC_CONFIG_CONTEXT_H_
 
-#include "config.h"
-#include "config/utils.h"
-#include "common.h"
+#include "src/config.h"
+#include "src/config/utils.h"
+#include "src/common.h"
 
 bud_error_t bud_context_load_cert(bud_context_t* context,
                                   const char* cert_file);

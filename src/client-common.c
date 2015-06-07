@@ -1,8 +1,8 @@
 #include "uv.h"
 
-#include "client.h"
-#include "client-common.h"
-#include "error.h"
+#include "src/client.h"
+#include "src/client-common.h"
+#include "src/error.h"
 
 
 const char* bud_side_str(bud_client_side_type_t side) {

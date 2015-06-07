@@ -9,16 +9,16 @@
 #include "openssl/x509.h"
 #include "parson.h"
 
-#include "avail.h"
-#include "common.h"
-#include "client.h"
-#include "client-common.h"
-#include "http-pool.h"
-#include "logger.h"
-#include "sni.h"
-#include "ocsp.h"
-#include "tracing.h"
-#include "xforward.h"
+#include "src/avail.h"
+#include "src/common.h"
+#include "src/client.h"
+#include "src/client-common.h"
+#include "src/http-pool.h"
+#include "src/logger.h"
+#include "src/sni.h"
+#include "src/ocsp.h"
+#include "src/tracing.h"
+#include "src/xforward.h"
 
 static void bud_client_side_init(bud_client_side_t* side,
                                  bud_client_side_type_t type,

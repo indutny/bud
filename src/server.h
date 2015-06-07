@@ -3,8 +3,8 @@
 
 #include "uv.h"
 
-#include "config.h"
-#include "error.h"
+#include "src/config.h"
+#include "src/error.h"
 
 typedef struct bud_server_s bud_server_t;
 

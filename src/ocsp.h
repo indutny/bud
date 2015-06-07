@@ -3,7 +3,7 @@
 
 #include "openssl/ssl.h"
 
-#include "error.h"
+#include "src/error.h"
 
 /* Forward declaration */
 struct bud_client_s;

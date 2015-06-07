@@ -1,14 +1,14 @@
 #include <arpa/inet.h>  /* htonl */
 #include <assert.h>
 
+#include "openssl/ssl.h"
 #include "uv.h"
 
-#include "xforward.h"
-#include "client.h"
-#include "client-common.h"
-#include "config.h"
-#include "logger.h"
-#include "openssl/ssl.h"
+#include "src/xforward.h"
+#include "src/client.h"
+#include "src/client-common.h"
+#include "src/config.h"
+#include "src/logger.h"
 
 static const int kSpdyXForwardFrameType = 0xf000;
 

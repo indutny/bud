@@ -3,9 +3,9 @@
 
 #include "openssl/ocsp.h"
 
-#include "config/ocsp.h"
-#include "common.h"
-#include "config.h"
+#include "src/config/ocsp.h"
+#include "src/common.h"
+#include "src/config.h"
 
 const char* bud_context_get_ocsp_id(bud_context_t* context,
                                     bud_context_pkey_type_t type,

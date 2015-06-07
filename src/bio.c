@@ -3,8 +3,8 @@
 #include "openssl/bio.h"
 #include "ringbuffer.h"
 
-#include "bio.h"
-#include "common.h"
+#include "src/bio.h"
+#include "src/common.h"
 
 static int bud_bio_init(BIO* bio);
 static int bud_bio_destroy(BIO* bio);

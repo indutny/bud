@@ -1,8 +1,8 @@
 #ifndef SRC_CONFIG_TICKET_H_
 #define SRC_CONFIG_TICKET_H_
 
-#include "config.h"
-#include "common.h"
+#include "src/config.h"
+#include "src/common.h"
 
 bud_error_t bud_context_set_ticket(bud_context_t* context,
                                    const char* ticket,

@@ -2,13 +2,13 @@
 
 #include "uv.h"
 
-#include "worker.h"
-#include "ipc.h"
-#include "client.h"
-#include "common.h"
-#include "config.h"
-#include "error.h"
-#include "logger.h"
+#include "src/worker.h"
+#include "src/ipc.h"
+#include "src/client.h"
+#include "src/common.h"
+#include "src/config.h"
+#include "src/error.h"
+#include "src/logger.h"
 
 static void bud_worker_close_cb(uv_handle_t* handle);
 static void bud_worker_signal_cb(uv_signal_t* signal, int status);

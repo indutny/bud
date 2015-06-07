@@ -3,8 +3,8 @@
 
 #include "ringbuffer.h"
 
-#include "error.h"
-#include "logger.h"
+#include "src/error.h"
+#include "src/logger.h"
 
 
 /* Forward declarations */

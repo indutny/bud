@@ -1,12 +1,12 @@
 #include "uv.h"
 
-#include "avail.h"
-#include "client.h"
-#include "client-common.h"
-#include "common.h"
-#include "config.h"
-#include "logger.h"
-#include "tracing.h"
+#include "src/avail.h"
+#include "src/client.h"
+#include "src/client-common.h"
+#include "src/common.h"
+#include "src/config.h"
+#include "src/logger.h"
+#include "src/tracing.h"
 
 static void bud_kill_backend(bud_client_t* client,
                              bud_config_backend_t* backend);

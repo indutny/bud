@@ -1,10 +1,10 @@
 #include <stdlib.h>
 
-#include "config/tracing.h"
-#include "config.h"
-#include "common.h"
-
 #include "parson.h"
+
+#include "src/config/tracing.h"
+#include "src/config.h"
+#include "src/common.h"
 
 #define BUD_CONFIG_INIT_TRACING(V) trace->V = NULL;
 

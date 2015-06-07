@@ -4,11 +4,11 @@
 #include <stdint.h>
 
 #include "uv.h"
-
-#include "bud/ipc.h"
-
-#include "error.h"
 #include "ringbuffer.h"
+
+#include "include/bud/ipc.h"
+
+#include "src/error.h"
 
 /* Forward declarations */
 struct bud_config_s;

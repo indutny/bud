@@ -6,9 +6,9 @@
 #include "ringbuffer.h"
 #include "parson.h"
 
-#include "config.h"
-#include "queue.h"
-#include "error.h"
+#include "src/config.h"
+#include "src/queue.h"
+#include "src/error.h"
 
 #define BUD_HTTP_REQUEST_BUF_SIZE 8096
 

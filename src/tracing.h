@@ -1,7 +1,7 @@
 #ifndef SRC_TRACING_H_
 #define SRC_TRACING_H_
 
-#include "bud/tracing.h"  /* public dso API */
+#include "include/bud/tracing.h"  /* public dso API */
 
 /* Forward declarations */
 struct bud_client_s;

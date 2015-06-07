@@ -3,11 +3,11 @@
 
 #include "uv.h"
 
-#include "ipc.h"
-#include "common.h"
-#include "config.h"
-#include "error.h"
-#include "logger.h"
+#include "src/ipc.h"
+#include "src/common.h"
+#include "src/config.h"
+#include "src/error.h"
+#include "src/logger.h"
 
 typedef struct bud_ipc_msg_handle_s bud_ipc_msg_handle_t;
 

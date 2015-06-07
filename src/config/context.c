@@ -7,13 +7,13 @@
 #include "openssl/x509v3.h"
 #include "uv.h"
 
-#include "config/context.h"
-#include "client.h"
-#include "client-common.h"
-#include "common.h"
-#include "config.h"
-#include "config/ticket.h"
-#include "../ocsp.h"
+#include "src/config/context.h"
+#include "src/client.h"
+#include "src/client-common.h"
+#include "src/common.h"
+#include "src/config.h"
+#include "src/config/ticket.h"
+#include "src/ocsp.h"
 
 
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB

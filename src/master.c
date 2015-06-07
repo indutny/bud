@@ -6,14 +6,14 @@
 
 #include "uv.h"
 
-#include "master.h"
-#include "common.h"
-#include "config.h"
-#include "error.h"
-#include "logger.h"
-#include "server.h"
-#include "client.h"
-#include "ipc.h"
+#include "src/master.h"
+#include "src/common.h"
+#include "src/config.h"
+#include "src/error.h"
+#include "src/logger.h"
+#include "src/server.h"
+#include "src/client.h"
+#include "src/ipc.h"
 
 #ifndef _WIN32
 static bud_error_t bud_daemonize();

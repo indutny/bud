@@ -4,9 +4,9 @@
 
 #include "uv.h"
 
-#include "master.h"
-#include "server.h"
-#include "client.h"
+#include "src/master.h"
+#include "src/server.h"
+#include "src/client.h"
 
 static bud_error_t bud_server_new(bud_config_t* config,
                                   bud_config_addr_t* addr);

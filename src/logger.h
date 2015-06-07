@@ -1,9 +1,9 @@
 #ifndef SRC_LOGGER_H_
 #define SRC_LOGGER_H_
 
-#include "bud/logger.h"
-#include "error.h"
-#include "config.h"
+#include "include/bud/logger.h"
+#include "src/error.h"
+#include "src/config.h"
 
 typedef struct bud_logger_s bud_logger_t;
 

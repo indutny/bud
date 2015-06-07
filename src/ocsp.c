@@ -5,13 +5,13 @@
 #include "openssl/ssl.h"
 #include "parson.h"
 
-#include "ocsp.h"
-#include "client.h"
-#include "client-common.h"
-#include "common.h"
-#include "config.h"
-#include "error.h"
-#include "http-pool.h"
+#include "src/ocsp.h"
+#include "src/client.h"
+#include "src/client-common.h"
+#include "src/common.h"
+#include "src/config.h"
+#include "src/error.h"
+#include "src/http-pool.h"
 
 static void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
                                              bud_error_t err);
