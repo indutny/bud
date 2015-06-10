@@ -10,6 +10,29 @@ Bud is a TLS terminating proxy, a babel fish decoding incoming TLS traffic and
 sending it in a plain text to your backend servers.
 Not only does it do this well, bud has a lot of useful features!
 
+## Why bud?
+
+* Asynchronous key/cert loading using the supplied servername extension (SNI)
+* Asynchronous selection of backend to balance (using SNI)
+* Asynchronous OCSP stapling
+* TLS ticket rotation across cluster of workers, or multi-machine cluster
+  (needs separate utility to synchronize them, but the protocol is in-place)
+* Availability: marking backends as dead, reviving them after period of time
+* Multi-frontend mode of operation. Single bud instance might be bound to
+  multiple different ports and interfaces
+* Proxyline support: both HAProxy format at custom BUD JSON format
+* X-Forwarded-For for first HTTP request, and custom frame for SPDY
+  (soon HTTP2 too) connection
+* Multi-context mode of operation, each context is used for different server
+  name. All TLS parameters may be redefined in the context
+* Support for simultaneous ECDSA and RSA certs and keys
+
+## Implementation details
+
+Bud is implemented fully in C, with the exception to the tests which are running
+on [io.js][2]. The networking level is provided by [libuv][3], and the SSL
+implementation by [OpenSSL][4] 1.0.2a.
+
 ## Install
 
 ### Requirements
@@ -586,3 +609,6 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 [0]: http://json.org/
 [1]: http://github.com/indutny/bud-backend
+[2]: https://github.com/nodejs/io.js
+[3]: https://github.com/libuv/libuv
+[4]: http://openssl.org/
