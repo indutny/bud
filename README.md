@@ -499,7 +499,7 @@ config set it like this:
 
 ```json
 {
-  "frontent": {
+  "frontend": {
     // you generated this in the first step
     "key": "server.key",
     // this is the file you downloaded from your cert provider
