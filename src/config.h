@@ -265,6 +265,7 @@ struct bud_config_s {
   int restart_timeout;
   int is_daemon;
   int is_worker;
+  const char* pidfile;
   struct {
     const char* level;
     const char* facility;

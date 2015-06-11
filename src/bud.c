@@ -3,6 +3,8 @@
 #endif  /* !_WIN32 */
 #include <stdio.h>  /* stderr */
 #include <stdlib.h>  /* NULL */
+#include <string.h> /* strerror */
+#include <unistd.h> /* getpid, unlink */
 
 #include "openssl/rand.h"
 #include "openssl/ssl.h"
@@ -19,6 +21,7 @@ static void bud_init_openssl();
 int main(int argc, char** argv) {
   bud_config_t* config;
   bud_error_t err;
+  int pidfd = -1;
 
 #ifdef BUD_FIPS_ENABLED
   if (!FIPS_mode_set(1)) {
@@ -62,6 +65,26 @@ int main(int argc, char** argv) {
   else
     err = bud_master(config);
 
+#ifndef _WIN32
+  /* Write pid file */
+  if (!config->is_worker && config->pidfile != NULL) {
+    pidfd = open(config->pidfile, O_WRONLY | O_CREAT, 0644);
+    if (pidfd == -1) {
+      fprintf(stderr, "failed to open %s: %s\n", config->pidfile, strerror(errno));
+      return 1;
+    }
+
+    char pid[16];
+    snprintf(pid, sizeof(pid), "%d\n", getpid());
+    int n;
+    do
+      n = write(pidfd, pid, strlen(pid));
+    while (n == -1 && errno == EINTR);
+
+    close(pidfd);
+  }
+#endif  /* !_WIN32 */
+
   if (bud_is_ok(err))
     uv_run(config->loop, UV_RUN_DEFAULT);
 
@@ -79,6 +102,10 @@ int main(int argc, char** argv) {
 
   if (config->loop != NULL)
     uv_run(config->loop, UV_RUN_NOWAIT);
+
+  /* Remove pid file if applicable */
+  if (pidfd > -1)
+    unlink(config->pidfile);
 
 fatal:
   if (config != NULL)

@@ -260,6 +260,7 @@ bud_error_t bud_config_load(bud_config_t* config) {
   val = json_object_get_value(obj, "restart_timeout");
   if (val != NULL)
     config->restart_timeout = json_value_get_number(val);
+  config->pidfile = json_object_get_string(obj, "pidfile");
 
   /* Logger configuration */
   log = json_object_get_object(obj, "log");
@@ -649,6 +650,7 @@ void bud_config_print_default() {
   fprintf(stdout, "  \"daemon\": false,\n");
   fprintf(stdout, "  \"workers\": %d,\n", config.worker_count);
   fprintf(stdout, "  \"restart_timeout\": %d,\n", config.restart_timeout);
+  fprintf(stdout, "  \"pidfile\": \"%s\",\n", config.pidfile);
   fprintf(stdout, "  \"log\": {\n");
   fprintf(stdout, "    \"level\": \"%s\",\n", config.log.level);
   fprintf(stdout, "    \"facility\": \"%s\",\n", config.log.facility);
@@ -757,6 +759,7 @@ void bud_config_set_defaults(bud_config_t* config) {
 
   DEFAULT(config->worker_count, -1, 1);
   DEFAULT(config->restart_timeout, -1, 250);
+  DEFAULT(config->pidfile, NULL, "/var/run/bud.pid");
   DEFAULT(config->log.level, NULL, "info");
   DEFAULT(config->log.facility, NULL, "user");
   DEFAULT(config->log.stdio, -1, 1);
