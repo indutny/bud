@@ -117,6 +117,7 @@ fixtures.getServers = function getServers(options) {
 
     sh.frontend.server = bud.createServer({
       log: options.log,
+      master_ipc: options.master_ipc,
       frontend: utile.filter(sh.frontend, function(val, key) {
         return !/^(server|url|host|port)$/.test(key);
       }),

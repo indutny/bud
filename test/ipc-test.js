@@ -5,7 +5,9 @@ var fixtures = require('./fixtures');
 
 describe('Bud TLS Terminator/IPC', function() {
   describe('set ticket', function() {
-    var sh = fixtures.getServers();
+    var sh = fixtures.getServers({
+      master_ipc: true
+    });
 
     function changeKey(index, cb) {
       var head = new Buffer(9);

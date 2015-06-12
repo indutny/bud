@@ -172,7 +172,7 @@ struct bud_context_s {
   unsigned int ticket_key_on:1;
   unsigned int request_cert:1;
   unsigned int optional_cert:1;
-  int server_preference:1;
+  int server_preference;
 
   const char* ca_file;
   const JSON_Array* ca_array;
@@ -265,6 +265,7 @@ struct bud_config_s {
   int restart_timeout;
   int is_daemon;
   int is_worker;
+  int master_ipc;
   struct {
     const char* level;
     const char* facility;

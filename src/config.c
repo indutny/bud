@@ -254,12 +254,16 @@ bud_error_t bud_config_load(bud_config_t* config) {
   /* Workers configuration */
   config->worker_count = -1;
   config->restart_timeout = -1;
+  config->master_ipc = -1;
   val = json_object_get_value(obj, "workers");
   if (val != NULL)
     config->worker_count = json_value_get_number(val);
   val = json_object_get_value(obj, "restart_timeout");
   if (val != NULL)
     config->restart_timeout = json_value_get_number(val);
+  val = json_object_get_value(obj, "master_ipc");
+  if (val != NULL)
+    config->master_ipc = json_value_get_boolean(val);
 
   /* Logger configuration */
   log = json_object_get_object(obj, "log");
@@ -625,12 +629,13 @@ void bud_config_print_default() {
 
   /* Set zero-y values */
   config.worker_count = -1;
+  config.restart_timeout = -1;
+  config.master_ipc = -1;
   config.log.stdio = -1;
   config.log.syslog = -1;
   config.frontend.keepalive = -1;
   config.frontend.max_send_fragment = -1;
   config.frontend.allow_half_open = -1;
-  config.restart_timeout = -1;
   config.availability.death_timeout = -1;
   config.availability.revive_interval = -1;
   config.availability.retry_interval = -1;
@@ -649,6 +654,7 @@ void bud_config_print_default() {
   fprintf(stdout, "  \"daemon\": false,\n");
   fprintf(stdout, "  \"workers\": %d,\n", config.worker_count);
   fprintf(stdout, "  \"restart_timeout\": %d,\n", config.restart_timeout);
+  fprintf(stdout, "  \"master_ipc\": false,\n");
   fprintf(stdout, "  \"log\": {\n");
   fprintf(stdout, "    \"level\": \"%s\",\n", config.log.level);
   fprintf(stdout, "    \"facility\": \"%s\",\n", config.log.facility);
@@ -757,6 +763,7 @@ void bud_config_set_defaults(bud_config_t* config) {
 
   DEFAULT(config->worker_count, -1, 1);
   DEFAULT(config->restart_timeout, -1, 250);
+  DEFAULT(config->master_ipc, -1, 0);
   DEFAULT(config->log.level, NULL, "info");
   DEFAULT(config->log.facility, NULL, "user");
   DEFAULT(config->log.stdio, -1, 1);

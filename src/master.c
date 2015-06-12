@@ -650,9 +650,12 @@ bud_error_t bud_master_init_control(bud_config_t* config) {
   if (!bud_is_ok(err))
     goto failed_ipc_open;
 
-  err = bud_ipc_start(&config->ipc);
-  if (!bud_is_ok(err))
-    goto failed_ipc_open;
+  /* Do not attempt to start IPC when it is disabled */
+  if (config->master_ipc) {
+    err = bud_ipc_start(&config->ipc);
+    if (!bud_is_ok(err))
+      goto failed_ipc_open;
+  }
 
   return bud_ok();
 
