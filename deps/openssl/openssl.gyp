@@ -9,14 +9,7 @@
     'openssl_no_asm%': 0,
     'llvm_version%': 0,
     'gas_version%': 0,
-    'fips_dir%': 'false',
-    'conditions': [
-      ['fips_dir == "false"', {
-        'fips_lib%': 'false',
-      }, {
-        'fips_lib%': '<(fips_dir)/lib/fipscanister.o',
-      }],
-    ],
+    'openssl_fips%': 'false',
   },
   'targets': [
     {
@@ -30,20 +23,25 @@
       ],
       'conditions': [
         # FIPS
-        # node-gyp - I am looking at you!
-        ['fips_dir != "false" and fips_dir != "../../false"', {
+        ['openssl_fips != ""', {
           'defines': [
             'OPENSSL_FIPS',
           ],
-          'sources': [
-            '<(fips_lib)',
-          ],
           'include_dirs': [
-            '<(fips_dir)/include',
+            '<(openssl_fips)/include',
           ],
 
-          # Trick fipsld
+          # Trick fipsld, it expects to see libcrypto.a
           'product_name': 'crypto',
+
+          'direct_dependent_settings': {
+            'defines': [
+              'OPENSSL_FIPS',
+            ],
+            'include_dirs': [
+              '<(openssl_fips)/include',
+            ],
+          },
         }],
 
         ['openssl_no_asm!=0', {
