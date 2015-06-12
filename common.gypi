@@ -10,7 +10,7 @@
     "gcc_version%": "unknown",
     "node_root_dir%": "",
     "clang%": 1,
-    "fips_dir%": "false",
+    "openssl_fips%": "false",
     "conditions": [
       ["GENERATOR == 'ninja'", {
         "OBJ_DIR": "<(PRODUCT_DIR)/obj",

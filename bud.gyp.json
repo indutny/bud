@@ -42,7 +42,7 @@
     ],
     "conditions": [
       # FIPS
-      ["fips_dir != 'false'", {
+      ["openssl_fips != ''", {
         "defines": [
           "BUD_FIPS_ENABLED=1",
         ],

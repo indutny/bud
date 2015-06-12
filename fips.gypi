@@ -1,6 +1,6 @@
 {
   "make_global_settings": [
-    ["CC.target", "<(fips_dir)/bin/fipsld"],
-    ["LINK", "<(fips_dir)/bin/fipsld"],
+    ["CC.target", "<(openssl_fips)/bin/fipsld"],
+    ["LINK", "<(openssl_fips)/bin/fipsld"],
   ],
 }
