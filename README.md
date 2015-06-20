@@ -293,7 +293,7 @@ to get the default configuration options (with comments and description below):
     "host": "127.0.0.1",
 
     // %s will be replaced with actual servername
-    "query": "/bud/sni/%s"
+    "url": "/bud/sni/%s"
   },
 
   // OCSP Stapling response loading
@@ -303,7 +303,7 @@ to get the default configuration options (with comments and description below):
     "host": "127.0.0.1",
 
     // %s will be replaced with actual servername
-    "query": "/bud/stapling/%s"
+    "url": "/bud/stapling/%s"
   },
 
   // Secure contexts (i.e. Server Name Indication support)
