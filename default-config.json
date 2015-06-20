@@ -32,13 +32,13 @@
     "enabled": false,
     "port": 9000,
     "host": "127.0.0.1",
-    "query": "/bud/sni/%s"
+    "url": "/bud/sni/%s"
   },
   "stapling": {
     "enabled": false,
     "port": 9000,
     "host": "127.0.0.1",
-    "query": "/bud/stapling/%s"
+    "url": "/bud/stapling/%s"
   },
   "contexts": []
 }
