@@ -259,7 +259,7 @@ int bud_client_stapling_cb(SSL* ssl, void* arg) {
   bud_client_t* client;
 
   client = SSL_get_ex_data(ssl, kBudSSLClientIndex);
-  if (client->stapling_ocsp_resp == NULL)
+  if (client == NULL || client->stapling_ocsp_resp == NULL)
     return SSL_TLSEXT_ERR_NOACK;
 
   SSL_set_tlsext_status_ocsp_resp(ssl,
