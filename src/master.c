@@ -65,11 +65,6 @@ bud_error_t bud_master(bud_config_t* config) {
 
   bud_clog(config, kBudLogDebug, "master starting");
 
-  /* Drop privileges */
-  err = bud_config_drop_privileges(config);
-  if (!bud_is_ok(err))
-    goto fatal;
-
 #ifndef _WIN32
   /* Initialize signal watchers */
   err = bud_master_init_signals(config);
@@ -84,6 +79,11 @@ bud_error_t bud_master(bud_config_t* config) {
 
   /* Create server and send it to all workers */
   err = bud_create_servers(config);
+  if (!bud_is_ok(err))
+    goto fatal;
+
+  /* Drop privileges */
+  err = bud_config_drop_privileges(config);
   if (!bud_is_ok(err))
     goto fatal;
 
