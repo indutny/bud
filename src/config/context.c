@@ -24,10 +24,16 @@ static char* bud_config_encode_npn(bud_config_t* config,
                                    const JSON_Array* npn,
                                    size_t* len,
                                    bud_error_t* err);
-static int bud_config_advertise_next_proto(SSL* s,
-                                           const unsigned char** data,
-                                           unsigned int* len,
-                                           void* arg);
+static int bud_config_advertise_npn(SSL* s,
+                                    const unsigned char** data,
+                                    unsigned int* len,
+                                    void* arg);
+static int bud_config_advertise_alpn(SSL* ssl,
+                                     const unsigned char** out,
+                                     unsigned char* outlen,
+                                     const unsigned char* in,
+                                     unsigned int inlen,
+                                     void* arg);
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 
 
@@ -461,8 +467,11 @@ bud_error_t bud_context_init(bud_config_t* config,
 
   if (context->npn_line != NULL) {
     SSL_CTX_set_next_protos_advertised_cb(ctx,
-                                          bud_config_advertise_next_proto,
+                                          bud_config_advertise_npn,
                                           context);
+    SSL_CTX_set_alpn_select_cb(ctx,
+                               bud_config_advertise_alpn,
+                               context);
   }
 #else  /* !OPENSSL_NPN_NEGOTIATED */
   err = bud_error(kBudErrNPNNotSupported);
@@ -607,16 +616,33 @@ char* bud_config_encode_npn(bud_config_t* config,
 }
 
 
-int bud_config_advertise_next_proto(SSL* s,
-                                    const unsigned char** data,
-                                    unsigned int* len,
-                                    void* arg) {
+int bud_config_advertise_npn(SSL* s,
+                             const unsigned char** data,
+                             unsigned int* len,
+                             void* arg) {
   bud_context_t* context;
 
   context = arg;
 
   *data = (const unsigned char*) context->npn_line;
   *len = context->npn_line_len;
+
+  return SSL_TLSEXT_ERR_OK;
+}
+
+
+int bud_config_advertise_alpn(SSL* ssl,
+                              const unsigned char** out,
+                              unsigned char* outlen,
+                              const unsigned char* in,
+                              unsigned int inlen,
+                              void* arg) {
+  bud_context_t* context;
+
+  context = arg;
+
+  *out = (const unsigned char*) context->npn_line;
+  *outlen = context->npn_line_len;
 
   return SSL_TLSEXT_ERR_OK;
 }
