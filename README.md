@@ -412,6 +412,43 @@ function onrequest(req, res) {
 }
 ```
 
+If you use nginx, the best results are achieved with the X-Real-IP module and
+the `proxy_protocol` option. Add `proxy_protocol` to your nginx `listen`
+directive. You may have to add a separate server block for traffic coming from
+bud: the server with the `proxy_protocol` directive will not work with plain
+HTTP requests.
+
+```
+server {
+  # Accept and parse proxyline requests
+  listen 127.0.0.1:8080 default proxy_protocol;
+
+  # Use bud's proxyline info for the request IP
+  real_ip_header proxy_protocol;
+
+  # You may want to restrict which origin IPs can use the proxyline format
+  set_real_ip_from 127.0.0.1;
+
+  # [..]
+}
+```
+
+The bud backend must be configured to use proxyline, too:
+
+```
+  "backend": [{
+    "port": 8080,
+    "host": "127.0.0.1",
+    "keepalive": 3600,
+
+    // this is where the magic happens
+    "proxyline": true,
+
+    // and now you can turn that off
+    "x-forward": false,
+  }],
+```
+
 ### SNI Storage
 
 If you have enabled SNI lookup (`sni.enabled` set to `true`), on every TLS
