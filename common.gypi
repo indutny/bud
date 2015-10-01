@@ -11,6 +11,7 @@
     "node_root_dir%": "",
     "clang%": 1,
     "openssl_fips%": "false",
+    "bud_asan%": "false",
     "conditions": [
       ["GENERATOR == 'ninja'", {
         "OBJ_DIR": "<(PRODUCT_DIR)/obj",

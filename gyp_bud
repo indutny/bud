@@ -98,6 +98,12 @@ if __name__ == '__main__':
   else:
     args.append('-Dopenssl_fips=')
 
+  if 'asan' in args:
+    args.append('-Dbud_asan=true')
+    args = filter(lambda arg: arg != 'asan', args)
+  else:
+    args.append('-Dbud_asan=false')
+
   args.append('-Dnode_root_dir=')
 
   gyp_args = list(args)

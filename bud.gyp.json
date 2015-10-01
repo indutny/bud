@@ -55,11 +55,27 @@
         ],
       }],
 
+      ["OS == 'mac' and bud_asan == 'true'", {
+        "xcode_settings": {
+          "OTHER_CFLAGS": [
+            "-fsanitize=address",
+          ],
+          "OTHER_LDFLAGS": [
+            "-fsanitize=address",
+          ],
+        },
+      }],
+
       ["OS == 'linux'", {
         "defines": [
           "_POSIX_C_SOURCE=200112",
           "_GNU_SOURCE",
         ],
+      }],
+
+      ["OS == 'linux' and bud_asan == 'true'", {
+        "cflags": [ "-fsanitize=address" ],
+        "ldflags": [ "-fsanitize=address" ],
       }],
 
       ['OS in "linux freebsd"', {
