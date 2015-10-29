@@ -1201,7 +1201,6 @@ bud_client_error_t bud_client_on_hello(bud_client_t* client) {
                                    client->hello.servername_len,
                                    bud_client_sni_cb,
                                    &err);
-    client->sni_req->data = client;
     if (!bud_is_ok(err)) {
       NOTICE(&client->frontend,
              "failed to request SNI: \"%s\"",
@@ -1209,6 +1208,7 @@ bud_client_error_t bud_client_on_hello(bud_client_t* client) {
       goto fatal;
     }
 
+    client->sni_req->data = client;
     client->async_hello = kBudProgressRunning;
   /* Perform OCSP stapling request */
   } else if (config->stapling.enabled && client->hello.ocsp_request != 0) {
