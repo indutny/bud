@@ -18,6 +18,8 @@ exports.FRONT_PORT = FRONT_PORT;
 var BACK_PORT = 19002;
 exports.BACK_PORT = BACK_PORT;
 
+https.globalAgent._cacheSession = function() {};
+
 function keyPath(name) {
   return path.resolve(__dirname, 'keys', name + '.pem');
 }
@@ -197,7 +199,7 @@ fixtures.sniRequest = function sniRequest(sh, name, uri, cb) {
   var createConn = o.agent.createConnection;
   o.agent.createConnection = function createConnection(options) {
     options.servername = name;
-    return createConn(options);
+    return createConn.call(this, options);
   };
   https.get(o, function(res) {
     var chunks = '';
@@ -222,7 +224,8 @@ fixtures.spdyRequest = function spdyRequest(sh, uri, cb) {
 fixtures.agentRequest = function agentRequest(sh, agent, uri, cb) {
   var req = https.request({
     agent: agent,
-    path: uri
+    path: uri,
+    session: null
   }, function(res) {
     var chunks = '';
     var info = {
