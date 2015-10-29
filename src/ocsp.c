@@ -66,11 +66,11 @@ bud_error_t bud_client_ocsp_stapling(bud_client_t* client) {
                                             id_size,
                                             bud_client_stapling_cache_req_cb,
                                             &err);
-  client->stapling_cache_req->data = client;
 
   if (!bud_is_ok(err))
     goto fatal;
 
+  client->stapling_cache_req->data = client;
   client->async_hello = kBudProgressRunning;
   return bud_ok();
 
@@ -155,11 +155,11 @@ void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
                                        json_size - 1,
                                        bud_client_stapling_req_cb,
                                        &err);
-  client->stapling_req->data = client;
 
   if (!bud_is_ok(err))
     goto done;
 
+  client->stapling_req->data = client;
   client->async_hello = kBudProgressRunning;
 
 done:
