@@ -4,6 +4,7 @@ var https = require('https');
 var ocsp = require('ocsp');
 var rfc2560 = require('asn1.js-rfc2560');
 var spdy = require('spdy');
+var tls = require('tls');
 var utile = require('utile');
 var fs = require('fs');
 var path = require('path');
@@ -171,6 +172,27 @@ fixtures.request = function request(sh, uri, cb) {
     });
     res.on('end', function() {
       cb(res, chunks);
+    });
+  });
+};
+
+fixtures.malformedRequest = function malformedRequest(sh, uri, cb) {
+  var u = url.parse(sh.frontend.url + uri);
+
+  var sep = '\r\n';
+
+  var s = tls.connect(u.port, u.hostname, function() {
+    var req = 'GET ' + u.path + ' HTTP/1.1' + sep +
+              'Host: ' + u.host + sep + sep;
+    s.end(req);
+
+    var chunks = '';
+    s.on('readable', function() {
+      chunks += s.read() || '';
+    });
+    s.on('end', function() {
+      s.destroy();
+      cb(chunks);
     });
   });
 };

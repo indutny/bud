@@ -66,22 +66,26 @@ bud_client_error_t bud_client_http_xforward(bud_client_t* client) {
     goto done;
 
   /* Find first CRLF */
-  for (off = client->xforward.skip; off < avail; off++) {
-    static char* crlf = "\r\n";
+  for (off = client->xforward.skip;
+       off < avail && client->xforward.crlf != 2;
+       off++) {
     char cur;
 
     cur = out[off];
 
-    /* Reset on mismatch */
-    if (cur != crlf[client->xforward.crlf]) {
-      client->xforward.crlf = 0;
-      continue;
-    }
-
-    /* Move forward */
-    if (++client->xforward.crlf == 2) {
-      off++;
-      break;
+    switch (cur) {
+      case '\r':
+        /* More of convenience than a functionality */
+        client->xforward.crlf = 1;
+        continue;
+      case '\n':
+        /* Single line feed is enough */
+        client->xforward.crlf = 2;
+        break;
+      default:
+        /* Reset on mismatch */
+        client->xforward.crlf = 0;
+        continue;
     }
   }
   client->xforward.skip = off;

@@ -1,8 +1,7 @@
 var assert = require('assert');
 var fixtures = require('./fixtures');
 var request = fixtures.request;
-var caRequest = fixtures.caRequest;
-var sniRequest = fixtures.sniRequest;
+var malformedRequest = fixtures.malformedRequest;
 var spdyRequest = fixtures.spdyRequest;
 
 describe('Bud TLS Terminator/x-forward', function() {
@@ -20,6 +19,14 @@ describe('Bud TLS Terminator/x-forward', function() {
       assert.equal(sh.backends[0].requests, 1);
       assert.equal(res.headers['x-got-forwarded-for'], '127.0.0.1');
       assert.equal(res.headers['x-got-forwarded-proto'], 'https');
+      cb();
+    });
+  });
+
+  it('should work with LF-only http', function(cb) {
+    malformedRequest(sh, '/hello', function(body) {
+      assert.equal(sh.backends[0].requests, 1);
+      assert(/X-Got-Forwarded-For: 127.0.0.1/.test(body));
       cb();
     });
   });
