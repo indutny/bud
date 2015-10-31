@@ -10,6 +10,7 @@
 #include "src/config.h"
 #include "src/logger.h"
 
+static size_t kSpdyXForwardMaxSkip = RING_BUFFER_LEN;
 static const int kSpdyXForwardFrameType = 0xf000;
 
 
@@ -89,6 +90,11 @@ bud_client_error_t bud_client_http_xforward(bud_client_t* client) {
     }
   }
   client->xforward.skip = off;
+  if (client->xforward.skip >= kSpdyXForwardMaxSkip) {
+    return bud_client_error(bud_error(kBudErrClientXForwardInsert),
+                            &client->backend);
+  }
+
   if (!bud_client_xforward_done(client))
     goto done;
 
