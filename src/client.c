@@ -622,18 +622,35 @@ bud_client_error_t bud_client_backend_out(bud_client_t* client) {
 
   do {
     avail = 0;
+    int init_trigger;
+
+    init_trigger = SSL_is_init_finished(client->ssl);
     out = ringbuffer_write_ptr(&client->backend.output, &avail);
     read = SSL_read(client->ssl, out, avail);
-    DBG(&client->frontend, "SSL_read() => %d", read);
-    if (read > 0) {
-      ringbuffer_write_append(&client->backend.output, read);
-      if (client->selected_backend->xforward &&
-          !bud_client_xforward_done(client)) {
-        cerr = bud_client_prepend_xforward(client);
-        if (!bud_is_ok(cerr.err))
-          return cerr;
-      }
+    init_trigger ^= SSL_is_init_finished(client->ssl);
 
+    DBG(&client->frontend, "SSL_read() => %d", read);
+    if (read > 0)
+      ringbuffer_write_append(&client->backend.output, read);
+
+    /* Send proxyline once the handshake will end */
+    if (init_trigger != 0) {
+      cerr = bud_client_prepend_proxyline(client);
+      if (!bud_is_ok(cerr.err))
+        return cerr;
+    }
+
+    /* If there is any new data - try to append x-forwarded-for */
+    if (read > 0 &&
+        client->selected_backend->xforward &&
+        !bud_client_xforward_done(client)) {
+      cerr = bud_client_prepend_xforward(client);
+      if (!bud_is_ok(cerr.err))
+        return cerr;
+    }
+
+    /* Either proxyline or incoming data - need to send stuff to the client */
+    if (init_trigger != 0 || read > 0) {
       cerr = bud_client_send(client, &client->backend);
       if (!bud_is_ok(cerr.err))
         return cerr;
@@ -1022,6 +1039,7 @@ bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
    * Client should both handshake and connect to backend in order to
    * be able to send proper proxyline
    */
+  ASSERT(client->proxyline_waiting > 0, "Too many prepend proxyline calls");
   if (--client->proxyline_waiting != 0)
     return bud_client_ok();
 
@@ -1142,9 +1160,6 @@ void bud_client_handshake_done_cb(const SSL* ssl) {
   }
 
 fatal:
-  /* Prepend proxyline if configured any */
-  if (bud_is_ok(cerr.err))
-    cerr = bud_client_prepend_proxyline(client);
   if (!bud_is_ok(cerr.err))
     bud_client_close(client, cerr);
 }
