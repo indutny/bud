@@ -315,6 +315,7 @@ int ringbuffer_insert(ringbuffer* rb,
   bufent* start;
   size_t left;
   size_t offset;
+  size_t to_alloc;
   int r;
 
   assert(length < RING_BUFFER_LEN);
@@ -334,9 +335,18 @@ int ringbuffer_insert(ringbuffer* rb,
   b = rb->write_head;
 
   /* Ensure that we have enough space for shift */
-  r = ringbuffer_write_append(rb, length);
-  if (r != 0)
-    return r;
+  to_alloc = length;
+  while (to_alloc != 0) {
+    size_t avail;
+
+    avail = to_alloc;
+    ringbuffer_write_ptr(rb, &avail);
+    r = ringbuffer_write_append(rb, avail);
+    if (r != 0)
+      return r;
+
+    to_alloc -= avail;
+  }
 
   next = rb->write_head;
   while (left > 0) {
@@ -373,7 +383,7 @@ int ringbuffer_insert(ringbuffer* rb,
 
     delta = off + length - RING_BUFFER_LEN;
     memcpy(start->data + off, data, length - delta);
-    memcpy(next->data, data + length - delta, delta);
+    memcpy(start->next->data, data + length - delta, delta);
   } else {
     memcpy(start->data + off, data, length);
   }
