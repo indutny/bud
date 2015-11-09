@@ -1,5 +1,6 @@
 var assert = require('assert');
 var https = require('https');
+var net = require('net');
 var fixtures = require('./fixtures');
 var request = fixtures.request;
 var caRequest = fixtures.caRequest;
@@ -123,6 +124,18 @@ describe('Bud TLS Terminator/Basic', function() {
       fire(fixtures.FRONT_PORT, function() {
         fire(fixtures.FRONT_PORT + 1, cb);
       });
+    });
+  });
+
+  describe('EOF on frontend', function() {
+    var sh = fixtures.getServers();
+
+    it('should support basic termination', function(cb) {
+      var socket = net.connect(sh.frontend.port);
+      socket.on('close', function() {
+        cb();
+      });
+      socket.end();
     });
   });
 });

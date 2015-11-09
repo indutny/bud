@@ -42,6 +42,11 @@ bud_client_error_t bud_client_prepend_xforward(bud_client_t* client) {
   SSL_get0_next_proto_negotiated(client->ssl,
                                  (const unsigned char**) &protocol,
                                  &proto_len);
+  if (proto_len == 0) {
+    SSL_get0_alpn_selected(client->ssl,
+                           (const unsigned char**) &protocol,
+                           &proto_len);
+  }
 
   if (proto_len >= 5 && memcmp(protocol, "spdy/", 5) == 0) {
     return bud_client_spdy_xforward(client, protocol + 5, proto_len - 5);

@@ -80,8 +80,11 @@ fixtures.getServers = function getServers(options) {
 
         !function(backend) {
           backend.server = spdy.createServer({
-            plain: true,
-            ssl: false
+            spdy: {
+              plain: true,
+              ssl: false,
+              'x-forwarded-for': true
+            }
           }, function(req, res) {
             backend.requests++;
             res.setHeader('X-Backend-Id', backend.index);
@@ -251,8 +254,10 @@ fixtures.agentRequest = function agentRequest(sh, agent, uri, cb) {
   }, function(res) {
     var chunks = '';
     var info = {
-      cert: res.socket.getPeerCertificate(true),
-      cipher: res.socket.getCipher()
+      // TODO(indutny): fix this in node-spdy
+      cert: res.socket.getPeerCertificate &&
+          res.socket.getPeerCertificate(true),
+      cipher: res.socket.getCipher && res.socket.getCipher()
     };
     res.on('readable', function() {
       chunks += res.read() || '';

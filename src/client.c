@@ -971,6 +971,16 @@ void bud_client_shutdown_cb(uv_shutdown_t* req, int status) {
              (side == &client->frontend &&
                   !client->config->frontend.allow_half_open)) {
     bud_client_close(client, bud_client_ok(side));
+  } else if (side == &client->backend &&
+             client->backend.reading == kBudProgressNone) {
+    bud_client_error_t cerr;
+
+    DBG_LN(&client->backend, "read_start after shutdown");
+    cerr = bud_client_read_start(client, &client->backend);
+    if (bud_is_ok(cerr.err))
+      client->backend.reading = kBudProgressRunning;
+    else
+      bud_client_close(client, cerr);
   }
 }
 
