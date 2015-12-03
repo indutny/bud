@@ -104,6 +104,7 @@ if __name__ == '__main__':
   else:
     args.append('-Dbud_asan=false')
 
+  args.append('-Dnode_byteorder=' + sys.byteorder)
   args.append('-Dnode_root_dir=')
 
   gyp_args = list(args)
