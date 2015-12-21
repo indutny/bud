@@ -258,7 +258,7 @@ void bud_client_connect_cb(uv_connect_t* req, int status) {
   }
 
   /* Prepend proxyline if configured any */
-  cerr = bud_client_prepend_proxyline(client);
+  cerr = bud_client_prepend_proxyline(client, kBudProxylineBackendConnect);
   if (!bud_is_ok(cerr.err))
     goto fatal;
 

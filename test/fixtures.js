@@ -200,6 +200,26 @@ fixtures.malformedRequest = function malformedRequest(sh, uri, cb) {
   });
 };
 
+fixtures.renegRequest = function renegRequest(sh, uri, cb) {
+  var u = url.parse(sh.frontend.url + uri);
+
+  var s = tls.connect(u.port, u.hostname, function() {
+    var req = 'GET ' + u.path + ' HTTP/1.1\r\nHost: ' + u.host + '\r\n';
+    s.write(req);
+    s.renegotiate({});
+    s.end('\r\n');
+
+    var chunks = '';
+    s.on('readable', function() {
+      chunks += s.read() || '';
+    });
+    s.on('end', function() {
+      s.destroy();
+      cb(chunks);
+    });
+  });
+};
+
 fixtures.caRequest = function caRequest(sh, uri, fake, cb) {
   var o = url.parse(sh.frontend.url + uri);
   o.agent = new https.Agent({

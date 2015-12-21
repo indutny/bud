@@ -4,6 +4,7 @@ var request = fixtures.request;
 var caRequest = fixtures.caRequest;
 var sniRequest = fixtures.sniRequest;
 var spdyRequest = fixtures.spdyRequest;
+var renegRequest = fixtures.renegRequest;
 
 describe('Bud TLS Terminator/Proxyline', function() {
   describe('proxyline', function() {
@@ -25,6 +26,21 @@ describe('Bud TLS Terminator/Proxyline', function() {
       sh.backends[0].server.on('proxyline', function(obj) {
         assert.equal(obj.inbound.port, sh.frontend.port);
         gotProxyline = true;
+      });
+    });
+
+    it('should not be sent twice on renegotiation', function(cb) {
+      var gotProxyline = 0;
+
+      renegRequest(sh, '/hello', function() {
+        assert.equal(sh.backends[0].requests, 1);
+        assert.equal(gotProxyline, 1);
+        cb();
+      });
+
+      sh.backends[0].server.on('proxyline', function(obj) {
+        assert.equal(obj.inbound.port, sh.frontend.port);
+        gotProxyline++;
       });
     });
   });

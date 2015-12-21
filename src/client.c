@@ -93,7 +93,8 @@ void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   client->selected_backend = NULL;
 
   /* Proxyline */
-  client->proxyline_waiting = 2;
+  client->proxyline_waiting = kBudProxylineHandshake |
+                              kBudProxylineBackendConnect;
 
   /* X-Forward */
   client->xforward.skip = 0;
@@ -635,7 +636,7 @@ bud_client_error_t bud_client_backend_out(bud_client_t* client) {
 
     /* Send proxyline once the handshake will end */
     if (init_trigger != 0) {
-      cerr = bud_client_prepend_proxyline(client);
+      cerr = bud_client_prepend_proxyline(client, kBudProxylineHandshake);
       if (!bud_is_ok(cerr.err))
         return cerr;
     }
@@ -1039,19 +1040,28 @@ fatal:
 }
 
 
-bud_client_error_t bud_client_prepend_proxyline(bud_client_t* client) {
+bud_client_error_t bud_client_prepend_proxyline(
+    struct bud_client_s* client,
+    bud_client_proxyline_phase_t phase) {
   int r;
   const char* family;
   char proxyline[1024];
   bud_config_proxyline_t type;
 
+  /* Renegotiations should not trigger failure */
+  if ((client->proxyline_waiting & kBudProxylineOnce) != 0)
+    return bud_client_ok();
+
+  client->proxyline_waiting &= ~phase;
+
   /*
    * Client should both handshake and connect to backend in order to
    * be able to send proper proxyline
    */
-  ASSERT(client->proxyline_waiting > 0, "Too many prepend proxyline calls");
-  if (--client->proxyline_waiting != 0)
+  if (client->proxyline_waiting != 0)
     return bud_client_ok();
+
+  client->proxyline_waiting |= kBudProxylineOnce;
 
   type = client->selected_backend->proxyline;
 

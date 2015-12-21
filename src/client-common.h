@@ -12,6 +12,7 @@ struct bud_client_s;
 
 typedef enum bud_client_side_type_e bud_client_side_type_t;
 typedef enum bud_client_progress_e bud_client_progress_t;
+typedef enum bud_client_proxyline_phase_e bud_client_proxyline_phase_t;
 typedef struct bud_client_side_s bud_client_side_t;
 typedef struct bud_client_error_s bud_client_error_t;
 
@@ -48,6 +49,12 @@ struct bud_client_error_s {
   bud_client_side_t* side;
 };
 
+enum bud_client_proxyline_phase_e {
+  kBudProxylineHandshake = 0x1,
+  kBudProxylineBackendConnect = 0x2,
+  kBudProxylineOnce = 0x4
+};
+
 const char* bud_side_str(bud_client_side_type_t side);
 bud_client_error_t bud_client_error(bud_error_t err, bud_client_side_t* side);
 bud_client_error_t bud_client_ok();
@@ -63,7 +70,9 @@ void bud_client_read_cb(uv_stream_t* stream,
 bud_client_error_t bud_client_read_start(struct bud_client_s* client,
                                          bud_client_side_t* side);
 bud_client_error_t bud_client_cycle(struct bud_client_s* client);
-bud_client_error_t bud_client_prepend_proxyline(struct bud_client_s* client);
+bud_client_error_t bud_client_prepend_proxyline(
+    struct bud_client_s* client,
+    bud_client_proxyline_phase_t phase);
 void bud_client_log(struct bud_client_s* client,
                     bud_log_level_t level,
                     const char* fmt,
