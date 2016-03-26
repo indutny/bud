@@ -5,8 +5,7 @@ tools/gyp
 *.sh
 build/
 out/
-npm/bud
-npm/bud.exe
+bin/
 npm-debug.log
 node_modules/
 
