@@ -1,5 +1,6 @@
 {
   "variables": {
+    "module_root_dir%": "",
     "visibility%": "hidden",         # V8"s visibility setting
     "target_arch%": "ia32",          # set v8"s target architecture
     "host_arch%": "ia32",            # set v8"s host architecture

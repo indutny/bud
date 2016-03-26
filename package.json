@@ -3,13 +3,13 @@
   "version": "1.3.9",
   "description": "Bud - TLS Terminator",
   "bin": {
-    "bud": "./npm/bud"
+    "bud": "./bin/bud"
   },
   "main": "./lib/bud.js",
   "preferGlobal": true,
   "scripts": {
     "preinstall": "make preinstall",
-    "test": "node npm/locate.js && mocha --reporter spec test/*-test.js"
+    "test": "mocha --reporter spec test/*-test.js"
   },
   "repository": {
     "type": "git",
