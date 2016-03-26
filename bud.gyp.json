@@ -152,5 +152,17 @@
         ],
       }],
     ],
+  },
+  {
+    "target_name": "copy_binary",
+    "type":"none",
+    "dependencies" : [ "bud" ],
+    "copies":
+    [
+       {
+          'destination': '<(module_root_dir)/bin/',
+          'files': ['<(module_root_dir)/out/Release/bud']
+       }
+    ]
   }]
 }

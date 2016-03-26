@@ -106,6 +106,7 @@ if __name__ == '__main__':
 
   args.append('-Dnode_byteorder=' + sys.byteorder)
   args.append('-Dnode_root_dir=')
+  args.append('-Dmodule_root_dir=' + os.path.abspath(root))
 
   gyp_args = list(args)
   print gyp_args
