@@ -1,8 +1,8 @@
 #ifndef SRC_VERSION_H_
 #define SRC_VERSION_H_
 
-#define BUD_VERSION_MAJOR 1
-#define BUD_VERSION_MINOR 3
-#define BUD_VERSION_PATCH 11
+#define BUD_VERSION_MAJOR 4
+#define BUD_VERSION_MINOR 0
+#define BUD_VERSION_PATCH 0
 
 #endif  /* SRC_VERSION_H_ */
