@@ -1,6 +1,6 @@
 # Bud
 [![Build Status](https://secure.travis-ci.org/indutny/bud.png)](http://travis-ci.org/indutny/bud)
-[![NPM version](https://badge.fury.io/js/bud-tls.svg)](http://badge.fury.io/js/bud-tls)
+[![NPM version](https://badge.fury.io/js/bud.svg)](http://badge.fury.io/js/bud)
 
 A TLS terminator for superheroes.
 
@@ -56,7 +56,7 @@ You must have gcc installed. Chances are that you do, but in case you don't:
 Bud can easily be installed using [npm](http://npmjs.org)
 
 ``` bash
-[sudo] npm install -g bud-tls
+[sudo] npm install -g bud
 ```
 
 This will install the command line tool `bud`.  Optionally, you can build
@@ -594,7 +594,7 @@ read -d '' budconfig << EOF
         <template>
             <common_name>
                 <loctext xml:lang="C">
-                    bud-tls
+                    bud
                 </loctext>
             </common_name>
         </template>
@@ -623,7 +623,7 @@ Join #bud-tls on freenode IRC to discuss things with me or others!
 
 This software is licensed under the MIT License.
 
-Copyright Fedor Indutny, 2013.
+Copyright Fedor Indutny, 2013-2016.
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the
