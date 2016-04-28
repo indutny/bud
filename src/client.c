@@ -20,6 +20,13 @@
 #include "src/tracing.h"
 #include "src/xforward.h"
 
+typedef enum bud_peer_name_e bud_peer_name_t;
+
+enum bud_peer_name_e {
+  kBudPeerCommonName,
+  kBudPeerDistinguishedName
+};
+
 static void bud_client_side_init(bud_client_side_t* side,
                                  bud_client_side_type_t type,
                                  bud_client_t* client);
@@ -44,7 +51,8 @@ static bud_client_error_t bud_client_fill_host(bud_client_t* client,
 static void bud_client_handshake_start_cb(const SSL* ssl);
 static void bud_client_handshake_done_cb(const SSL* ssl);
 static void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret);
-static const char* bud_client_get_peer_name(bud_client_t* client);
+static char* bud_client_get_peer_name(bud_client_t* client,
+                                      bud_peer_name_t type);
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream) {
   int r;
@@ -1085,9 +1093,12 @@ bud_client_error_t bud_client_prepend_proxyline(
                  client->remote.host,
                  ntohs(client->remote.port));
   } else {
-    const char* cn;
+    char* cn;
+    char* dn;
 
-    cn = bud_client_get_peer_name(client);
+    cn = bud_client_get_peer_name(client, kBudPeerCommonName);
+    dn = bud_client_get_peer_name(client, kBudPeerDistinguishedName);
+
     r = snprintf(proxyline,
                  sizeof(proxyline),
                  client->config->proxyline_fmt.json,
@@ -1096,7 +1107,13 @@ bud_client_error_t bud_client_prepend_proxyline(
                  ntohs(client->remote.port),
                  cn != NULL ? '"' : 'f',
                  cn != NULL ? cn : "als",
-                 cn != NULL ? '"' : 'e');
+                 cn != NULL ? '"' : 'e',
+                 dn != NULL ? '"' : 'f',
+                 dn != NULL ? dn : "als",
+                 dn != NULL ? '"' : 'e');
+
+    free(cn);
+    free(dn);
   }
   ASSERT(0 <= r && r < (int) sizeof(proxyline), "Client proxyline overflow");
 
@@ -1273,20 +1290,47 @@ void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret) {
 }
 
 
-const char* bud_client_get_peer_name(bud_client_t* client) {
+char* bud_client_get_peer_name(bud_client_t* client, bud_peer_name_t type) {
   X509* cert;
+  X509_NAME* name;
+  char* result;
+  int len;
+  int nid;
 
   cert = SSL_get_peer_certificate(client->ssl);
-  if (cert == NULL || cert->name == NULL)
+  if (cert == NULL)
     return NULL;
 
-  /* TODO(indutny): escape them */
-  if (strchr(cert->name, '"') != NULL || strchr(cert->name, '\\') != NULL)
+  name = X509_get_subject_name(cert);
+  if (name == NULL)
     return NULL;
+
+  if (type == kBudPeerCommonName)
+    nid = NID_commonName;
+  else if (type == kBudPeerDistinguishedName)
+    nid = NID_distinguishedName;
+  else
+    return NULL;
+
+  len = X509_NAME_get_text_by_NID(name, nid, NULL, 0);
+  if (len <= 0)
+    return NULL;
+
+  result = malloc(len + 1);
+  if (result == NULL)
+    return NULL;
+
+  X509_NAME_get_text_by_NID(name, nid, result, len + 1);
+
+  /* TODO(indutny): escape them */
+  if (strchr(result, '"') != NULL || strchr(result, '\\') != NULL) {
+    free(result);
+    return NULL;
+  }
 
   ASSERT(cert->references > 1, "Certificate couldn't be live for enough time");
   X509_free(cert);
-  return cert->name;
+  return result;
 }
 
 

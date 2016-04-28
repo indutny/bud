@@ -67,6 +67,7 @@ describe('Bud TLS Terminator/Proxyline', function() {
       sh.backends[0].server.on('proxyline', function(obj) {
         assert.equal(obj.inbound.port, sh.frontend.port);
         assert(/agent1/.test(obj.outbound.cn));
+        assert(/distinguished-agent1/.test(obj.outbound.dn));
         gotProxyline = true;
       });
     });

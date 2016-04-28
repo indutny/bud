@@ -318,7 +318,8 @@ function expectProxyline(server, type) {
           outbound: {
             host: match[2],
             port: match[4],
-            cn: ''
+            cn: '',
+            dn: ''
           },
           inbound: {
             host: match[3],
@@ -338,7 +339,8 @@ function expectProxyline(server, type) {
           outbound: {
             host: j.peer.host,
             port: j.peer.port,
-            cn: j.peer.cn
+            cn: j.peer.cn,
+            dn: j.peer.dn
           },
           inbound: {
             host: j.bud.host,

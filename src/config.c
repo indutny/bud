@@ -1029,7 +1029,8 @@ bud_error_t bud_config_format_proxyline(bud_config_t* config) {
                    "\"peer\":{"
                      "\"host\":\"%%s\","
                      "\"port\":%%hu,"
-                     "\"cn\":%%c%%s%%c}"
+                     "\"cn\":%%c%%s%%c,"
+                     "\"dn\":%%c%%s%%c}"
                    "}\r\n",
                host,
                config->frontend.port);

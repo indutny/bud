@@ -13,6 +13,7 @@ L                      = SF
 O                      = Joyent
 OU                     = Node.js
 CN                     = agent1
+distinguishedName      = distinguished-agent1
 emailAddress           = ry@tinyclouds.org
 
 [ req_attributes ]
