@@ -619,6 +619,12 @@ A docker image is [avaliable](https://github.com/joeybaker/docker-bud-tls)
 
 Join #bud-tls on freenode IRC to discuss things with me or others!
 
+## Security
+
+If you'd like to be notified about security releases of this software - please
+consider filling out [this form][5] and/or adding your company on a
+[public wiki page][6].
+
 ## LICENSE
 
 This software is licensed under the MIT License.
@@ -649,3 +655,5 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 [2]: https://github.com/nodejs/io.js
 [3]: https://github.com/libuv/libuv
 [4]: http://openssl.org/
+[5]: http://goo.gl/forms/AFxO4aZfip
+[6]: https://github.com/indutny/bud/wiki/Companies-that-use-bud
