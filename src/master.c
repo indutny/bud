@@ -16,7 +16,8 @@
 #include "src/ipc.h"
 
 #ifndef _WIN32
-static bud_error_t bud_daemonize();
+static bud_error_t bud_daemonize_start();
+static bud_error_t bud_daemonize_end();
 static bud_error_t bud_master_init_signals(bud_config_t* config);
 static void bud_master_signal_close_cb(uv_handle_t* handle);
 static void bud_master_signal_cb(uv_signal_t* handle, int signum);
@@ -46,7 +47,7 @@ bud_error_t bud_master(bud_config_t* config) {
 
 #ifndef _WIN32
   if (config->is_daemon) {
-    err = bud_daemonize();
+    err = bud_daemonize_start();
     if (!bud_is_ok(err))
       goto fatal;
   }
@@ -113,6 +114,14 @@ bud_error_t bud_master(bud_config_t* config) {
     }
   }
 
+#ifndef _WIN32
+  if (config->is_daemon) {
+    err = bud_daemonize_end();
+    if (!bud_is_ok(err))
+      goto fatal;
+  }
+#endif  /* !_WIN32 */
+
 fatal:
   return err;
 }
@@ -139,7 +148,7 @@ bud_error_t bud_master_finalize(bud_config_t* config) {
 
 
 #ifndef _WIN32
-bud_error_t bud_daemonize() {
+bud_error_t bud_daemonize_start() {
   pid_t p;
 
   p = fork();
@@ -157,6 +166,11 @@ bud_error_t bud_daemonize() {
   if (p == -1)
     return bud_error_num(kBudErrSetsidFailed, errno);
 
+  return bud_ok();
+}
+
+
+bud_error_t bud_daemonize_end() {
   freopen("/dev/null", "r", stdin);
   freopen("/dev/null", "w", stdout);
   freopen("/dev/null", "w", stderr);
