@@ -8,6 +8,14 @@
       "git://github.com/gypkg/ringbuffer@^1.0.0 => ringbuffer.gyp:ringbuffer",
       "git://github.com/gypkg/openssl@~1.2.7 => openssl.gyp:openssl",
     ],
+
+    "conditions": [
+      ["node_root_dir == ''", {
+        "LIBOPENSSL": "<(PRODUCT_DIR)/libopenssl.a",
+      }, {
+        "LIBOPENSSL": "<(PRODUCT_DIR)/openssl.a",
+      }],
+    ],
   },
 
   "targets": [{
