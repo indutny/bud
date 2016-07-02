@@ -50,8 +50,11 @@ static http_parser_settings bud_parser_settings = {
   NULL,
   NULL,
   NULL,
+  NULL,
   bud_http_request_body_cb,
-  bud_http_request_message_complete_cb
+  bud_http_request_message_complete_cb,
+  NULL,
+  NULL
 };
 
 bud_http_pool_t* bud_http_pool_new(bud_config_t* config,

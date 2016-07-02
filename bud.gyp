@@ -1,20 +1,13 @@
 {
   "variables": {
     "openssl_fips%": "",
+    "LIBOPENSSL": "<(PRODUCT_DIR)/libopenssl.a",
     "gypkg_deps": [
       "git://github.com/libuv/libuv.git@^1.9.0 => uv.gyp:libuv",
       "git://github.com/indutny/uv_link_t@^1.0.0 => uv_link_t.gyp:uv_link_t",
       "git://github.com/nodejs/http-parser@^2.7.0 => http_parser.gyp:http_parser",
       "git://github.com/gypkg/ringbuffer@^1.0.0 => ringbuffer.gyp:ringbuffer",
       "git://github.com/gypkg/openssl@~1.2.7 => openssl.gyp:openssl",
-    ],
-
-    "conditions": [
-      ["node_root_dir == ''", {
-        "LIBOPENSSL": "<(PRODUCT_DIR)/libopenssl.a",
-      }, {
-        "LIBOPENSSL": "<(PRODUCT_DIR)/openssl.a",
-      }],
     ],
   },
 
