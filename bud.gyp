@@ -1,0 +1,175 @@
+{
+  "variables": {
+    "openssl_fips%": "",
+    "gypkg_deps": [
+      "git://github.com/libuv/libuv.git@^1.9.0 => uv.gyp:libuv",
+      "git://github.com/indutny/uv_link_t@^1.0.0 => uv_link_t.gyp:uv_link_t",
+      "git://github.com/nodejs/http-parser@^2.7.0 => http_parser.gyp:http_parser",
+      "git://github.com/gypkg/ringbuffer@^1.0.0 => ringbuffer.gyp:ringbuffer",
+      "git://github.com/gypkg/openssl@~1.2.7 => openssl.gyp:openssl",
+    ],
+  },
+
+  "targets": [{
+    "target_name": "bud",
+    "type": "executable",
+    "dependencies": [
+      "<!@(gypkg deps <(gypkg_deps))",
+      # TODO(indutny): gypkg-ify?
+      "deps/parson/parson.gyp:parson",
+    ],
+    "include_dirs": [
+      ".",
+      "include",
+      "<(SHARED_INTERMEDIATE_DIR)",
+    ],
+    "sources": [
+      "src/avail.c",
+      "src/bio.c",
+      "src/bud.c",
+      "src/client.c",
+      "src/client-common.c",
+      "src/common.c",
+      "src/config.c",
+      "src/config/context.c",
+      "src/config/files.c",
+      "src/config/ocsp.c",
+      "src/config/ticket.c",
+      "src/config/tracing.c",
+      "src/config/utils.c",
+      "src/error.c",
+      "src/http-pool.c",
+      "src/ipc.c",
+      "src/logger.c",
+      "src/master.c",
+      "src/ocsp.c",
+      "src/server.c",
+      "src/sni.c",
+      "src/tracing.c",
+      "src/worker.c",
+      "src/xforward.c",
+    ],
+    "conditions": [
+      # FIPS
+      ["openssl_fips != ''", {
+        "defines": [
+          "BUD_FIPS_ENABLED=1",
+        ],
+      }],
+
+      # Platform-specifics
+      ["OS in ('freebsd', 'mac', 'solaris')", {
+        "dependencies": [
+          "bud-dtrace",
+        ],
+      }],
+
+      ["OS == 'mac' and bud_asan == 'true'", {
+        "xcode_settings": {
+          "OTHER_CFLAGS": [
+            "-fsanitize=address",
+          ],
+          "OTHER_LDFLAGS": [
+            "-fsanitize=address",
+          ],
+        },
+      }],
+
+      ["OS == 'linux'", {
+        "defines": [
+          "_POSIX_C_SOURCE=200112",
+          "_GNU_SOURCE",
+        ],
+      }],
+
+      ["OS == 'linux' and bud_asan == 'true'", {
+        "cflags": [ "-fsanitize=address" ],
+        "ldflags": [ "-fsanitize=address" ],
+      }],
+
+      ['OS in "linux freebsd"', {
+        'ldflags': [
+          '-Wl,--whole-archive <(LIBOPENSSL) -Wl,--no-whole-archive',
+        ],
+      }],
+
+      ['OS in "freebsd"', {
+        'ldflags': [
+          '-Wl,--export-dynamic',
+        ],
+      }],
+    ]
+  }, {
+    "target_name": "bud-dtrace",
+    "type": "none",
+    "conditions": [
+      ["OS in ('freebsd', 'mac', 'solaris')", {
+        "direct_dependent_settings": {
+          "defines": [ "BUD_DTRACE" ],
+        },
+        "actions": [{
+          "action_name": "bud-dtrace",
+          "inputs": [
+            "src/bud_provider.d",
+          ],
+
+          "outputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/src/bud_provider.h",
+          ],
+          "action": [
+            "dtrace",
+            "-h",
+            "-xnolibs",
+            "-s",
+            "<@(_inputs)",
+            "-o",
+            "<@(_outputs)",
+          ],
+        }],
+        "conditions": [
+          ["OS != 'mac'", {
+            "direct_dependent_settings": {
+              "sources": [ "<(SHARED_INTERMEDIATE_DIR)/bud_provider.o" ],
+            },
+            "actions": [{
+              "action_name": "bud-dtrace-obj",
+              "inputs": [
+                "src/bud_provider.d",
+                "<(OBJ_DIR)/bud/src/tracing.o",
+              ],
+              "outputs": [
+                "<(SHARED_INTERMEDIATE_DIR)/bud_provider.o",
+              ],
+              "action": [
+                "dtrace",
+                "-G",
+                "-xnolibs",
+                "-s",
+                "<@(_inputs)",
+                "-o",
+                "<@(_outputs)",
+              ],
+            }],
+          }],
+          ["OS == 'freebsd'", {
+            "direct_dependent_settings": {
+              "libraries": [
+                "-lelf",
+              ],
+            }
+          }],
+        ],
+      }],
+    ],
+  }, {
+    "target_name": "copy_binary",
+    "type":"none",
+    "dependencies" : [ "bud" ],
+    "copies": [
+      {
+        "destination": "<(module_root_dir)/bin/",
+        "files": ["<(module_root_dir)/out/Release/bud"]
+      },
+    ],
+  }]
+}

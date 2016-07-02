@@ -10,6 +10,7 @@ npm/bud
 npm/bud.exe
 npm-debug.log
 node_modules/
+gypkg_deps/
 
 # ringbuffer
 deps/ringbuffer/tools/gyp

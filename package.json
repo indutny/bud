@@ -8,7 +8,7 @@
   "main": "./lib/bud.js",
   "preferGlobal": true,
   "scripts": {
-    "preinstall": "make preinstall",
+    "preinstall": "make build",
     "test": "mocha --reporter spec test/*-test.js"
   },
   "repository": {
@@ -35,5 +35,8 @@
     "semver": "^5.1.0",
     "spdy": "^3.2.3",
     "utile": "^0.3.0"
+  },
+  "dependencies": {
+    "gypkg": "^2.5.0"
   }
 }

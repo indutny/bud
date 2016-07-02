@@ -66,17 +66,12 @@ Bud from source with the steps below.
 
 Preparing:
 ```bash
-git submodule update --init --recursive
-Then:
-git clone https://chromium.googlesource.com/external/gyp.git tools/gyp
-OR
-svn co http://gyp.googlecode.com/svn/trunk tools/gyp tools/gyp
+npm install
 ```
 
 Building:
 ```bash
-./gyp_bud
-make -C out/
+gypkg build
 ```
 
 The result will be located at: `./out/Release/bud`.
