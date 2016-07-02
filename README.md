@@ -71,7 +71,7 @@ npm install
 
 Building:
 ```bash
-make build
+gypkg build
 ```
 
 The result will be located at: `./out/Release/bud`.
