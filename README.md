@@ -1,5 +1,5 @@
 # Bud
-[![Build Status](https://secure.travis-ci.org/indutny/bud.png)](http://travis-ci.org/indutny/bud)
+[![Build Status](https://secure.travis-ci.org/indutny/bud.svg)](http://travis-ci.org/indutny/bud)
 [![NPM version](https://badge.fury.io/js/bud.svg)](http://badge.fury.io/js/bud)
 
 A TLS terminator for superheroes.
