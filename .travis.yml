@@ -3,6 +3,8 @@ sudo: false
 node_js:
   - "6"
   - "5"
+before_script:
+  - gpg --keyserver hkp://keys.gnupg.net --recv-keys 6A4781FB
 branches:
   only:
     - master
