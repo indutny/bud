@@ -1,17 +1,25 @@
 #!/usr/bin/env node
-var fs = require('fs');
-var spawn = require('child_process').spawn;
-var semver = require('semver');
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const spawn = require('child_process').spawn;
+const semver = require('semver');
+const gitSecureTag = require('git-secure-tag');
+
+const root = path.join(__dirname, '..');
 
 // Update version and save package.json
-var package = require(__dirname + '/../package.json');
-package.version = semver.inc(package.version, process.argv[2]);
-fs.writeFileSync(__dirname + '/../package.json',
-                 JSON.stringify(package, null, 2) + '\n');
+const packageFile = path.join(root, 'package.json');
+const pkg = require(packageFile);
+pkg.version = semver.inc(pkg.version, process.argv[2]);
+fs.writeFileSync(packageFile,
+                 JSON.stringify(pkg, null, 2) + '\n');
 
 // Update src/version.h
-var v = semver.parse(package.version);
-var header = fs.readFileSync(__dirname + '/../src/version.h').toString();
+const v = semver.parse(pkg.version);
+const versionFile = path.join(root, 'src', 'version.h');
+let header = fs.readFileSync(versionFile).toString();
 
 header = header.replace(/(BUD_VERSION_MAJOR )\d+/, function(all, key) {
   return key + v.major;
@@ -23,18 +31,17 @@ header = header.replace(/(BUD_VERSION_PATCH )\d+/, function(all, key) {
   return key + v.patch;
 });
 
-fs.writeFileSync(__dirname + '/../src/version.h', header);
+fs.writeFileSync(versionFile, header);
 
 // git tag
-var tag = 'v' + package.version;
-var commitProc = spawn('git', [ 'commit', '-asS', '-m', tag ], {
+const tag = 'v' + pkg.version;
+const commitProc = spawn('git', [ 'commit', '-asS', '-m', tag ], {
   stdio: 'inherit'
 });
 
 commitProc.once('exit', function(code) {
   if (code !== 0)
     return;
-  var tagProc = spawn('git', [ 'tag', '-s', tag, '-m', tag ], {
-    stdio: 'inherit'
-  });
+  const api = new gitSecureTag.API(root);
+  api.sign(tag, 'HEAD');
 });

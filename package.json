@@ -30,6 +30,7 @@
   "devDependencies": {
     "asn1.js": "^4.5.2",
     "asn1.js-rfc2560": "^4.0.0",
+    "git-secure-tag": "^2.2.0",
     "mocha": "^2.4.5",
     "ocsp": "^1.0.3",
     "semver": "^5.1.0",
