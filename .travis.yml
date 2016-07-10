@@ -4,7 +4,9 @@ node_js:
   - "6"
   - "5"
 before_install:
-  - gpg --keyserver hkp://keys.gnupg.net --recv-keys 6A4781FB
+  - mkdir -p gypkg_deps
+  - gpg --no-default-keyring --keyring gypkg_deps/.gpg-scope-gypkg --keyserver hkp://keys.gnupg.net --recv-keys 6A4781FB
+  - gpg --no-default-keyring --keyring gypkg_deps/.gpg-scope-indutny --keyserver hkp://keys.gnupg.net --recv-keys 6A4781FB
 branches:
   only:
     - master
