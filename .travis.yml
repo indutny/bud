@@ -6,6 +6,7 @@ node_js:
 before_install:
   - mkdir -p gypkg_deps
   - gpg --no-default-keyring --keyring gypkg_deps/.gpg-scope-gypkg --keyserver hkp://keys.gnupg.net --recv-keys 6A4781FB
+  - gpg --no-default-keyring --keyring gypkg_deps/.gpg-scope-nodejs --keyserver hkp://keys.gnupg.net --recv-keys 6A4781FB
   - gpg --no-default-keyring --keyring gypkg_deps/.gpg-scope-indutny --keyserver hkp://keys.gnupg.net --recv-keys 6A4781FB
 branches:
   only:
