@@ -31,7 +31,7 @@ Not only does it do this well, bud has a lot of useful features!
 
 Bud is implemented fully in C, with the exception to the tests which are running
 on [io.js][2]. The networking level is provided by [libuv][3], and the SSL
-implementation by [OpenSSL][4] 1.0.2a.
+implementation by [OpenSSL][4] 1.0.2h.
 
 ## Install
 
