@@ -30,7 +30,7 @@ Not only does it do this well, bud has a lot of useful features!
 ## Implementation details
 
 Bud is implemented fully in C, with the exception to the tests which are running
-on [io.js][2]. The networking level is provided by [libuv][3], and the SSL
+on [node.js][2]. The networking level is provided by [libuv][3], and the SSL
 implementation by [OpenSSL][4] 1.0.2h.
 
 ## Install
@@ -647,7 +647,7 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 [0]: http://json.org/
 [1]: http://github.com/indutny/bud-backend
-[2]: https://github.com/nodejs/io.js
+[2]: https://github.com/nodejs/node
 [3]: https://github.com/libuv/libuv
 [4]: http://openssl.org/
 [5]: http://goo.gl/forms/AFxO4aZfip
