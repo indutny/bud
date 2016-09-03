@@ -1,4 +1,5 @@
 build:
-	gypkg build bud.gyp.json
+	npm install gypkg
+	./node_modules/.bin/gypkg build bud.gyp.json
 
 .PHONY: build
