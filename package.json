@@ -1,6 +1,6 @@
 {
   "name": "bud",
-  "version": "4.0.9",
+  "version": "4.0.10",
   "description": "Bud - TLS Terminator",
   "bin": {
     "bud": "./bin/bud"
