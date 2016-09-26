@@ -6,7 +6,7 @@
       "git://github.com/libuv/libuv.git@^1.9.0 => uv.gyp:libuv",
       "git://github.com/nodejs/http-parser@^2.7.1 [gpg] => http_parser.gyp:http_parser",
       "git://github.com/gypkg/ringbuffer@^1.0.0 [gpg] => ringbuffer.gyp:ringbuffer",
-      "git://github.com/gypkg/openssl@~1.2.8 [gpg] => openssl.gyp:openssl",
+      "git://github.com/gypkg/openssl@~1.2.9 [gpg] => openssl.gyp:openssl",
     ],
   },
 
