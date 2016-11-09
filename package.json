@@ -7,6 +7,17 @@
   },
   "main": "./lib/bud.js",
   "preferGlobal": true,
+  "files": [
+    "src",
+    "deps",
+    "lib",
+    "npm",
+    "binding.gyp",
+    "bud.gyp",
+    "bud.gyp.json",
+    "config.gypi",
+    "options.gypi"
+  ],
   "scripts": {
     "install": "node_modules/.bin/gypkg build bud.gyp.json --insecure",
     "test": "mocha --reporter spec test/*-test.js"
