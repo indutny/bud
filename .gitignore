@@ -19,3 +19,4 @@ deps/ringbuffer/out
 # Text editors swap files/backups
 *.swp
 *~
+.DS_Store

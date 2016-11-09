@@ -21,7 +21,6 @@
     "options.gypi"
   ],
   "scripts": {
-    "prepublish": "rm -rf bin/ && mkdir bin && touch bin/bud",
     "install": "node_modules/.bin/gypkg build bud.gyp.json --insecure",
     "test": "mocha --reporter spec test/*-test.js"
   },
