@@ -253,10 +253,14 @@ void bud_http_request_error(bud_http_request_t* request, bud_error_t err) {
   if (request->state == kBudHttpDisconnected)
     return;
 
+  request->pool = NULL;
   request->state = kBudHttpDisconnected;
   if (!bud_is_ok(err) && request->cb != NULL)
     request->cb(request, err);
   request->cb = NULL;
+
+  ASSERT(request->state == kBudHttpDisconnected,
+         "Request must be abandoned by user after error");
 
   uv_close((uv_handle_t*) &request->tcp, bud_http_request_close_cb);
   if (!QUEUE_EMPTY(&request->member))
@@ -269,6 +273,9 @@ void bud_http_request_done(bud_http_request_t* request) {
   request->state = kBudHttpConnected;
   request->cb(request, bud_ok());
   request->cb = NULL;
+
+  ASSERT(request->state == kBudHttpConnected,
+         "Request must be abandoned by user after completion");
 
   /* Remove from reqs */
   ASSERT(!QUEUE_EMPTY(&request->member), "Request should be in queue");
@@ -426,6 +433,9 @@ void bud_http_request_connect_cb(uv_connect_t* connect, int status) {
     return;
 
   req = container_of(connect, bud_http_request_t, connect);
+
+  ASSERT(req->state == kBudHttpConnecting,
+         "Got connect_cb on disconnected http request");
 
   req->state = kBudHttpConnected;
   if (status != 0) {
