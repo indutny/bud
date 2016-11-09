@@ -12,6 +12,7 @@
     "deps",
     "lib",
     "bin",
+    "include",
     "npm",
     "binding.gyp",
     "bud.gyp",
