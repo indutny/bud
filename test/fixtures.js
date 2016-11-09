@@ -424,8 +424,13 @@ fixtures.ocspBackend = function ocspBackend() {
   return server;
 };
 
-fixtures.sniBackend = function sniBackend() {
+fixtures.sniBackend = function sniBackend(options) {
+  options = options || {};
+
   var server = http.createServer(function(req, res) {
+    if (options.keepalive === false)
+      res.setHeader('Connection', 'close');
+
     var host = req.url.split('/')[3];
     if (host !== 'sni.host') {
       server.misses++;

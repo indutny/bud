@@ -51,36 +51,40 @@ describe('Bud TLS Terminator/SNI', function() {
     });
   });
 
-  describe('async sni', function() {
-    var sh = fixtures.getServers({
-      sni: {
-        enabled: true,
-        port: 9000
-      }
-    });
+  [ true, false ].forEach(function(keepalive) {
+    describe('async sni with keepalive=' + keepalive, function() {
+      var sh = fixtures.getServers({
+        sni: {
+          enabled: true,
+          port: 9000
+        }
+      });
 
-    var sniBackend;
-    beforeEach(function(cb) {
-      sniBackend = fixtures.sniBackend().listen(9000, cb);
-    });
+      var sniBackend;
+      beforeEach(function(cb) {
+        sniBackend = fixtures.sniBackend({
+          keepalive: keepalive
+        }).listen(9000, cb);
+      });
 
-    afterEach(function(cb) {
-      sniBackend.close(cb);
-    });
+      afterEach(function(cb) {
+        sniBackend.close(cb);
+      });
 
-    it('should asynchronously fetch cert', function(cb) {
-      sniRequest(sh, 'local.host', '/hello', function(res, chunks, info) {
-        assert.equal(sniBackend.misses, 1);
-        assert.equal(sniBackend.hits, 0);
-        assert.equal(info.cert.serialNumber, '82F2A828A42C1728');
-        assert.notEqual(info.cipher.name, 'AES128-SHA');
-
-        sniRequest(sh, 'sni.host', '/hello', function(res, chunks, info) {
+      it('should asynchronously fetch cert', function(cb) {
+        sniRequest(sh, 'local.host', '/hello', function(res, chunks, info) {
           assert.equal(sniBackend.misses, 1);
-          assert.equal(sniBackend.hits, 1);
-          assert.equal(info.cert.serialNumber, '2B');
-          assert.equal(info.cipher.name, 'AES128-SHA');
-          cb();
+          assert.equal(sniBackend.hits, 0);
+          assert.equal(info.cert.serialNumber, '82F2A828A42C1728');
+          assert.notEqual(info.cipher.name, 'AES128-SHA');
+
+          sniRequest(sh, 'sni.host', '/hello', function(res, chunks, info) {
+            assert.equal(sniBackend.misses, 1);
+            assert.equal(sniBackend.hits, 1);
+            assert.equal(info.cert.serialNumber, '2B');
+            assert.equal(info.cipher.name, 'AES128-SHA');
+            cb();
+          });
         });
       });
     });

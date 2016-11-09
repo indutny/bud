@@ -544,10 +544,13 @@ void bud_http_request_read_cb(uv_stream_t* stream,
   if (req->response == NULL) {
     bud_http_request_error(req,
                            bud_error_str(kBudErrJSONParse, "http response"));
-  } else if (!http_should_keep_alive(&req->parser)) {
-    bud_http_request_error(req, bud_ok());
   } else {
+    /* Emit the callback */
     bud_http_request_done(req);
+
+    /* Unqueue request from the pool, if it can't be reused */
+    if (!http_should_keep_alive(&req->parser))
+      bud_http_request_error(req, bud_ok());
   }
 }
 
