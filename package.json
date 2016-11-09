@@ -11,6 +11,7 @@
     "src",
     "deps",
     "lib",
+    "bin",
     "npm",
     "binding.gyp",
     "bud.gyp",
@@ -19,7 +20,8 @@
     "options.gypi"
   ],
   "scripts": {
-    "preinstall": "node_modules/.bin/gypkg build bud.gyp.json --insecure",
+    "prepublish": "rm -rf bin/ && mkdir bin && touch bin/bud",
+    "install": "node_modules/.bin/gypkg build bud.gyp.json --insecure",
     "test": "mocha --reporter spec test/*-test.js"
   },
   "repository": {
