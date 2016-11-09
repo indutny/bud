@@ -266,9 +266,8 @@ void bud_http_request_error(bud_http_request_t* request, bud_error_t err) {
 
   request->pool = NULL;
   request->state = kBudHttpDisconnected;
-  if (!bud_is_ok(err) && request->cb != NULL) {
+  if (!bud_is_ok(err) && request->cb != NULL)
     request->cb(request, err);
-  }
   request->cb = NULL;
 
   ASSERT(request->state == kBudHttpDisconnected,
