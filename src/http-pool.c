@@ -523,32 +523,32 @@ void bud_http_request_read_cb(uv_stream_t* stream,
     return;
   }
 
-  if (req->complete) {
-    char* out;
-    size_t len;
+  if (!req->complete)
+    return;
 
-    len = ringbuffer_size(&req->response_buf);
-    out = malloc(len + 1);
-    if (out == NULL) {
-      bud_http_request_error(req, bud_error_str(kBudErrNoMem, "http response"));
-      return;
-    }
+  char* out;
+  size_t len;
 
-    ringbuffer_read_into(&req->response_buf, out, len);
-    out[len] = 0;
-    req->code = req->parser.status_code;
-    req->response = json_parse_string(out);
-    free(out);
-    if (req->response == NULL) {
-      bud_http_request_error(req,
-                             bud_error_str(kBudErrJSONParse, "http response"));
-    } else {
-      bud_http_request_done(req);
-    }
+  len = ringbuffer_size(&req->response_buf);
+  out = malloc(len + 1);
+  if (out == NULL) {
+    bud_http_request_error(req, bud_error_str(kBudErrNoMem, "http response"));
+    return;
   }
 
-  if (!http_should_keep_alive(&req->parser))
+  ringbuffer_read_into(&req->response_buf, out, len);
+  out[len] = 0;
+  req->code = req->parser.status_code;
+  req->response = json_parse_string(out);
+  free(out);
+  if (req->response == NULL) {
+    bud_http_request_error(req,
+                           bud_error_str(kBudErrJSONParse, "http response"));
+  } else if (!http_should_keep_alive(&req->parser)) {
     bud_http_request_error(req, bud_ok());
+  } else {
+    bud_http_request_done(req);
+  }
 }
 
 
