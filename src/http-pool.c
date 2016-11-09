@@ -9,6 +9,7 @@
 #include "src/http-pool.h"
 #include "src/common.h"
 #include "src/config.h"
+#include "src/logger.h"
 #include "src/queue.h"
 
 static bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
@@ -170,11 +171,15 @@ bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
     req = bud_http_request_new(pool, err);
     if (!bud_is_ok(*err))
       goto failed_http_request;
+
+    bud_clog(pool->config, kBudLogDebug, "pool %p new request %p", pool, req);
   } else {
     /* Reuse existing connection */
     q = QUEUE_HEAD(&pool->pool);
     QUEUE_REMOVE(q);
     req = QUEUE_DATA(q, bud_http_request_t, member);
+
+    bud_clog(pool->config, kBudLogDebug, "pool %p reuse request %p", pool, req);
   }
 
   req->method = method;
@@ -253,10 +258,17 @@ void bud_http_request_error(bud_http_request_t* request, bud_error_t err) {
   if (request->state == kBudHttpDisconnected)
     return;
 
+  if (!bud_is_ok(err)) {
+    bud_clog(request->pool->config, kBudLogWarning,
+             "pool %p request error %p: %s", request->pool, request,
+             bud_error_to_str(err));
+  }
+
   request->pool = NULL;
   request->state = kBudHttpDisconnected;
-  if (!bud_is_ok(err) && request->cb != NULL)
+  if (!bud_is_ok(err) && request->cb != NULL) {
     request->cb(request, err);
+  }
   request->cb = NULL;
 
   ASSERT(request->state == kBudHttpDisconnected,
@@ -269,6 +281,9 @@ void bud_http_request_error(bud_http_request_t* request, bud_error_t err) {
 
 
 void bud_http_request_done(bud_http_request_t* request) {
+  bud_clog(request->pool->config, kBudLogDebug, "pool %p request done %p",
+           request->pool, request);
+
   ASSERT(request->state == kBudHttpRunning, "Done on not running request");
   request->state = kBudHttpConnected;
   request->cb(request, bud_ok());
@@ -292,6 +307,9 @@ void bud_http_request_done(bud_http_request_t* request) {
 
 
 void bud_http_request_cancel(bud_http_request_t* request) {
+  bud_clog(request->pool->config, kBudLogDebug, "pool: request cancel %p",
+           request);
+
   bud_http_request_error(request, bud_ok());
 }
 
