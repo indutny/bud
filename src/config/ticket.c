@@ -87,6 +87,9 @@ bud_error_t bud_config_set_ticket_raw(bud_config_t* config,
   bud_error_t err;
   int i;
 
+  ASSERT(index < (uint32_t) config->context_count + 1,
+         "ticket index overflow");
+
   err = bud_context_set_ticket(&config->contexts[index],
                                data,
                                size,
