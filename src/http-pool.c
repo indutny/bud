@@ -177,9 +177,11 @@ bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
     /* Reuse existing connection */
     q = QUEUE_HEAD(&pool->pool);
     QUEUE_REMOVE(q);
+    QUEUE_INIT(q);
     req = QUEUE_DATA(q, bud_http_request_t, member);
 
     bud_clog(pool->config, kBudLogDebug, "pool %p reuse request %p", pool, req);
+    QUEUE_INSERT_TAIL(&pool->reqs, &req->member);
   }
 
   req->method = method;
@@ -274,8 +276,10 @@ void bud_http_request_error(bud_http_request_t* request, bud_error_t err) {
          "Request must be abandoned by user after error");
 
   uv_close((uv_handle_t*) &request->tcp, bud_http_request_close_cb);
-  if (!QUEUE_EMPTY(&request->member))
+  if (!QUEUE_EMPTY(&request->member)) {
     QUEUE_REMOVE(&request->member);
+    QUEUE_INIT(&request->member);
+  }
 }
 
 
@@ -294,6 +298,7 @@ void bud_http_request_done(bud_http_request_t* request) {
   /* Remove from reqs */
   ASSERT(!QUEUE_EMPTY(&request->member), "Request should be in queue");
   QUEUE_REMOVE(&request->member);
+  QUEUE_INIT(&request->member);
 
   /* Add to pool */
   QUEUE_INSERT_TAIL(&request->pool->pool, &request->member);
