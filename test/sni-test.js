@@ -103,7 +103,7 @@ describe('Bud TLS Terminator/SNI', function() {
         }
 
         var waiting = 10;
-        for (let i = 0; i < waiting; i++)
+        for (var i = 0; i < waiting; i++)
           stress(10, done);
 
         function done() {
