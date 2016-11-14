@@ -87,6 +87,30 @@ describe('Bud TLS Terminator/SNI', function() {
           });
         });
       });
+
+      it('should survive stress test', function(cb) {
+        function stress(count, cb) {
+          function fire(cb) {
+            if (--count === 0)
+              return cb();
+
+            sniRequest(sh, 'local.host', '/hello', function() {
+              fire(cb);
+            });
+          }
+
+          fire(cb);
+        }
+
+        var waiting = 10;
+        for (let i = 0; i < waiting; i++)
+          stress(10, done);
+
+        function done() {
+          if (--waiting === 0)
+            cb();
+        }
+      });
     });
   });
 
