@@ -1,3 +1,5 @@
+'use strict';
+
 var assert = require('assert');
 var http = require('http');
 var https = require('https');
@@ -19,7 +21,7 @@ exports.FRONT_PORT = FRONT_PORT;
 var BACK_PORT = 19002;
 exports.BACK_PORT = BACK_PORT;
 
-https.globalAgent._cacheSession = function() {};
+https.globalAgent._cacheSession = () => {};
 
 function keyPath(name) {
   return path.resolve(__dirname, 'keys', name + '.pem');
@@ -62,7 +64,7 @@ fixtures.getServers = function getServers(options) {
     backends: []
   };
 
-  beforeEach(function(cb) {
+  beforeEach((cb) => {
     var backends = [];
 
     function addBackends(obj, out) {
@@ -71,40 +73,39 @@ fixtures.getServers = function getServers(options) {
                   1;
 
       for (var i = 0; i < count; i++) {
-        var backend = utile.mixin({
+        let backend = utile.mixin({
           index: i,
           requests: 0,
           server: null,
           port: BACK_PORT++
         }, obj.backends && obj.backends[i] || {});
 
-        !function(backend) {
-          backend.server = spdy.createServer({
-            spdy: {
-              plain: true,
-              ssl: false,
-              'x-forwarded-for': true
-            }
-          }, function(req, res) {
-            backend.requests++;
-            res.setHeader('X-Backend-Id', backend.index);
-            if (req.headers['x-forwarded-for']) {
-              res.setHeader('X-Got-Forwarded-For',
-                            req.headers['x-forwarded-for']);
-            }
-            if (req.headers['x-forwarded-proto']) {
-              res.setHeader('X-Got-Forwarded-Proto',
-                            req.headers['x-forwarded-proto']);
-            }
-            if (req.url === '/hello')
-              res.end('hello world');
-            else
-              res.end('nay');
-          });
+        backend.server = spdy.createServer({
+          spdy: {
+            plain: true,
+            ssl: false,
+            'x-forwarded-for': true
+          }
+        }, (req, res) => {
+          backend.requests++;
+          res.setHeader('X-Backend-Id', backend.index);
+          if (req.headers['x-forwarded-for']) {
+            res.setHeader('X-Got-Forwarded-For',
+                          req.headers['x-forwarded-for']);
+          }
+          if (req.headers['x-forwarded-proto']) {
+            res.setHeader('X-Got-Forwarded-Proto',
+                          req.headers['x-forwarded-proto']);
+          }
+          if (req.url === '/hello')
+            res.end('hello world');
+          else
+            res.end('nay');
+        });
 
-          if (backend.proxyline)
-            expectProxyline(backend.server, backend.proxyline);
-        }(backend);
+        if (backend.proxyline)
+          expectProxyline(backend.server, backend.proxyline);
+
         out.push(backend);
         backends.push(backend);
       }
@@ -113,7 +114,7 @@ fixtures.getServers = function getServers(options) {
     sh.backends = [];
     addBackends(options, sh.backends);
     if (options.contexts) {
-      sh.contexts = options.contexts.map(function(context) {
+      sh.contexts = options.contexts.map((context) => {
         var out = [];
         addBackends(context, out);
         context.backends = out;
@@ -124,24 +125,24 @@ fixtures.getServers = function getServers(options) {
     sh.frontend.server = bud.createServer({
       log: options.log,
       master_ipc: options.master_ipc,
-      frontend: utile.filter(sh.frontend, function(val, key) {
+      frontend: utile.filter(sh.frontend, (val, key) => {
         return !/^(server|url|host|port)$/.test(key);
       }),
-      backend: sh.backends.map(function(backend) {
-        return utile.filter(backend, function(val, key) {
+      backend: sh.backends.map((backend) => {
+        return utile.filter(backend, (val, key) => {
           return !/^(server|requests|index)$/.test(key);
         });
       }),
       stapling: options.stapling,
       sni: options.sni,
       balance: options.balance,
-      contexts: sh.contexts && sh.contexts.map(function(ctx) {
+      contexts: sh.contexts && sh.contexts.map((ctx) => {
         return {
           servername: ctx.servername,
           key: ctx.key,
           cert: ctx.cert,
-          backend: ctx.backends.map(function(backend) {
-            return utile.filter(backend, function(val, key) {
+          backend: ctx.backends.map((backend) => {
+            return utile.filter(backend, (val, key) => {
               return !/^(server|requests|index)$/.test(key);
             });
           })
@@ -149,16 +150,16 @@ fixtures.getServers = function getServers(options) {
       })
     });
 
-    sh.frontend.server.listen(FRONT_PORT, function() {
-      utile.async.each(backends, function(backend, cb) {
+    sh.frontend.server.listen(FRONT_PORT, () => {
+      utile.async.each(backends, (backend, cb) => {
         backend.server.listen(backend.port, cb);
       }, cb);
     });
   });
 
-  afterEach(function(cb) {
-    sh.frontend.server.close(function() {
-      utile.async.each(sh.backends, function(backend, cb) {
+  afterEach((cb) => {
+    sh.frontend.server.close(() => {
+      utile.async.each(sh.backends, (backend, cb) => {
         backend.server.close(cb);
       }, cb);
     });
@@ -168,12 +169,12 @@ fixtures.getServers = function getServers(options) {
 };
 
 fixtures.request = function request(sh, uri, cb) {
-  https.get(sh.frontend.url + uri, function(res) {
+  https.get(sh.frontend.url + uri, (res) => {
     var chunks = '';
-    res.on('readable', function() {
+    res.on('readable', () => {
       chunks += res.read() || '';
     });
-    res.on('end', function() {
+    res.on('end', () => {
       cb(res, chunks);
     });
   });
@@ -184,16 +185,16 @@ fixtures.malformedRequest = function malformedRequest(sh, uri, cb) {
 
   var sep = '\r\n';
 
-  var s = tls.connect(u.port, u.hostname, function() {
+  var s = tls.connect(u.port, u.hostname, () => {
     var req = 'GET ' + u.path + ' HTTP/1.1' + sep +
               'Host: ' + u.host + sep + sep;
     s.end(req);
 
     var chunks = '';
-    s.on('readable', function() {
+    s.on('readable', () => {
       chunks += s.read() || '';
     });
-    s.on('end', function() {
+    s.on('end', () => {
       s.destroy();
       cb(chunks);
     });
@@ -203,17 +204,17 @@ fixtures.malformedRequest = function malformedRequest(sh, uri, cb) {
 fixtures.renegRequest = function renegRequest(sh, uri, cb) {
   var u = url.parse(sh.frontend.url + uri);
 
-  var s = tls.connect(u.port, u.hostname, function() {
+  var s = tls.connect(u.port, u.hostname, () => {
     var req = 'GET ' + u.path + ' HTTP/1.1\r\nHost: ' + u.host + '\r\n';
     s.write(req);
     s.renegotiate({});
     s.end('\r\n');
 
     var chunks = '';
-    s.on('readable', function() {
+    s.on('readable', () => {
       chunks += s.read() || '';
     });
-    s.on('end', function() {
+    s.on('end', () => {
       s.destroy();
       cb(chunks);
     });
@@ -226,12 +227,12 @@ fixtures.caRequest = function caRequest(sh, uri, fake, cb) {
     key: fixtures.key,
     cert: fixtures.cert
   });
-  https.get(o, function(res) {
+  https.get(o, (res) => {
     var chunks = '';
-    res.on('readable', function() {
+    res.on('readable', () => {
       chunks += res.read() || '';
     });
-    res.on('end', function() {
+    res.on('end', () => {
       cb(res, chunks);
     });
   });
@@ -246,16 +247,16 @@ fixtures.sniRequest = function sniRequest(sh, name, uri, cb) {
     options.servername = name;
     return createConn.call(this, options);
   };
-  https.get(o, function(res) {
+  https.get(o, (res) => {
     var chunks = '';
     var info = {
       cert: res.socket.getPeerCertificate(true),
       cipher: res.socket.getCipher()
     };
-    res.on('readable', function() {
+    res.on('readable', () => {
       chunks += res.read() || '';
     });
-    res.on('end', function() {
+    res.on('end', () => {
       cb(res, chunks, info);
     });
   });
@@ -271,7 +272,7 @@ fixtures.agentRequest = function agentRequest(sh, agent, uri, cb) {
     agent: agent,
     path: uri,
     session: null
-  }, function(res) {
+  }, (res) => {
     var chunks = '';
     var info = {
       // TODO(indutny): fix this in node-spdy
@@ -279,14 +280,14 @@ fixtures.agentRequest = function agentRequest(sh, agent, uri, cb) {
           res.socket.getPeerCertificate(true),
       cipher: res.socket.getCipher && res.socket.getCipher()
     };
-    res.on('readable', function() {
+    res.on('readable', () => {
       chunks += res.read() || '';
     });
-    res.on('end', function() {
+    res.on('end', () => {
       if (!agent.close)
         return cb(res, chunks, info);
 
-      agent.close(function() {
+      agent.close(() => {
         cb(res, chunks, info);
       });
     });
@@ -298,7 +299,7 @@ function expectProxyline(server, type) {
   var listeners = server.listeners('connection').slice();
   server.removeAllListeners('connection');
 
-  server.on('connection', function(s) {
+  server.on('connection', (s) => {
     var chunks = '';
     s.on('readable', function onReadable() {
       var chunk = this.read();
@@ -376,7 +377,7 @@ fixtures.ocspBackend = function ocspBackend() {
     revocationReason: 'CACompromise'
   });
 
-  var server = http.createServer(function(req, res) {
+  var server = http.createServer((req, res) => {
     var id = req.url.split('/')[3];
     if (req.method === 'GET' && cache[id]) {
       res.writeHead(200, {
@@ -395,16 +396,16 @@ fixtures.ocspBackend = function ocspBackend() {
 
     server.cacheMisses++;
     var chunks = '';
-    req.on('data', function(chunk) {
+    req.on('data', (chunk) => {
       chunks += chunk;
     });
-    req.once('end', function() {
+    req.once('end', () => {
       var body = JSON.parse(chunks);
       var ocspReq = rfc2560.OCSPRequest.decode(
           new Buffer(body.ocsp, 'base64'),
           'der');
 
-      ocspServer.getResponses(ocspReq, function(err, responses) {
+      ocspServer.getResponses(ocspReq, (err, responses) => {
         if (err)
           throw err;
 
@@ -427,7 +428,7 @@ fixtures.ocspBackend = function ocspBackend() {
 fixtures.sniBackend = function sniBackend(options) {
   options = options || {};
 
-  var server = http.createServer(function(req, res) {
+  var server = http.createServer((req, res) => {
     if (options.keepalive === false)
       res.setHeader('Connection', 'close');
 

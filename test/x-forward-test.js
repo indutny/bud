@@ -1,11 +1,13 @@
-var assert = require('assert');
-var fixtures = require('./fixtures');
-var request = fixtures.request;
-var malformedRequest = fixtures.malformedRequest;
-var spdyRequest = fixtures.spdyRequest;
+'use strict';
 
-describe('Bud TLS Terminator/x-forward', function() {
-  var sh = fixtures.getServers({
+const assert = require('assert');
+const fixtures = require('./fixtures');
+const request = fixtures.request;
+const malformedRequest = fixtures.malformedRequest;
+const spdyRequest = fixtures.spdyRequest;
+
+describe('Bud TLS Terminator/x-forward', () => {
+  const sh = fixtures.getServers({
     frontend: {
       npn: [ 'spdy/3.1' , 'spdy/3' , 'spdy/2' , 'http/1.1' ]
     },
@@ -14,8 +16,8 @@ describe('Bud TLS Terminator/x-forward', function() {
     }]
   });
 
-  it('should work with http', function(cb) {
-    request(sh, '/hello', function(res, body) {
+  it('should work with http', (cb) => {
+    request(sh, '/hello', (res, body) => {
       assert.equal(sh.backends[0].requests, 1);
       assert.equal(res.headers['x-got-forwarded-for'], '127.0.0.1');
       assert.equal(res.headers['x-got-forwarded-proto'], 'https');
@@ -23,16 +25,16 @@ describe('Bud TLS Terminator/x-forward', function() {
     });
   });
 
-  it('should work with LF-only http', function(cb) {
-    malformedRequest(sh, '/hello', function(body) {
+  it('should work with LF-only http', (cb) => {
+    malformedRequest(sh, '/hello', (body) => {
       assert.equal(sh.backends[0].requests, 1);
       assert(/X-Got-Forwarded-For: 127.0.0.1/.test(body));
       cb();
     });
   });
 
-  it('should work with spdy', function(cb) {
-    spdyRequest(sh, '/hello', function(res, body) {
+  it('should work with spdy', (cb) => {
+    spdyRequest(sh, '/hello', (res, body) => {
       assert.equal(sh.backends[0].requests, 1);
       assert.equal(res.headers['x-got-forwarded-for'], '127.0.0.1');
       cb();

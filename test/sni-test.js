@@ -1,15 +1,17 @@
-var assert = require('assert');
-var fixtures = require('./fixtures');
-var ocsp = require('ocsp');
-var request = fixtures.request;
-var caRequest = fixtures.caRequest;
-var sniRequest = fixtures.sniRequest;
-var spdyRequest = fixtures.spdyRequest;
-var agentRequest = fixtures.agentRequest;
+'use strict';
 
-describe('Bud TLS Terminator/SNI', function() {
-  describe('multi-backend', function() {
-    var sh = fixtures.getServers({
+const assert = require('assert');
+const fixtures = require('./fixtures');
+const ocsp = require('ocsp');
+const request = fixtures.request;
+const caRequest = fixtures.caRequest;
+const sniRequest = fixtures.sniRequest;
+const spdyRequest = fixtures.spdyRequest;
+const agentRequest = fixtures.agentRequest;
+
+describe('Bud TLS Terminator/SNI', () => {
+  describe('multi-backend', () => {
+    const sh = fixtures.getServers({
       balance: 'sni',
       contexts: [{
         servername: 'local.host',
@@ -17,17 +19,17 @@ describe('Bud TLS Terminator/SNI', function() {
       }]
     });
 
-    it('should support round-robin balancing', function(cb) {
-      var ctx = sh.contexts[0];
-      var count = 20;
-      var stats = [];
+    it('should support round-robin balancing', (cb) => {
+      const ctx = sh.contexts[0];
+      let count = 20;
+      const stats = [];
       function fire(cb) {
         if (--count === 0)
           return cb();
 
-        sniRequest(sh, 'local.host', '/hello', function(res) {
+        sniRequest(sh, 'local.host', '/hello', (res) => {
           stats.push({
-            backends: ctx.backends.map(function(back) {
+            backends: ctx.backends.map((back) => {
               return back.requests;
             }),
             id: res.headers['x-backend-id'] | 0
@@ -36,12 +38,12 @@ describe('Bud TLS Terminator/SNI', function() {
         });
       }
 
-      fire(function() {
-        var check = ctx.backends.map(function() {
+      fire(() => {
+        const check = ctx.backends.map(() => {
           return 0;
         });
 
-        for (var i = 0; i < stats.length; i++) {
+        for (let i = 0; i < stats.length; i++) {
           check[stats[i].id]++;
           assert.deepEqual(check, stats[i].backends);
         }
@@ -51,34 +53,34 @@ describe('Bud TLS Terminator/SNI', function() {
     });
   });
 
-  [ true, false ].forEach(function(keepalive) {
-    describe('async sni with keepalive=' + keepalive, function() {
-      var sh = fixtures.getServers({
+  [ true, false ].forEach((keepalive) => {
+    describe('async sni with keepalive=' + keepalive, () => {
+      const sh = fixtures.getServers({
         sni: {
           enabled: true,
           port: 9000
         }
       });
 
-      var sniBackend;
-      beforeEach(function(cb) {
+      let sniBackend;
+      beforeEach((cb) => {
         sniBackend = fixtures.sniBackend({
           keepalive: keepalive
         }).listen(9000, cb);
       });
 
-      afterEach(function(cb) {
+      afterEach((cb) => {
         sniBackend.close(cb);
       });
 
-      it('should asynchronously fetch cert', function(cb) {
-        sniRequest(sh, 'local.host', '/hello', function(res, chunks, info) {
+      it('should asynchronously fetch cert', (cb) => {
+        sniRequest(sh, 'local.host', '/hello', (res, chunks, info) => {
           assert.equal(sniBackend.misses, 1);
           assert.equal(sniBackend.hits, 0);
           assert.equal(info.cert.serialNumber, '82F2A828A42C1728');
           assert.notEqual(info.cipher.name, 'AES128-SHA');
 
-          sniRequest(sh, 'sni.host', '/hello', function(res, chunks, info) {
+          sniRequest(sh, 'sni.host', '/hello', (res, chunks, info) => {
             assert.equal(sniBackend.misses, 1);
             assert.equal(sniBackend.hits, 1);
             assert.equal(info.cert.serialNumber, '2B');
@@ -88,13 +90,13 @@ describe('Bud TLS Terminator/SNI', function() {
         });
       });
 
-      it('should survive stress test', function(cb) {
+      it('should survive stress test', (cb) => {
         function stress(count, cb) {
           function fire(cb) {
             if (--count === 0)
               return cb();
 
-            sniRequest(sh, 'local.host', '/hello', function() {
+            sniRequest(sh, 'local.host', '/hello', () => {
               fire(cb);
             });
           }
@@ -102,8 +104,8 @@ describe('Bud TLS Terminator/SNI', function() {
           fire(cb);
         }
 
-        var waiting = 10;
-        for (var i = 0; i < waiting; i++)
+        let waiting = 10;
+        for (let i = 0; i < waiting; i++)
           stress(10, done);
 
         function done() {
@@ -114,8 +116,8 @@ describe('Bud TLS Terminator/SNI', function() {
     });
   });
 
-  describe('async sni+ocsp', function() {
-    var sh = fixtures.getServers({
+  describe('async sni+ocsp', () => {
+    const sh = fixtures.getServers({
       log: { level: 'debug' },
       sni: {
         enabled: true,
@@ -127,34 +129,34 @@ describe('Bud TLS Terminator/SNI', function() {
       }
     });
 
-    var sniBackend;
-    var ocspBackend;
-    beforeEach(function(cb) {
-      sniBackend = fixtures.sniBackend().listen(9000, function() {
+    let sniBackend;
+    let ocspBackend;
+    beforeEach((cb) => {
+      sniBackend = fixtures.sniBackend().listen(9000, () => {
         ocspBackend = fixtures.ocspBackend().listen(9001, cb);
       });
     });
 
-    afterEach(function(cb) {
-      sniBackend.close(function() {
+    afterEach((cb) => {
+      sniBackend.close(() => {
         ocspBackend.close(cb);
       });
     });
 
-    it('should asynchronously fetch cert', function(cb) {
-      var agent = new ocsp.Agent({
+    it('should asynchronously fetch cert', (cb) => {
+      const agent = new ocsp.Agent({
         port: sh.frontend.port,
         servername: 'sni.host'
       });
 
       // Nasty hack for node.js v0.12
-      var createConn = agent.createConnection;
+      const createConn = agent.createConnection;
       agent.createConnection = function createConnection(options) {
         options.servername = 'sni.host';
         return createConn.call(this, options);
       };
 
-      agentRequest(sh, agent, '/hello', function(res, chunks, info) {
+      agentRequest(sh, agent, '/hello', (res, chunks, info) => {
         assert.equal(sniBackend.misses, 0);
         assert.equal(sniBackend.hits, 1);
         assert.equal(ocspBackend.cacheHits, 0);
@@ -167,8 +169,8 @@ describe('Bud TLS Terminator/SNI', function() {
     });
   });
 
-  describe('sync sni+ocsp', function() {
-    var sh = fixtures.getServers({
+  describe('sync sni+ocsp', () => {
+    const sh = fixtures.getServers({
       contexts: [{
         servername: 'local.host',
         cert: fixtures.goodCert + '\n' + fixtures.issuerCert,
@@ -180,29 +182,29 @@ describe('Bud TLS Terminator/SNI', function() {
       }
     });
 
-    var ocspBackend;
-    beforeEach(function(cb) {
+    let ocspBackend;
+    beforeEach((cb) => {
       ocspBackend = fixtures.ocspBackend().listen(9001, cb);
     });
 
-    afterEach(function(cb) {
+    afterEach((cb) => {
       ocspBackend.close(cb);
     });
 
-    it('should still provide stapling response', function(cb) {
-      var agent = new ocsp.Agent({
+    it('should still provide stapling response', (cb) => {
+      const agent = new ocsp.Agent({
         port: sh.frontend.port,
         servername: 'local.host'
       });
 
       // Nasty hack for node.js v0.12
-      var createConn = agent.createConnection;
+      const createConn = agent.createConnection;
       agent.createConnection = function createConnection(options) {
         options.servername = 'local.host';
         return createConn.call(this, options);
       };
 
-      agentRequest(sh, agent, '/hello', function(res, chunks, info) {
+      agentRequest(sh, agent, '/hello', (res, chunks, info) => {
         assert.equal(ocspBackend.cacheHits, 0);
         assert.equal(ocspBackend.cacheMisses, 1);
 

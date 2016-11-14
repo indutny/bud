@@ -1,14 +1,16 @@
-var assert = require('assert');
-var fixtures = require('./fixtures');
-var ocsp = require('ocsp');
-var request = fixtures.request;
-var caRequest = fixtures.caRequest;
-var sniRequest = fixtures.sniRequest;
-var spdyRequest = fixtures.spdyRequest;
-var agentRequest = fixtures.agentRequest;
+'use strict';
 
-describe('Bud TLS Terminator/OCSP', function() {
-  var sh = fixtures.getServers({
+const assert = require('assert');
+const fixtures = require('./fixtures');
+const ocsp = require('ocsp');
+const request = fixtures.request;
+const caRequest = fixtures.caRequest;
+const sniRequest = fixtures.sniRequest;
+const spdyRequest = fixtures.spdyRequest;
+const agentRequest = fixtures.agentRequest;
+
+describe('Bud TLS Terminator/OCSP', () => {
+  const sh = fixtures.getServers({
     frontend: {
       key: [
         fixtures.goodKey,
@@ -25,22 +27,22 @@ describe('Bud TLS Terminator/OCSP', function() {
     }
   });
 
-  var ocspBackend;
-  beforeEach(function(cb) {
+  let ocspBackend;
+  beforeEach((cb) => {
     ocspBackend = fixtures.ocspBackend().listen(9000, cb);
   });
 
-  afterEach(function(cb) {
+  afterEach((cb) => {
     ocspBackend.close(cb);
   });
 
-  var agent = new ocsp.Agent({
+  const agent = new ocsp.Agent({
     port: sh.frontend.port,
     ciphers: 'RSA'
   });
 
-  it('should work', function(cb) {
-    agentRequest(sh, agent, '/hello', function(res, body, info) {
+  it('should work', (cb) => {
+    agentRequest(sh, agent, '/hello', (res, body, info) => {
       assert(!/ECDSA/i.test(info.cipher.name));
       assert.equal(sh.backends[0].requests, 1);
       assert.equal(ocspBackend.cacheHits, 0);
@@ -49,9 +51,9 @@ describe('Bud TLS Terminator/OCSP', function() {
     });
   });
 
-  it('should use cached results', function(cb) {
-    agentRequest(sh, agent, '/hello', function(res, body) {
-      agentRequest(sh, agent, '/hello', function(res, body, info) {
+  it('should use cached results', (cb) => {
+    agentRequest(sh, agent, '/hello', (res, body) => {
+      agentRequest(sh, agent, '/hello', (res, body, info) => {
         assert(!/ECDSA/i.test(info.cipher.name));
         assert.equal(sh.backends[0].requests, 2);
         assert.equal(ocspBackend.cacheHits, 1);
@@ -61,13 +63,13 @@ describe('Bud TLS Terminator/OCSP', function() {
     });
   });
 
-  it('should get ECC OCSP stapling', function(cb) {
-    var eccAgent = new ocsp.Agent({
+  it('should get ECC OCSP stapling', (cb) => {
+    const eccAgent = new ocsp.Agent({
       port: sh.frontend.port,
       cipher: 'ECDSA'
     });
 
-    agentRequest(sh, eccAgent, '/hello', function(res, body, info) {
+    agentRequest(sh, eccAgent, '/hello', (res, body, info) => {
       assert(/ECDSA/i.test(info.cipher.name));
       assert.equal(sh.backends[0].requests, 1);
       assert.equal(ocspBackend.cacheHits, 0);

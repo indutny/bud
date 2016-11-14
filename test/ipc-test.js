@@ -1,16 +1,18 @@
-var assert = require('assert');
-var tls = require('tls');
-var crypto = require('crypto');
-var fixtures = require('./fixtures');
+'use strict';
 
-describe('Bud TLS Terminator/IPC', function() {
-  describe('set ticket', function() {
-    var sh = fixtures.getServers({
+const assert = require('assert');
+const tls = require('tls');
+const crypto = require('crypto');
+const fixtures = require('./fixtures');
+
+describe('Bud TLS Terminator/IPC', () => {
+  describe('set ticket', () => {
+    const sh = fixtures.getServers({
       master_ipc: true
     });
 
     function changeKey(index, cb) {
-      var head = new Buffer(9);
+      const head = new Buffer(9);
 
       // type = setTicket
       head.writeUInt8(0x3, 0);
@@ -18,7 +20,7 @@ describe('Bud TLS Terminator/IPC', function() {
       head.writeUInt32BE(52, 1);
       head.writeUInt32BE(index, 5);
 
-      var msg = Buffer.concat([
+      const msg = Buffer.concat([
         head,
         crypto.randomBytes(48)
       ]);
@@ -26,17 +28,17 @@ describe('Bud TLS Terminator/IPC', function() {
       sh.frontend.server.proc.stdin.write(msg, cb);
     }
 
-    it('should change the ticket key', function(cb) {
-      var peer = tls.connect(sh.frontend.port, function() {
-        var session = peer.getSession();
-        var ticket = peer.getTLSTicket();
+    it('should change the ticket key', (cb) => {
+      let peer = tls.connect(sh.frontend.port, () => {
+        const session = peer.getSession();
+        const ticket = peer.getTLSTicket();
         peer.destroy();
 
         // It should reconnect and have the same ticket
         peer = tls.connect({
           port: sh.frontend.port,
           session: session
-        }, function() {
+        }, () => {
           assert.equal(ticket.toString('hex'),
                        peer.getTLSTicket().toString('hex'));
 
@@ -46,11 +48,11 @@ describe('Bud TLS Terminator/IPC', function() {
       });
 
       function next(session, ticket) {
-        changeKey(0, function() {
-          var peer = tls.connect({
+        changeKey(0, () => {
+          let peer = tls.connect({
             port: sh.frontend.port,
             session: session
-          }, function() {
+          }, () => {
             assert.notEqual(ticket.toString('hex'),
                             peer.getTLSTicket().toString('hex'));
 
@@ -62,7 +64,7 @@ describe('Bud TLS Terminator/IPC', function() {
             peer = tls.connect({
               port: sh.frontend.port,
               session: session
-            }, function() {
+            }, () => {
               assert.equal(ticket.toString('hex'),
                            peer.getTLSTicket().toString('hex'));
 
