@@ -653,11 +653,12 @@ int bud_config_select_alpn(SSL* ssl,
                                  in, inlen);
   switch (status) {
     case OPENSSL_NPN_NO_OVERLAP:
-      // According to 3.2. Protocol Selection of RFC7301,
-      // fatal no_application_protocol alert shall be sent
-      // but current openssl does not support it yet. See
-      // https://rt.openssl.org/Ticket/Display.html?id=3463&user=guest&pass=guest
-      // Instead, we send a warning alert for now.
+      /* According to 3.2. Protocol Selection of RFC7301,
+       * fatal no_application_protocol alert shall be sent
+       * but current openssl does not support it yet. See
+       * https://rt.openssl.org/Ticket/Display.html?id=3463&user=guest&pass=guest
+       * Instead, we send a warning alert for now.
+       */
       return SSL_TLSEXT_ERR_ALERT_WARNING;
     case OPENSSL_NPN_NEGOTIATED:
       return SSL_TLSEXT_ERR_OK;
