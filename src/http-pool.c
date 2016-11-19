@@ -261,7 +261,9 @@ void bud_http_request_error(bud_http_request_t* request, bud_error_t err) {
     return;
 
   if (!bud_is_ok(err)) {
-    bud_clog(request->pool->config, kBudLogWarning,
+    /* Warning if http_request attached to client, otherwise just notice */
+    bud_clog(request->pool->config,
+             QUEUE_EMPTY(&request->member) ? kBudLogWarning : kBudLogNotice,
              "pool %p request error %p: %s", request->pool, request,
              bud_error_to_str(err));
   }
