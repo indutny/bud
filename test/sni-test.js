@@ -116,6 +116,33 @@ describe('Bud TLS Terminator/SNI', () => {
     });
   });
 
+  describe('async sni with invalid JSON', () => {
+    const sh = fixtures.getServers({
+      log: { level: 'debug' },
+      sni: {
+        enabled: true,
+        port: 9000
+      }
+    });
+
+    let sniBackend;
+    beforeEach((cb) => {
+      sniBackend = fixtures.sniBackend().listen(9000, cb);
+    });
+
+    afterEach((cb) => {
+      sniBackend.close(cb);
+    });
+
+    it('should not crash', (cb) => {
+      sniRequest(sh, 'empty.json', '/hello', (err) => {
+        assert(err instanceof Error);
+        assert.equal(sniBackend.hits, 1);
+        cb();
+      });
+    });
+  });
+
   describe('async sni+ocsp', () => {
     const sh = fixtures.getServers({
       log: { level: 'debug' },

@@ -247,7 +247,7 @@ fixtures.sniRequest = function sniRequest(sh, name, uri, cb) {
     options.servername = name;
     return createConn.call(this, options);
   };
-  https.get(o, (res) => {
+  var req = https.get(o, (res) => {
     var chunks = '';
     var info = {
       cert: res.socket.getPeerCertificate(true),
@@ -259,6 +259,10 @@ fixtures.sniRequest = function sniRequest(sh, name, uri, cb) {
     res.on('end', () => {
       cb(res, chunks, info);
     });
+  });
+
+  req.on('error', (err) => {
+    cb(err);
   });
 };
 
@@ -433,6 +437,13 @@ fixtures.sniBackend = function sniBackend(options) {
       res.setHeader('Connection', 'close');
 
     var host = req.url.split('/')[3];
+    if (host === 'empty.json') {
+      server.hits++;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{}');
+      return;
+    }
+
     if (host !== 'sni.host') {
       server.misses++;
       res.writeHead(404, { 'Content-Type': 'application/json' });

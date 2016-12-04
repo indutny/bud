@@ -30,6 +30,8 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   key_strs = NULL;
   pass_strs = NULL;
 
+  memset(ctx, 0, sizeof(*ctx));
+
   obj = json_value_get_object(json);
   val = json_object_get_value(obj, "cert");
   if (json_value_get_type(val) == JSONString)
@@ -55,7 +57,6 @@ bud_error_t bud_sni_from_json(bud_config_t* config,
   }
 
   /* Load NPN from response */
-  memset(ctx, 0, sizeof(*ctx));
   ctx->cert_file = cert_str;
   ctx->key_file = key_str;
   ctx->key_pass = pass_str;
