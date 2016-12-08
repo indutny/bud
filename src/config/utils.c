@@ -61,7 +61,6 @@ int bud_config_str_to_addr(const char* host,
 int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
   int ret;
   X509* x;
-  X509* ca;
   int r;
   unsigned long err;
   bud_context_pkey_type_t type;
@@ -92,12 +91,14 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
   }
 
   if (ret) {
+    X509* ca;
+
     while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
       /*
        * Extra cert - add it to store to make OpenSSL pick and send proper
        * certs automatically
        */
-      r = SSL_CTX_add1_chain_cert(ctx->ctx, ca);
+      r = SSL_CTX_add0_chain_cert(ctx->ctx, ca);
       if (!r) {
         X509_free(ca);
         ret = 0;
