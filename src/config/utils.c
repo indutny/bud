@@ -10,7 +10,6 @@
 
 #include "openssl/bio.h"
 #include "openssl/err.h"
-#include "openssl/ocsp.h"
 #include "openssl/ssl.h"
 #include "openssl/x509.h"
 #include "openssl/x509v3.h"
@@ -21,6 +20,7 @@
 #include "src/config/utils.h"
 #include "src/common.h"
 #include "src/config.h"
+#include "src/shim/ocsp/ocsp.h"
 
 int bud_config_str_to_addr(const char* host,
                            uint16_t port,
@@ -65,6 +65,7 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
   unsigned long err;
   bud_context_pkey_type_t type;
   bud_context_pem_t* pem;
+  EVP_PKEY* pubkey;
 
   ERR_clear_error();
 
@@ -78,8 +79,17 @@ int bud_context_use_certificate_chain(bud_context_t* ctx, BIO *in) {
   }
 
   ret = SSL_CTX_use_certificate(ctx->ctx, x);
+#ifndef OPENSSL_IS_BORINGSSL
   SSL_CTX_select_current_cert(ctx->ctx, x);
-  type = bud_config_pkey_type(x->cert_info->key->pkey);
+#endif  /* !OPENSSL_IS_BORINGSSL */
+  pubkey = X509_get_pubkey(x);
+  if (pubkey == NULL) {
+    X509_free(x);
+    SSLerr(SSL_F_SSL_CTX_USE_CERTIFICATE_CHAIN_FILE, ERR_R_PEM_LIB);
+    goto end;
+  }
+  type = bud_config_pkey_type(pubkey);
+  EVP_PKEY_free(pubkey);
 
   pem = &ctx->pem[type];
   pem->cert = x;
@@ -148,7 +158,11 @@ end:
       /* NOTE: get_cert_store doesn't increment reference count */
     } else {
       /* Increment issuer reference count */
+#ifndef OPENSSL_IS_BORINGSSL
       CRYPTO_add(&pem->issuer->references, 1, CRYPTO_LOCK_X509);
+#else
+      X509_up_ref(pem->issuer);
+#endif  /* OPENSSL_IS_BORINGSSL */
     }
 
     if (pem->issuer != NULL) {
@@ -316,9 +330,11 @@ bud_context_pkey_type_t bud_context_select_pkey(bud_context_t* context,
   /* Use session cipher */
   cipher = sess->cipher;
 
+#ifndef OPENSSL_IS_BORINGSSL
   /* Select cipher */
   if (cipher == NULL)
     cipher = ssl3_choose_cipher(s, sess->ciphers, SSL_get_ciphers(s));
+#endif  /* OPENSSL_IS_BORINGSSL */
 
   if (cipher == NULL)
     return kBudContextPKeyRSA;

@@ -375,7 +375,7 @@ fixtures.ocspBackend = function ocspBackend() {
   });
 
   ocspServer.addCert(43, 'good');
-  ocspServer.addCert('ff998c4ccfc2c839', 'good');
+  ocspServer.addCert('dca0e61e70484e83', 'good');
   ocspServer.addCert(44, 'revoked', {
     revocationTime: new Date(),
     revocationReason: 'CACompromise'

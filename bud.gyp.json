@@ -1,7 +1,7 @@
 {
   "variables": {
     "openssl_fips%": "",
-    "LIBOPENSSL": "<(PRODUCT_DIR)/libopenssl.a",
+    "LIBOPENSSL": "<(PRODUCT_DIR)/libboringssl.a",
     "gypkg_deps": [
       "git://github.com/libuv/libuv.git@^1.9.0 => uv.gyp:libuv",
       "git://github.com/nodejs/http-parser@^2.7.1 [gpg] => http_parser.gyp:http_parser",

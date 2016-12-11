@@ -11,6 +11,9 @@ const agentRequest = fixtures.agentRequest;
 
 describe('Bud TLS Terminator/OCSP', () => {
   const sh = fixtures.getServers({
+    log: {
+      level: 'debug'
+    },
     frontend: {
       key: [
         fixtures.goodKey,

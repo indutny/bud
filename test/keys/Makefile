@@ -1,4 +1,4 @@
-all: agent1-cert.pem agent2-cert.pem agent3-cert.pem agent4-cert.pem ca2-crl.pem ec-cert.pem
+all: agent1-cert.pem agent2-cert.pem agent3-cert.pem agent4-cert.pem ca2-crl.pem ec-cert.pem issuer-cert.pem good-cert.pem
 
 
 #
@@ -144,6 +144,27 @@ ec-cert.pem: ec-csr.pem ec-key.pem
 		-in ec-csr.pem \
 		-signkey ec-key.pem \
 		-out ec-cert.pem
+
+issuer-cert.pem: issuer.cnf
+	openssl req -new -x509 -days 9999 -config issuer.cnf -keyout issuer-key.pem -out issuer-cert.pem
+	openssl rsa -in issuer-key.pem -passin 'pass:password' -out issuer-key.pem
+
+good-key.pem:
+	openssl genrsa -out good-key.pem 1024
+
+good-csr.pem: good.cnf good-key.pem
+	openssl req -new -config good.cnf -key good-key.pem -out good-csr.pem
+
+good-cert.pem: good-csr.pem issuer-cert.pem issuer-key.pem
+	openssl x509 -req \
+		-extfile good.cnf \
+		-extensions v3_ca \
+		-days 9999 \
+		-in good-csr.pem \
+		-CA issuer-cert.pem \
+		-CAkey issuer-key.pem \
+		-CAcreateserial \
+		-out good-cert.pem
 
 clean:
 	rm -f *.pem *.srl ca2-database.txt ca2-serial

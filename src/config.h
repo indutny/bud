@@ -5,7 +5,6 @@
 
 #include "uv.h"
 #include "openssl/bio.h"
-#include "openssl/ocsp.h"
 #include "openssl/ssl.h"
 #include "openssl/x509.h"
 #include "parson.h"
@@ -14,6 +13,7 @@
 #include "src/common.h"
 #include "src/error.h"
 #include "src/ipc.h"
+#include "src/shim/ocsp/ocsp.h"
 
 /* Forward declarations */
 struct bud_server_s;

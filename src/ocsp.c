@@ -1,7 +1,6 @@
 #include <stdlib.h>  /* NULL */
 #include <string.h>  /* strlen */
 
-#include "openssl/ocsp.h"
 #include "openssl/ssl.h"
 #include "parson.h"
 
@@ -12,6 +11,7 @@
 #include "src/config.h"
 #include "src/error.h"
 #include "src/http-pool.h"
+#include "src/shim/ocsp/ocsp.h"
 
 static void bud_client_stapling_cache_req_cb(bud_http_request_t* req,
                                              bud_error_t err);
@@ -249,12 +249,19 @@ int bud_client_staple_json(bud_client_t* client, JSON_Value* json) {
   body = NULL;
   r = 0;
 
+#ifdef OPENSSL_IS_BORINGSSL
+  SSL_set_ocsp_response(client->ssl,
+                        (const uint8_t*) client->stapling_ocsp_resp,
+                        client->stapling_ocsp_resp_len);
+#endif  /* OPENSSL_IS_BORINGSSL */
+
 done:
   free(body);
   return r;
 }
 
 
+#ifndef OPENSSL_IS_BORINGSSL
 int bud_client_stapling_cb(SSL* ssl, void* arg) {
   bud_client_t* client;
 
@@ -268,3 +275,4 @@ int bud_client_stapling_cb(SSL* ssl, void* arg) {
   client->stapling_ocsp_resp = NULL;
   return SSL_TLSEXT_ERR_OK;
 }
+#endif  /* !OPENSSL_IS_BORINGSSL */

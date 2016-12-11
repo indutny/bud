@@ -7,7 +7,6 @@
 #include "uv.h"
 #include "openssl/bio.h"
 #include "openssl/err.h"
-#include "openssl/ocsp.h"
 #include "openssl/ssl.h"
 #include "openssl/x509.h"
 #include "openssl/x509v3.h"
@@ -26,6 +25,7 @@
 #include "src/http-pool.h"
 #include "src/logger.h"
 #include "src/master.h"  /* bud_worker_t */
+#include "src/shim/ocsp/ocsp.h"
 #include "src/version.h"
 
 static bud_error_t bud_config_init(bud_config_t* config);

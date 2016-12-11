@@ -1221,13 +1221,12 @@ int bud_client_ssl_cert_cb(SSL* ssl, void* arg) {
 
   /* Set hello */
   sess = SSL_get_session(ssl);
-  if (sess == NULL || sess->tlsext_hostname == NULL) {
-    client->hello.servername = NULL;
+  client->hello.servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+  if (client->hello.servername == NULL)
     client->hello.servername_len = 0;
-  } else {
-    client->hello.servername = sess->tlsext_hostname;
-    client->hello.servername_len = strlen(sess->tlsext_hostname);
-  }
+  else
+    client->hello.servername_len = strlen(client->hello.servername);
+
   client->hello.ocsp_request =
       ssl->tlsext_status_type == TLSEXT_STATUSTYPE_ocsp ? 1 : 0;
 

@@ -1,11 +1,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "openssl/ocsp.h"
-
 #include "src/config/ocsp.h"
 #include "src/common.h"
 #include "src/config.h"
+#include "src/shim/ocsp/ocsp.h"
 
 const char* bud_context_get_ocsp_id(bud_context_t* context,
                                     bud_context_pkey_type_t type,

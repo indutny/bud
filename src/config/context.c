@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "openssl/ocsp.h"
 #include "openssl/ssl.h"
 #include "openssl/x509.h"
 #include "openssl/x509v3.h"
@@ -14,6 +13,7 @@
 #include "src/config.h"
 #include "src/config/ticket.h"
 #include "src/ocsp.h"
+#include "src/shim/ocsp/ocsp.h"
 
 
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
@@ -478,7 +478,9 @@ bud_error_t bud_context_init(bud_config_t* config,
   goto fatal;
 #endif  /* OPENSSL_NPN_NEGOTIATED */
 
+#ifndef OPENSSL_IS_BORINGSSL
   SSL_CTX_set_tlsext_status_cb(ctx, bud_client_stapling_cb);
+#endif  /* !OPENSSL_IS_BORINGSSL */
 
   context->balance_e = bud_config_balance_to_enum(context->balance);
   if (context->balance_e == kBudBalanceSNI) {
