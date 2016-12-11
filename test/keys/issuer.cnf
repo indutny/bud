@@ -8,13 +8,7 @@ output_password        = password
 x509_extensions        = v3_ca
 
 [ req_distinguished_name ]
-C                      = US
-ST                     = CA
-L                      = SF
-O                      = Joyent
-OU                     = Node.js
-CN                     = ca1
-emailAddress           = ry@tinyclouds.org
+CN                     = mega.ca
 
 [ req_attributes ]
 challengePassword              = A challenge password

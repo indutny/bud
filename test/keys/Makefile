@@ -132,22 +132,26 @@ ca2-crl.pem: ca2-key.pem ca2-cert.pem ca2.cnf
 		-out ca2-crl.pem \
 		-passin 'pass:password'
 
+issuer-cert.pem: issuer.cnf
+	openssl req -new -x509 -days 9999 -config issuer.cnf -keyout issuer-key.pem -out issuer-cert.pem
+	openssl rsa -in issuer-key.pem -passin 'pass:password' -out issuer-key.pem
+
 ec-key.pem:
 	openssl ecparam -genkey -out ec-key.pem -name prime256v1
 
 ec-csr.pem: ec-key.pem
 	openssl req -new -config ec.cnf -key ec-key.pem -out ec-csr.pem
 
-ec-cert.pem: ec-csr.pem ec-key.pem
+ec-cert.pem: ec-csr.pem ec-key.pem issuer-cert.pem issuer-key.pem
 	openssl x509 -req \
+		-extfile ec.cnf \
+		-extensions v3_ca \
 		-days 9999 \
 		-in ec-csr.pem \
-		-signkey ec-key.pem \
+		-CA issuer-cert.pem \
+		-CAkey issuer-key.pem \
+		-CAcreateserial \
 		-out ec-cert.pem
-
-issuer-cert.pem: issuer.cnf
-	openssl req -new -x509 -days 9999 -config issuer.cnf -keyout issuer-key.pem -out issuer-cert.pem
-	openssl rsa -in issuer-key.pem -passin 'pass:password' -out issuer-key.pem
 
 good-key.pem:
 	openssl genrsa -out good-key.pem 1024
