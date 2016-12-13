@@ -44,6 +44,7 @@ bud_error_t bud_client_ocsp_stapling(bud_client_t* client) {
 
   type = bud_context_select_pkey(context, client->ssl);
   client->stapling_type = type;
+  DBG(&client->backend, "stapling key type %d", type);
 
   /* Cache context to prevent second search in OpenSSL's callback */
   if (!SSL_set_ex_data(client->ssl, kBudSSLSNIIndex, context)) {
