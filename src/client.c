@@ -1227,8 +1227,10 @@ int bud_client_ssl_cert_cb(SSL* ssl, void* arg) {
   else
     client->hello.servername_len = strlen(client->hello.servername);
 
+#ifndef OPENSSL_IS_BORINGSSL
   client->hello.ocsp_request =
       ssl->tlsext_status_type == TLSEXT_STATUSTYPE_ocsp ? 1 : 0;
+#endif  /* !OPENSSL_IS_BORINGSSL */
 
   err = bud_client_on_hello(client);
   if (!bud_is_ok(err.err))
@@ -1278,6 +1280,25 @@ fatal:
   client->async_hello = kBudProgressDone;
   return bud_client_error(err, &client->frontend);
 }
+
+
+#ifdef OPENSSL_IS_BORINGSSL
+int bud_client_client_hello_cb(const SSL_CLIENT_HELLO* hello) {
+  bud_client_t* client;
+  const uint8_t* ext;
+  size_t ext_len;
+
+  client = SSL_get_ex_data(hello->ssl, kBudSSLClientIndex);
+
+  client->hello.ocsp_request = SSL_early_callback_ctx_extension_get(
+      hello, TLSEXT_TYPE_status_request, &ext, &ext_len);
+
+  DBG(&client->backend, "client_hello_cb ocsp=%d", client->hello.ocsp_request);
+
+  /* TODO(indutny): use this instead of set_cert_cb()? */
+  return 1;
+}
+#endif  /* OPENSSL_IS_BORINGSSL */
 
 
 void bud_client_ssl_info_cb(const SSL* ssl, int where, int ret) {

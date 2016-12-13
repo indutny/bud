@@ -88,4 +88,8 @@ struct bud_client_s {
 
 void bud_client_create(bud_config_t* config, uv_stream_t* stream);
 
+#ifdef OPENSSL_IS_BORINGSSL
+int bud_client_client_hello_cb(const SSL_CLIENT_HELLO* hello);
+#endif  /* OPENSSL_IS_BORINGSSL */
+
 #endif  /* SRC_CLIENT_H_ */

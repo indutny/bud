@@ -83,7 +83,7 @@ describe('Bud TLS Terminator/SNI', () => {
           sniRequest(sh, 'sni.host', '/hello', (res, chunks, info) => {
             assert.equal(sniBackend.misses, 1);
             assert.equal(sniBackend.hits, 1);
-            assert.equal(info.cert.serialNumber, '2B');
+            assert.equal(info.cert.serialNumber, 'DCA0E61E70484E8F');
             assert.equal(info.cipher.name, 'AES128-SHA');
             cb();
           });
@@ -189,7 +189,7 @@ describe('Bud TLS Terminator/SNI', () => {
         assert.equal(ocspBackend.cacheHits, 0);
         assert.equal(ocspBackend.cacheMisses, 1);
 
-        assert.equal(info.cert.serialNumber, '2B');
+        assert.equal(info.cert.serialNumber, 'DCA0E61E70484E8F');
         assert.equal(info.cipher.name, 'AES128-SHA');
         cb();
       });
@@ -235,7 +235,7 @@ describe('Bud TLS Terminator/SNI', () => {
         assert.equal(ocspBackend.cacheHits, 0);
         assert.equal(ocspBackend.cacheMisses, 1);
 
-        assert.equal(info.cert.serialNumber, '2B');
+        assert.equal(info.cert.serialNumber, 'DCA0E61E70484E8F');
         cb();
       });
     });

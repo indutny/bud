@@ -482,6 +482,10 @@ bud_error_t bud_context_init(bud_config_t* config,
   SSL_CTX_set_tlsext_status_cb(ctx, bud_client_stapling_cb);
 #endif  /* !OPENSSL_IS_BORINGSSL */
 
+#ifdef OPENSSL_IS_BORINGSSL
+  SSL_CTX_set_select_certificate_cb(ctx, bud_client_client_hello_cb);
+#endif  /* OPENSSL_IS_BORINGSSL */
+
   context->balance_e = bud_config_balance_to_enum(context->balance);
   if (context->balance_e == kBudBalanceSNI) {
     err = bud_error_dstr(kBudErrInvalidBalance, context->balance);

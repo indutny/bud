@@ -374,7 +374,6 @@ fixtures.ocspBackend = function ocspBackend() {
     key: fixtures.issuerKey
   });
 
-  ocspServer.addCert(43, 'good');
   ocspServer.addCert('dca0e61e70484e8f', 'good');
   ocspServer.addCert('dca0e61e70484e90', 'good');
   ocspServer.addCert(44, 'revoked', {
