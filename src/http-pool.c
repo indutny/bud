@@ -180,6 +180,9 @@ bud_http_request_t* bud_http_request(bud_http_pool_t* pool,
     QUEUE_INIT(q);
     req = QUEUE_DATA(q, bud_http_request_t, member);
 
+    free(req->url);
+    req->url = NULL;
+
     bud_clog(pool->config, kBudLogDebug, "pool %p reuse request %p", pool, req);
     QUEUE_INSERT_TAIL(&pool->reqs, &req->member);
   }
