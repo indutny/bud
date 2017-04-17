@@ -283,6 +283,11 @@ struct bud_config_s {
   bud_config_frontend_t frontend;
   const char* balance;
 
+  struct {
+    const char* name;
+    unsigned int flags;
+  } engine;
+
   const char* user;
   const char* group;
 

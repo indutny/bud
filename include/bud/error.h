@@ -50,6 +50,8 @@ enum bud_error_code_e {
   kBudErrNoConfig = 0x11d,
   kBudErrFSRead = 0x11e,
   kBudErrRotateTimer = 0x11f,
+  kBudErrEngineLoad = 0x120,
+  kBudErrEngineNotFound = 0x121,
 
   /* Master/Worker errors */
   kBudErrForkFailed = 0x200,

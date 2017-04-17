@@ -9,6 +9,7 @@
 #endif
 
 #include "openssl/bio.h"
+#include "openssl/engine.h"
 #include "openssl/err.h"
 #include "openssl/ocsp.h"
 #include "openssl/ssl.h"
@@ -482,6 +483,87 @@ bud_error_t bud_config_verify_all_strings(const JSON_Array* arr,
       continue;
     return bud_error_dstr(kBudErrNonString, name);
   }
+
+  return bud_ok();
+}
+
+
+#define FLAG_CHECK(STR, NAME, CAP_NAME)                                       \
+    if (strncmp((STR), #NAME, sizeof(#NAME) - 1) == 0) {                      \
+      res |= ENGINE_METHOD_##CAP_NAME;                                        \
+      continue;                                                               \
+    }
+
+
+unsigned int bud_config_get_engine_flags(bud_config_t* config,
+                                         const JSON_Array* flags) {
+  int i;
+  int count;
+  unsigned int res;
+
+  if (flags == NULL)
+    return ENGINE_METHOD_ALL;
+
+  res = 0;
+
+  count = json_array_get_count(flags);
+  for (i = 0; i < count; i++) {
+    const char* flag;
+
+    flag = json_array_get_string(flags, i);
+    if (flag == NULL)
+      continue;
+
+    FLAG_CHECK(flag, rsa, RSA);
+    FLAG_CHECK(flag, dsa, DSA);
+    FLAG_CHECK(flag, dh, DH);
+    FLAG_CHECK(flag, rand, RAND);
+    FLAG_CHECK(flag, ecdh, ECDH);
+    FLAG_CHECK(flag, ecdsa, ECDSA);
+    FLAG_CHECK(flag, ciphers, CIPHERS);
+    FLAG_CHECK(flag, digests, DIGESTS);
+    FLAG_CHECK(flag, store, STORE);
+    FLAG_CHECK(flag, pkey_meths, PKEY_METHS);
+    FLAG_CHECK(flag, pkey_asn1_meths, PKEY_ASN1_METHS);
+    FLAG_CHECK(flag, all, ALL);
+  }
+
+  return res;
+}
+
+
+bud_error_t bud_config_set_engine(bud_config_t* config,
+                                  const char* name,
+                                  unsigned int flags) {
+  ENGINE* engine;
+  int r;
+
+  engine = ENGINE_by_id(name);
+
+  // Engine not found, try loading dynamically
+  if (engine == NULL) {
+    engine = ENGINE_by_id("dynamic");
+    if (engine != NULL) {
+      if (!ENGINE_ctrl_cmd_string(engine, "SO_PATH", name, 0) ||
+          !ENGINE_ctrl_cmd_string(engine, "LOAD", NULL, 0)) {
+        ENGINE_free(engine);
+        engine = NULL;
+      }
+    }
+  }
+
+  if (engine == NULL) {
+    int err = ERR_get_error();
+    if (err == 0)
+      return bud_error(kBudErrEngineNotFound);
+    else
+      return bud_error(kBudErrEngineLoad);
+  }
+
+  r = ENGINE_set_default(engine, flags);
+  ENGINE_free(engine);
+  if (r == 0)
+    return bud_error(kBudErrEngineLoad);
 
   return bud_ok();
 }

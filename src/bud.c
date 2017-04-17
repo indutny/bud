@@ -6,6 +6,7 @@
 
 #include "openssl/rand.h"
 #include "openssl/ssl.h"
+#include "openssl/engine.h"
 #include "openssl/err.h"
 
 #include "src/config.h"
@@ -101,4 +102,6 @@ void bud_init_openssl() {
   OpenSSL_add_all_digests();
   SSL_load_error_strings();
   ERR_load_crypto_strings();
+  ERR_load_ENGINE_strings();
+  ENGINE_load_builtin_engines();
 }

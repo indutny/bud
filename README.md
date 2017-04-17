@@ -249,6 +249,17 @@ to get the default configuration options (with comments and description below):
   "user": null,
   "group": null,
 
+  // Optional OpenSSL engine to us
+  // Could be:
+  //   "name": "/path/to/engine.so",
+  //   "flags": [ "rsa", "dsa" ] or [ "all" ]
+  //
+  // Leave "flags" `null` to use "all" by default
+  "engine": {
+    "name": null,
+    "flags": null
+  },
+
   // Backend configuration (i.e. address of Cleartext server)
   "backend": [{
     "port": 8000,

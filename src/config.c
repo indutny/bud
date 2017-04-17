@@ -192,6 +192,7 @@ bud_error_t bud_config_load(bud_config_t* config) {
   JSON_Object* obj;
   JSON_Object* log;
   JSON_Object* avail;
+  JSON_Object* engine;
   JSON_Array* contexts;
 
   if (config->piped) {
@@ -320,6 +321,16 @@ bud_error_t bud_config_load(bud_config_t* config) {
                                       &config->contexts[0].backend);
   if (!bud_is_ok(err))
     goto failed_alloc_contexts;
+
+  /* OpenSSL engine */
+  engine = json_object_get_object(obj, "engine");
+  if (engine != NULL) {
+    JSON_Array* flags;
+
+    config->engine.name = json_object_get_string(engine, "name");
+    flags = json_object_get_array(engine, "flags");
+    config->engine.flags = bud_config_get_engine_flags(config, flags);
+  }
 
   /* User and group configuration */
   config->user = json_object_get_string(obj, "user");
@@ -721,6 +732,10 @@ void bud_config_print_default() {
   fprintf(stdout, "    \"reneg_limit\": %d\n", config.frontend.reneg_limit);
   fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"balance\": \"%s\",\n", config.balance);
+  fprintf(stdout, "  \"engine\": {\n");
+  fprintf(stdout, "    \"name\": null,\n");
+  fprintf(stdout, "    \"flags\": null\n");
+  fprintf(stdout, "  },\n");
   fprintf(stdout, "  \"user\": null,\n");
   fprintf(stdout, "  \"group\": null,\n");
   fprintf(stdout, "  \"backend\": [{\n");
@@ -891,6 +906,15 @@ bud_error_t bud_config_init(bud_config_t* config) {
       config->balance_e != kBudBalanceSNI) {
     err = bud_error(kBudErrNoBackend);
     goto fatal;
+  }
+
+  /* Select OpenSSL engine */
+  if (config->engine.name != NULL) {
+    err = bud_config_set_engine(config,
+                                config->engine.name,
+                                config->engine.flags);
+    if (!bud_is_ok(err))
+      goto fatal;
   }
 
   /* Get indexes for SSL_set_ex_data()/SSL_get_ex_data() */

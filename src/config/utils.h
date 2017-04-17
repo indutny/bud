@@ -26,4 +26,10 @@ bud_error_t bud_config_load_ca_file(X509_STORE** store,
 bud_error_t bud_config_verify_all_strings(const JSON_Array* npn,
                                           const char* name);
 
+unsigned int bud_config_get_engine_flags(bud_config_t* config,
+                                         const JSON_Array* flags);
+bud_error_t bud_config_set_engine(bud_config_t* config,
+                                  const char* name,
+                                  unsigned int flags);
+
 #endif  /* SRC_CONFIG_UTILS_H_ */
