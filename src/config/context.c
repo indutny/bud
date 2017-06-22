@@ -511,6 +511,8 @@ bud_error_t bud_context_init(bud_config_t* config,
       err = bud_error_num(kBudErrRotateTimer, r);
       goto fatal;
     }
+
+    uv_unref((uv_handle_t*) context->rotate_timer);
   }
 
   context->ctx = ctx;
