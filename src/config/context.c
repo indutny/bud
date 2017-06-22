@@ -280,7 +280,7 @@ bud_error_t bud_context_init(bud_config_t* config,
   int ecdh_nid;
   EC_KEY* ecdh;
   bud_error_t err;
-  int options;
+  long options;
   bud_context_t* ticket_context;
 
   context->config = config;
