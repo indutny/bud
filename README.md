@@ -2,6 +2,8 @@
 [![Build Status](https://secure.travis-ci.org/indutny/bud.svg)](http://travis-ci.org/indutny/bud)
 [![NPM version](https://badge.fury.io/js/bud.svg)](http://badge.fury.io/js/bud)
 
+**THIS PROJECT IS NOT MAINTAINED ANYMORE**
+
 A TLS terminator for superheroes.
 
 ## What is bud?
